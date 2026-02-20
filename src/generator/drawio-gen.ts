@@ -16,12 +16,10 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   // Build nodeId → groupId map for parent assignment
   const nodeGroupMap = new Map<string, string>(); // nodeId → groupId
   const groups = model.groups || [];
-  // Build groupId set and parent→children map for containment edge detection
+  // Build groupId set for compound edge detection
   const groupIdSet = new Set<string>();
-  const groupParentMap = new Map<string, string | undefined>(); // groupId → parentId
   for (const g of groups) {
     groupIdSet.add(g.id);
-    groupParentMap.set(g.id, g.parentId);
     for (const childId of g.children || []) {
       nodeGroupMap.set(childId, g.id);
     }
@@ -118,29 +116,23 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     const sourceId = edge.fromPort ? `${edge.from}::${edge.fromPort}` : edge.from;
     const targetId = edge.toPort ? `${edge.to}::${edge.toPort}` : edge.to;
 
-    // Detect containment edges: if source group is an ancestor of target group
-    // (or vice versa), omit the ancestor from source/target to prevent DrawIO
-    // from clipping the edge to the ancestor's border — it should float inside.
-    let omitSource = false;
-    let omitTarget = false;
-    if (groupIdSet.has(edge.from) && groupIdSet.has(edge.to)) {
-      // Check if from is ancestor of to
-      let cur: string | undefined = edge.to;
-      while (cur) {
-        const p = groupParentMap.get(cur);
-        if (p === edge.from) { omitSource = true; break; }
-        cur = p;
-      }
-      if (!omitSource) {
-        // Check if to is ancestor of from
-        cur = edge.from;
-        while (cur) {
-          const p = groupParentMap.get(cur);
-          if (p === edge.to) { omitTarget = true; break; }
-          cur = p;
-        }
-      }
-    }
+    // Omit source/target cell references for group (compound) endpoints.
+    // When an edge connects to a group, Graphviz (compound=true + lhead/ltail)
+    // clips the B-spline at the cluster boundary and we store that endpoint in
+    // sourcePoint/targetPoint.  If we also set source/target to the group cell,
+    // drawio2svg's perimeter projection recalculates the endpoint by shooting a
+    // ray from the cell center → nearest waypoint, which differs from the
+    // Graphviz endpoint and causes visible path distortion (bends/twists near
+    // the group border).  Omitting the cell reference lets drawio2svg use our
+    // exact B-spline endpoint coordinates instead.
+    //
+    // Exception: group self-loops (from === to && both are groups).  Graphviz's
+    // compound self-loop routes through the representative node interior, not
+    // around the cluster boundary.  We keep source/target so DrawIO draws its
+    // own self-loop around the group cell.
+    const isGroupSelfLoop = edge.from === edge.to && groupIdSet.has(edge.from);
+    let omitSource = !isGroupSelfLoop && groupIdSet.has(edge.from);
+    let omitTarget = !isGroupSelfLoop && groupIdSet.has(edge.to);
 
     const layoutEdge = layout.edges?.find((le) => le.id === edge.id);
     let points = layoutEdge?.points || null;

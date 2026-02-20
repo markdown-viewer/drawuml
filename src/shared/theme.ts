@@ -84,7 +84,7 @@ export const DESTROY_STROKE = '#A80036';
 // ---------------------------------------------------------------------------
 
 /** Minimum horizontal gap between nodes in the same rank (px). */
-export const DOT_NODESEP_PX = 30;
+export const DOT_NODESEP_PX = 40;
 
 /** Minimum vertical gap between ranks (px). */
 export const DOT_RANKSEP_PX = 50;
@@ -92,5 +92,7 @@ export const DOT_RANKSEP_PX = 50;
 /** Target maximum row width for orphan node packing (px). */
 export const DOT_MAX_ROW_WIDTH = 700;
 
-/** Font size for DOT edge/node labels (matches PlantUML default). */
-export const DOT_FONT_SIZE = 11;
+/** Font size for DOT edge/node labels.
+ *  Must be >= the actual rendered font (LABEL 13, TITLE 14) so Graphviz
+ *  reserves enough space for titles and labels. */
+export const DOT_FONT_SIZE = 14;
