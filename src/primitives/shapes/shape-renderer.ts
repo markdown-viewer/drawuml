@@ -65,6 +65,11 @@ export abstract class ShapeRenderer extends Renderer {
     let s = this.buildStyle();
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
     if (!this.isCluster) s = s.replace('container=1;', '');
+
+    // Apply parsed inline style via base class utility
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+    s = styledS;
+
     const cells = [mxVertex({
       id: this.id,
       value: this.isCluster ? labelHtml : '',
@@ -73,10 +78,11 @@ export abstract class ShapeRenderer extends Renderer {
       x: box.x, y: box.y, width: box.width, height: box.height,
     })];
     if (!this.isCluster && labelHtml) {
+      const labelStyle = `fontSize=${DEFAULT_FONT_SIZE};${fontColorOverride || `fontColor=${COLOR_DARK};`}`;
       cells.push(mxContentLabel(
         this.id, labelHtml,
         box.width - this.contentWidthReduction, box.height,
-        `fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};`,
+        labelStyle,
         this.contentYOffset, this.contentXOffset,
       ));
     }

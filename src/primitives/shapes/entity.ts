@@ -62,6 +62,9 @@ class EntityRenderer extends Renderer {
       + `fillColor=none;strokeColor=${COLOR_DARK};strokeWidth=0.5;`
       + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;`;
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+    s = styledS;
+    if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
       id: this.id, value: labelHtml, style: s,
       parent: this.parentId || '1',

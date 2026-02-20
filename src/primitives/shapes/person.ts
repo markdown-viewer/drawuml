@@ -7,6 +7,7 @@
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { ShapeRenderer } from './shape-renderer.ts';
+import { Renderer } from '../renderer.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
@@ -25,6 +26,9 @@ class PersonRenderer extends ShapeRenderer {
     const labelHtml = Content.inline(this.label).html;
     let s = this.buildStyle();
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+    s = styledS;
+    if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
       id: this.id, value: labelHtml, style: s,
       parent: this.parentId || '1',

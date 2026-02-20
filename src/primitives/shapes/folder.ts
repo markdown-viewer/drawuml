@@ -8,6 +8,7 @@
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { ShapeRenderer } from './shape-renderer.ts';
+import { Renderer } from '../renderer.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
@@ -36,6 +37,9 @@ class FolderRenderer extends ShapeRenderer {
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
     // Package: label always in folder tab (value), no content label
     if (this.isPackage) {
+      const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+      s = styledS;
+      if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
       if (!this.isCluster) s = s.replace('container=1;', '');
       return [mxVertex({
         id: this.id, value: labelHtml, style: s,

@@ -228,8 +228,11 @@ export function parseBracketEdgeStyle(raw: string | null | undefined): ParsedEdg
     } else if (p.startsWith('thickness=')) {
       result.thickness = parseInt(p.slice(10), 10) || 1;
     } else {
-      // Color value (with or without leading #)
-      result.strokeColor = resolveColor(p);
+      // Color value (with or without leading #).
+      // PlantUML supports multi-color specs separated by ';' (e.g. "#blue;#green").
+      // Use the first color for stroke.
+      const colorPart = p.includes(';') ? p.split(';')[0].trim() : p;
+      result.strokeColor = resolveColor(colorPart);
     }
   }
   return Object.keys(result).length > 0 ? result : null;

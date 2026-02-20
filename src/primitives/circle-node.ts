@@ -63,9 +63,12 @@ class CircleNodeRenderer extends Renderer {
     const cy = box.y;
     // Use actual text width as labelWidth to prevent wrapping without over-expanding
     const labelWidth = Math.max(this.textWidth + 4, cw);
-    const style = CIRCLE_STYLE + `labelWidth=${labelWidth};`;
+    let s = CIRCLE_STYLE + `labelWidth=${labelWidth};`;
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, (this.node as any).style);
+    s = styledS;
+    if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
-      id: this.node.id, value: this.labelHtml, style,
+      id: this.node.id, value: this.labelHtml, style: s,
       x: cx, y: cy, width: cw, height: ch,
     })];
   }

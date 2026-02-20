@@ -7,6 +7,7 @@
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { ShapeRenderer } from './shape-renderer.ts';
+import { Renderer } from '../renderer.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
@@ -28,9 +29,13 @@ class CollectionsRenderer extends ShapeRenderer {
     const labelHtml = Content.inline(this.label).html;
     const cells: string[] = [];
 
+    // Apply inline style
+    const { style: _unused, fontColorOverride } = Renderer.applyInlineStyle('fillColor=none;', this.desc.style);
+
     // Back rectangle (offset to bottom-right)
     let bs = `rounded=0;fillColor=none;strokeColor=${COLOR_DARK};`;
     if (this.color) bs = bs.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
+    { const r = Renderer.applyInlineStyle(bs, this.desc.style); bs = r.style; }
     cells.push(mxVertex({
       id: `${this.id}__back`, value: '', style: bs,
       parent: this.parentId || '1',
@@ -41,6 +46,8 @@ class CollectionsRenderer extends ShapeRenderer {
     // Front rectangle (main)
     let fs = this.buildStyle();
     if (this.color) fs = fs.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
+    { const r = Renderer.applyInlineStyle(fs, this.desc.style); fs = r.style; }
+    if (fontColorOverride) fs = fs.replace(/fontColor=[^;]*;/, fontColorOverride);
     cells.push(mxVertex({
       id: this.id, value: labelHtml, style: fs,
       parent: this.parentId || '1',

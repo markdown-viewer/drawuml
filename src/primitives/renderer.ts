@@ -19,6 +19,7 @@
 
 import { Content } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
+import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import type { ContentBox, FinalizeBodyCtx, ContentBlock } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
 
@@ -115,6 +116,33 @@ export abstract class Renderer {
   buildDotBlock(ctx: DotContext, indent: string): string[] {
     const attrs = this.buildDotAttributes(ctx.hasPortEdges(this.id));
     return [`${indent}"${this.id}" [${attrs}]`];
+  }
+
+  /**
+   * Apply PlantUML inline style string to a DrawIO style.
+   * Returns `{ style, fontColorOverride }` where:
+   *   - style: the modified DrawIO style string
+   *   - fontColorOverride: a `fontColor=...;` fragment (empty string if no override)
+   *
+   * Handles fillColor, strokeColor, lineStyle (dashed/dotted/bold), textColor.
+   * Each renderer calls this in its own render() to apply user-specified styles.
+   */
+  static applyInlineStyle(drawioStyle: string, rawStyle: string | null | undefined): { style: string; fontColorOverride: string } {
+    let s = drawioStyle;
+    let fontColorOverride = '';
+    const parsed = parseNodeStyle(rawStyle);
+    if (parsed) {
+      if (parsed.fillColor) {
+        s = s.replace(/fillColor=[^;]*/, `fillColor=${parsed.fillColor}`);
+        if (!parsed.strokeColor) s += `strokeColor=${darkenColor(parsed.fillColor)};`;
+      }
+      if (parsed.strokeColor) s += `strokeColor=${parsed.strokeColor};`;
+      if (parsed.lineStyle === 'dashed') s += 'dashed=1;';
+      else if (parsed.lineStyle === 'dotted') s += 'dashed=1;dashPattern=1 2;';
+      else if (parsed.lineStyle === 'bold') s += 'strokeWidth=2;';
+      if (parsed.textColor) fontColorOverride = `fontColor=${parsed.textColor};`;
+    }
+    return { style: s, fontColorOverride };
   }
 }
 
