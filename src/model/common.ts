@@ -79,6 +79,10 @@ export interface LayoutEdge {
   from: string;
   to: string;
   points?: Array<{ x: number; y: number }>;
+  /** When `from` is a group id, this records which group it refers to */
+  fromGroup?: string;
+  /** When `to` is a group id, this records which group it refers to */
+  toGroup?: string;
 }
 
 export interface LayoutGroup {

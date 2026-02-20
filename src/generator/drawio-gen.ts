@@ -165,7 +165,23 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         waypoints: midPoints.length > 0 ? midPoints : undefined,
       };
     } else if (hasPort && points && points.length > 0) {
-      geometry = { waypoints: points };
+      // Port edges with a group endpoint: the group side has no cell ref
+      // (omitSource/omitTarget), so we must provide an explicit coordinate
+      // via sourcePoint/targetPoint instead of relying on DrawIO cell binding.
+      if (omitSource || omitTarget) {
+        const sp = omitSource && points.length >= 1 ? points[0] : undefined;
+        const tp = omitTarget && points.length >= 1 ? points[points.length - 1] : undefined;
+        const startIdx = sp ? 1 : 0;
+        const endIdx = tp ? points.length - 1 : points.length;
+        const midPts = points.slice(startIdx, endIdx);
+        geometry = {
+          sourcePoint: sp,
+          targetPoint: tp,
+          waypoints: midPts.length > 0 ? midPts : undefined,
+        };
+      } else {
+        geometry = { waypoints: points };
+      }
     }
 
     cells.push(...buildEdgeCells({

@@ -39,7 +39,10 @@ export function estimateNodeSize(node: SemanticNode) {
  *   - edge/node font defaults same as PlantUML (fontsize=11)
  *   - arrowtail/arrowhead=none — we draw arrows ourselves in DrawIO
  */
-function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRenderers: Renderer[]) {
+function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRenderers: Renderer[]): {
+  dot: string;
+  groupIds: Set<string>;
+} {
   const PX_PER_INCH = 72;
   const rankdir = model.rankdir || 'TB';
 
@@ -223,14 +226,7 @@ function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRe
     const toSpec = isToGroup ? (groupRepNode.get(edge.to) || `"${edge.to}"`)
       : edge.toPort ? `"${edge.to}":"${edge.toPort}"` : `"${edge.to}"`;
     let attrs = 'arrowtail=none,arrowhead=none';
-    // For inverted edges (left/up), swap ltail/lhead to match swapped from/to
-    if (isInverted) {
-      if (isToGroup) attrs += `,ltail="cluster_${edge.to}"`;
-      if (isFromGroup) attrs += `,lhead="cluster_${edge.from}"`;
-    } else {
-      if (isFromGroup) attrs += `,ltail="cluster_${edge.from}"`;
-      if (isToGroup) attrs += `,lhead="cluster_${edge.to}"`;
-    }
+    // No ltail/lhead — we self-clip edges to group boundaries in extractLayout
     // Pass edge label to DOT so the layout engine reserves space for it,
     // preventing labels from overlapping adjacent clusters/nodes.
     // Unescape PlantUML sequences (\n → real newline) so DOT measures multi-line correctly.
@@ -339,7 +335,7 @@ function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRe
   ranksep=${ranksepInch}
   remincross=true
   searchsize=500
-${hasCompoundEdges ? '  compound=true\n' : ''}  edge [fontsize=${DOT_FONT_SIZE},labelfontsize=${DOT_FONT_SIZE}]
+  edge [fontsize=${DOT_FONT_SIZE},labelfontsize=${DOT_FONT_SIZE}]
   node [fontsize=${DOT_FONT_SIZE},height=0.35,width=0.55]
 ${nodeGroupLines.join('\n')}
 ${edgeLines.join('\n')}
@@ -347,7 +343,7 @@ ${noteLines.join('\n')}
 ${rankLines.join('\n')}
 }`;
   if ((globalThis as any).__DOT_DEBUG__) console.log(dotStr);
-  return dotStr;
+  return { dot: dotStr, groupIds };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +354,7 @@ function extractLayout(
   vizJson: any,
   renderers: Map<string, Renderer>,
   edges: SemanticEdge[],
+  groupIds: Set<string>,
 ): LayoutResult {
   const PX_PER_INCH = 72;
   const nodes: Record<string, LayoutNode> = {}
@@ -490,14 +487,202 @@ function extractLayout(
         from: fromName,
         to: toName,
         points: waypoints,
+        fromGroup: groupIds.has(fromName) ? fromName : undefined,
+        toGroup: groupIds.has(toName) ? toName : undefined,
       });
+    }
+  }
+
+  // Clip group edges to group boundaries.
+  // Without compound=true, DOT routes edges to the representative child node
+  // inside the cluster. We clip the path at the group boundary so the edge
+  // visually connects to the group rectangle instead.
+  for (const edge of layoutEdges) {
+    if (!edge.points || edge.points.length < 2) continue;
+
+    // fromGroup: the path starts at the representative node inside the group.
+    // We need to clip from the start — find where the path exits the group
+    // and replace the internal portion with the boundary crossing point.
+    if (edge.fromGroup) {
+      const g = layoutGroups[edge.fromGroup];
+      if (g) {
+        edge.points = clipPathAtGroupBoundary(edge.points, g, 'start');
+      }
+    }
+
+    // toGroup: the path ends at the representative node inside the group.
+    // We need to clip from the end — find where the path enters the group
+    // and replace the internal portion with the boundary crossing point.
+    if (edge.toGroup) {
+      const g = layoutGroups[edge.toGroup];
+      if (g) {
+        edge.points = clipPathAtGroupBoundary(edge.points, g, 'end');
+      }
     }
   }
 
   return { nodes, edges: layoutEdges, groups: Object.keys(layoutGroups).length > 0 ? layoutGroups : undefined };
 }
 
+/** Check if a point is inside (or on the boundary of) a group's bounding box */
+function isInsideGroup(px: number, py: number, g: LayoutGroup): boolean {
+  return px >= g.x && px <= g.x + g.width && py >= g.y && py <= g.y + g.height;
+}
 
+/**
+ * Clip a path at the group boundary.
+ *
+ * - mode 'start': the path starts inside the group (from a representative node).
+ *   Find the first segment that crosses the boundary, replace everything before
+ *   the crossing with the crossing point.
+ *
+ * - mode 'end': the path ends inside the group (at a representative node).
+ *   Find the last segment that crosses the boundary, replace everything after
+ *   the crossing with the crossing point.
+ */
+function clipPathAtGroupBoundary(
+  points: Array<{ x: number; y: number }>,
+  g: LayoutGroup,
+  mode: 'start' | 'end',
+): Array<{ x: number; y: number }> {
+  if (points.length < 2) return points;
+
+  if (mode === 'start') {
+    // Walk from start, find the first segment where the path exits the group
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p1Inside = isInsideGroup(p1.x, p1.y, g);
+      const p2Inside = isInsideGroup(p2.x, p2.y, g);
+
+      if (p1Inside && !p2Inside) {
+        // Segment crosses from inside to outside — clip here
+        const cross = segmentRectIntersection(p1, p2, g);
+        if (cross) {
+          return [{ x: Math.round(cross.x), y: Math.round(cross.y) }, ...points.slice(i + 1)];
+        }
+      }
+      if (!p1Inside) {
+        // Already outside — no clipping needed (edge starts outside group)
+        return points;
+      }
+    }
+    // All points inside: snap start to nearest boundary
+    const snapped = snapToGroupBoundary(points[0], g);
+    return [snapped, ...points.slice(1)];
+  } else {
+    // mode === 'end': walk from end backwards
+    for (let i = points.length - 1; i > 0; i--) {
+      const p1 = points[i - 1];
+      const p2 = points[i];
+      const p1Inside = isInsideGroup(p1.x, p1.y, g);
+      const p2Inside = isInsideGroup(p2.x, p2.y, g);
+
+      if (!p1Inside && p2Inside) {
+        // Segment crosses from outside to inside — clip here
+        const cross = segmentRectIntersection(p1, p2, g);
+        if (cross) {
+          return [...points.slice(0, i), { x: Math.round(cross.x), y: Math.round(cross.y) }];
+        }
+      }
+      if (!p2Inside) {
+        // Already outside — no clipping needed
+        return points;
+      }
+    }
+    // All points inside: snap end to nearest boundary
+    const snapped = snapToGroupBoundary(points[points.length - 1], g);
+    return [...points.slice(0, -1), snapped];
+  }
+}
+
+/**
+ * Find the intersection point of a line segment with a rectangle boundary.
+ * Returns the crossing point closest to p1, or null if no intersection.
+ */
+function segmentRectIntersection(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  g: LayoutGroup,
+): { x: number; y: number } | null {
+  const left = g.x;
+  const right = g.x + g.width;
+  const top = g.y;
+  const bottom = g.y + g.height;
+
+  const candidates: Array<{ x: number; y: number; t: number }> = [];
+
+  // Check intersection with each of the 4 edges of the rectangle
+  // Left edge (x = left)
+  const t1 = segIntersectVertical(p1, p2, left, top, bottom);
+  if (t1 != null) candidates.push({ x: left, y: p1.y + t1 * (p2.y - p1.y), t: t1 });
+  // Right edge (x = right)
+  const t2 = segIntersectVertical(p1, p2, right, top, bottom);
+  if (t2 != null) candidates.push({ x: right, y: p1.y + t2 * (p2.y - p1.y), t: t2 });
+  // Top edge (y = top)
+  const t3 = segIntersectHorizontal(p1, p2, top, left, right);
+  if (t3 != null) candidates.push({ x: p1.x + t3 * (p2.x - p1.x), y: top, t: t3 });
+  // Bottom edge (y = bottom)
+  const t4 = segIntersectHorizontal(p1, p2, bottom, left, right);
+  if (t4 != null) candidates.push({ x: p1.x + t4 * (p2.x - p1.x), y: bottom, t: t4 });
+
+  if (candidates.length === 0) return null;
+  // Return the crossing closest to p1 (smallest t)
+  candidates.sort((a, b) => a.t - b.t);
+  return { x: candidates[0].x, y: candidates[0].y };
+}
+
+/** Parametric t for segment p1→p2 intersection with vertical line x=xVal, within [yMin,yMax] */
+function segIntersectVertical(
+  p1: { x: number; y: number }, p2: { x: number; y: number },
+  xVal: number, yMin: number, yMax: number,
+): number | null {
+  const dx = p2.x - p1.x;
+  if (Math.abs(dx) < 0.01) return null;
+  const t = (xVal - p1.x) / dx;
+  if (t < 0 || t > 1) return null;
+  const y = p1.y + t * (p2.y - p1.y);
+  if (y < yMin - 0.5 || y > yMax + 0.5) return null;
+  return t;
+}
+
+/** Parametric t for segment p1→p2 intersection with horizontal line y=yVal, within [xMin,xMax] */
+function segIntersectHorizontal(
+  p1: { x: number; y: number }, p2: { x: number; y: number },
+  yVal: number, xMin: number, xMax: number,
+): number | null {
+  const dy = p2.y - p1.y;
+  if (Math.abs(dy) < 0.01) return null;
+  const t = (yVal - p1.y) / dy;
+  if (t < 0 || t > 1) return null;
+  const x = p1.x + t * (p2.x - p1.x);
+  if (x < xMin - 0.5 || x > xMax + 0.5) return null;
+  return t;
+}
+
+/** Snap a point to the nearest point on a group's bounding rectangle */
+function snapToGroupBoundary(pt: { x: number; y: number }, g: LayoutGroup): { x: number; y: number } {
+  const left = g.x;
+  const right = g.x + g.width;
+  const top = g.y;
+  const bottom = g.y + g.height;
+
+  const candidates: Array<{ x: number; y: number; dist: number }> = [
+    { x: left, y: clamp(pt.y, top, bottom), dist: 0 },
+    { x: right, y: clamp(pt.y, top, bottom), dist: 0 },
+    { x: clamp(pt.x, left, right), y: top, dist: 0 },
+    { x: clamp(pt.x, left, right), y: bottom, dist: 0 },
+  ];
+  for (const c of candidates) {
+    c.dist = (c.x - pt.x) ** 2 + (c.y - pt.y) ** 2;
+  }
+  candidates.sort((a, b) => a.dist - b.dist);
+  return { x: Math.round(candidates[0].x), y: Math.round(candidates[0].y) };
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
+}
 
 // ---------------------------------------------------------------------------
 // Note field-level alignment
@@ -752,14 +937,14 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
   const rootRenderers = buildRendererTree(model, renderers);
 
   // 3. Generate DOT string
-  const dot = buildDot(model, renderers, rootRenderers);
+  const { dot, groupIds } = buildDot(model, renderers, rootRenderers);
 
   // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
   const viz = await getViz();
   const vizJson = viz.renderJSON(dot);
 
   // 5. Extract + transform coordinates
-  const layout = extractLayout(vizJson, renderers, model.edges);
+  const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
 
   // 6. Fine-tune field-targeting notes (memberTarget) Y alignment
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
@@ -798,9 +983,9 @@ export function dotLayoutSync(model: SemanticModel): DotLayoutResult {
 
   const rootRenderers = buildRendererTree(model, renderers);
 
-  const dot = buildDot(model, renderers, rootRenderers);
+  const { dot, groupIds } = buildDot(model, renderers, rootRenderers);
   const vizJson = vizInstance.renderJSON(dot);
-  const layout = extractLayout(vizJson, renderers, model.edges);
+  const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
 
   // Position title above diagram with negative Y (not via DOT)
