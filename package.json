@@ -1,0 +1,28 @@
+{
+  "name": "@markdown-viewer/draw-uml",
+  "version": "0.0.0",
+  "description": "PlantUML-compatible text diagram parser to DrawIO XML",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "browser": "./src/index.ts",
+      "default": "./src/index.node.ts"
+    }
+  },
+  "scripts": {
+    "check": "fibjs --check -p ../tsconfig.json"
+  },
+  "files": [
+    "src",
+    "docs"
+  ],
+  "engines": {
+    "fibjs": ">=0.38.0"
+  },
+  "dependencies": {
+    "@markdown-viewer/text-measure": "*",
+    "@viz-js/viz": "^3.24.0"
+  }
+}

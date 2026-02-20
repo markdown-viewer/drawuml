@@ -1,0 +1,1739 @@
+import { DiagramType, NodeType, EdgeType } from '../model/index.ts';
+import type { SemanticGroup, SemanticModel } from '../model/index.ts';
+import type { BodyLine, SemanticNode, SemanticEdge, ClassNote } from '../model/class-model.ts';
+import { arrowToEdgeType, edgeStyleForArrow, normalizeArrowMeta } from './arrow.ts';
+
+// Legacy activity diagram logic is merged into parseClassDiagram via lazy detection.
+
+interface ParseClassDiagramOptions {
+  strict?: boolean;
+  pragmas?: Record<string, string>;
+}
+
+
+
+function normalizeId(name) {
+  let s = String(name || '').trim();
+  // Strip surrounding parentheses for use-case names: "(Use case)" → "Use case"
+  if (s.startsWith('(') && s.endsWith(')')) s = s.slice(1, -1).trim();
+  // Strip surrounding colons for actor names: ":Actor:" → "Actor"
+  if (s.startsWith(':') && s.endsWith(':')) s = s.slice(1, -1).trim();
+  return s;
+}
+
+/**
+ * Detect node type from a raw relation endpoint name.
+ * Returns { type, label, stereotype } or null if no pattern matched.
+ */
+function detectUsecaseEndpointType(rawEndpoint: string) {
+  const s = String(rawEndpoint || '').trim();
+  // Explicit syntax — always detected regardless of diagram context
+  if (s.startsWith('(') && s.endsWith(')')) {
+    return { type: NodeType.Usecase, label: s.slice(1, -1).trim(), stereotype: 'usecase' };
+  }
+  if (s.startsWith(':') && s.endsWith(':')) {
+    return { type: NodeType.UsecaseActor, label: s.slice(1, -1).trim(), stereotype: 'actor' };
+  }
+  return null;
+}
+
+/**
+ * Resolve a note target reference.
+ * PlantUML supports member-level targets like "A::counter" or "A::"start(int)"".
+ * Returns { classId, memberTarget } where classId is the class-level id for
+ * layout, and memberTarget is the full "Class::member" string (or undefined).
+ */
+function resolveNoteTarget(raw: string): { classId: string; memberTarget?: string } {
+  const s = normalizeId(raw);
+  const idx = s.indexOf('::');
+  if (idx >= 0) {
+    return { classId: s.slice(0, idx), memberTarget: s };
+  }
+  return { classId: s };
+}
+
+/**
+ * Deployment-diagram shape keywords recognised as standalone node declarations.
+ * When the PEG parser emits declaration_statement with dataType matching one of
+ * these, it is treated as a deployment shape node (not a class member).
+ */
+const DEPLOYMENT_SHAPE_KEYWORDS = new Set([
+  'agent', 'artifact', 'boundary', 'card', 'cloud', 'collections',
+  'component', 'control', 'database', 'file', 'folder', 'frame',
+  'hexagon', 'label', 'node', 'package', 'person', 'queue',
+  'rectangle', 'stack', 'storage',
+]);
+
+export function parseClassDiagram(statements: any[], options: ParseClassDiagramOptions = {}) {
+  const strict = options.strict === true;
+
+  const nodesById = Object.create(null);
+  const nodeOrder = [];
+  const edges = [];
+  const notes = [];
+  const errors = [];
+  const groups: SemanticGroup[] = [];
+  const groupStack: SemanticGroup[] = [];  // stack for nested package/namespace blocks
+  let groupCounter = 0;
+  let useIntermediatePackages = options.pragmas?.useIntermediatePackages !== 'false';
+  const blockPushCounts: number[] = [];  // how many groups each block-start pushed onto groupStack
+  let rankdir = 'TB';  // default: top-to-bottom (left entity above right entity)
+  let lastDefinedClass = '';  // tracks last class/entity for "note left: ..." shorthand
+  let lastEdgeId = '';        // tracks last edge for "note on link" binding
+  let noteBlock = null;       // multi-line note accumulator
+  let legendBlock: { lines: string[]; align: string | null } | null = null;  // multi-line legend accumulator
+  let legend: { text: string; align?: string } | null = null;
+  let title: string | undefined;
+  const skinparams: Record<string, string> = {};
+  // Ordered remove/restore directives.  Processed sequentially to decide per-node visibility.
+  type RemoveRule = { action: 'remove' | 'restore'; target: string }; // target: '*' | '$tag' | normalized id
+  const removeRules: RemoveRule[] = [];
+  let namespaceSeparator: string | null = '.';  // default '.' — 'none' means no auto-grouping
+
+  // ── Legacy activity diagram support (merged via lazy detection) ──────
+  // Track chained arrows: remember the last target so chained arrows know their source
+  let lastTarget: string | null = null;
+  // Track if-else-endif branching
+  const branchStack: { conditionNode: string; lastTargets: string[]; beforeIf: string | null }[] = [];
+  // Count start/end occurrences for (*) disambiguation
+  let starAsSourceCount = 0;
+  let starAsTargetCount = 0;
+  // Pending merge targets from if/else/endif resolution
+  let pendingMergeTargets: string[] = [];
+
+  // Lazy detection: diagram has legacy activity arrows
+  const hasLegacyActivityContext = statements.some(st =>
+    st && typeof st === 'object' &&
+    st.kind === 'arrow_statement' && st.legacy === true
+  );
+
+  // ── Legacy activity helpers ─────────────────────────────────────────
+  // Declarative mapping: PEG endpoint type → semantic node type
+  const ENDPOINT_NODE_MAP: Record<string, string> = {
+    start_end: NodeType.StateStart,
+    sync_bar: NodeType.StateFork,
+  };
+
+  /** Ensure an activity node exists; node type resolved by PEG endpoint classification. */
+  function ensureActivityNode(rawId: string, aliasId?: string | null, endpointType?: string): string {
+    const id = aliasId || rawId;
+    if (nodesById[id]) return id;
+
+    const type = ENDPOINT_NODE_MAP[endpointType!] || (rawId === '(*)' ? NodeType.StateStart : NodeType.Class);
+    const label = type === NodeType.Class ? rawId : '';
+
+    nodesById[id] = {
+      id,
+      type: type as any,
+      label,
+      stereotype: rawId === '(*)' ? null : 'activity',
+      stereotypeLabel: '',
+      bodyLines: [],
+    };
+    nodeOrder.push(id);
+    registerNodeInGroup(id);
+    return id;
+  }
+
+  /** Create a decision diamond node for if/else branching */
+  function createDecisionNode(cond: string): string {
+    const id = `__decision_${edges.length}__`;
+    nodesById[id] = {
+      id,
+      type: NodeType.StateChoice as any,
+      label: cond,
+      stereotype: null,
+      stereotypeLabel: '',
+      bodyLines: [],
+    };
+    nodeOrder.push(id);
+    registerNodeInGroup(id);
+    return id;
+  }
+
+  /** Add a simple directed edge for legacy activity arrows */
+  function addActivityEdge(from: string, to: string, label: string, arrowToken?: string) {
+    const meta = arrowToken ? normalizeArrowMeta(null, arrowToken) : null;
+    edges.push({
+      id: `e${edges.length + 1}`,
+      type: EdgeType.Association as any,
+      from,
+      to,
+      label: label || '',
+      arrow: arrowToken || '-->',
+      arrowMeta: meta,
+      style: null,
+      direction: meta?.direction || null,
+      length: meta?.length,
+    });
+  }
+
+  // hide/show visibility rules collected from "hide ..."/"show ..." directives.
+  // Each rule: { action, scope, aspect } where:
+  //   action  = 'hide' | 'show'
+  //   scope   = '*' | node-id | '<<Stereotype>>'
+  //   aspect  = 'members' | 'fields' | 'methods' | 'circle'
+  type VisRule = { action: 'hide' | 'show'; scope: string; aspect: string };
+  const visRules: VisRule[] = [];
+
+  /**
+   * Compute the fully-qualified name for a group by walking up the parentId chain.
+   * E.g. group "foo3" inside "foo2" inside "foo1" → "foo1.foo2.foo3".
+   */
+  function getGroupQualifiedName(g: SemanticGroup): string {
+    if (g.parentId) {
+      const parent = groups.find(p => p.id === g.parentId);
+      if (parent) return getGroupQualifiedName(parent) + '.' + g.label;
+    }
+    return g.label;
+  }
+
+  /** Find a group whose fully-qualified name equals the given name. */
+  function findGroupByQualifiedName(name: string): SemanticGroup | undefined {
+    return groups.find(g => getGroupQualifiedName(g) === name);
+  }
+
+  /** Register a node id into the current group (if any package-type group). */
+  function registerNodeInGroup(nodeId: string) {
+    if (groupStack.length > 0) {
+      const currentGroup = groupStack[groupStack.length - 1];
+      if (!currentGroup.children.includes(nodeId)) {
+        currentGroup.children.push(nodeId);
+      }
+    }
+  }
+
+  /** Build the current namespace prefix from namespace-type groups on the stack. */
+  function getCurrentNamespacePrefix(): string {
+    const parts: string[] = [];
+    for (const g of groupStack) {
+      if (g.type === 'namespace') parts.push(g.label);
+    }
+    return parts.join('.');
+  }
+
+  /** Resolve a raw name using current namespace context.
+   *  - Leading '.' → root reference (strip dot)
+   *  - Already contains dots → fully qualified (unchanged)
+   *  - Otherwise → prepend current namespace prefix
+   */
+  function resolveNameInScope(rawName: string): { resolved: string; isRoot: boolean } {
+    const prefix = getCurrentNamespacePrefix();
+    if (!prefix) return { resolved: rawName, isRoot: false };
+    if (rawName.startsWith('.')) return { resolved: rawName.slice(1), isRoot: true };
+    if (rawName.includes('.')) return { resolved: rawName, isRoot: false };
+    return { resolved: prefix + '.' + rawName, isRoot: false };
+  }
+
+  /**
+   * Resolve a dotted target name (e.g. "foo.baz") to an existing node id.
+   * If "foo.baz" doesn't exist as a node, check if "baz" is a child of a
+   * group whose qualified name is "foo".
+   */
+  function resolveQualifiedTarget(target: string): string {
+    if (nodesById[target]) return target;
+    if (namespaceSeparator && target.includes(namespaceSeparator)) {
+      const parts = target.split(namespaceSeparator);
+      const leafName = parts[parts.length - 1];
+      const groupName = parts.slice(0, -1).join(namespaceSeparator);
+      if (nodesById[leafName]) {
+        const group = findGroupByQualifiedName(groupName);
+        if (group && group.children.includes(leafName)) {
+          return leafName;
+        }
+      }
+    }
+    return target;
+  }
+
+  /** Find an existing node whose short name (last dot-segment) matches.
+   *  Returns the node id if exactly one match found, undefined otherwise. */
+  function findExistingNodeByShortName(shortName: string): string | undefined {
+    let found: string | undefined;
+    for (const id of Object.keys(nodesById)) {
+      const lastDot = id.lastIndexOf('.');
+      const sn = lastDot >= 0 ? id.slice(lastDot + 1) : id;
+      if (sn === shortName) {
+        if (found) return undefined; // Multiple matches — ambiguous
+        found = id;
+      }
+    }
+    return found;
+  }
+
+  /**
+   * Find or create a chain of nested groups for the given segments.
+   * Reuses existing groups that match by label + parentId.
+   * Returns the array of groups from outermost to innermost.
+   */
+  function findOrCreateGroupChain(segments: string[], type: string, startParent?: SemanticGroup, stereotype?: string): SemanticGroup[] {
+    const chain: SemanticGroup[] = [];
+    let currentParent: SemanticGroup | undefined = startParent;
+    for (const seg of segments) {
+      const parentId = currentParent?.id;
+      const existing = groups.find(g => g.label === seg && g.parentId === parentId);
+      if (existing) {
+        chain.push(existing);
+        currentParent = existing;
+      } else {
+        groupCounter++;
+        const groupId = `group_${groupCounter}`;
+        const group: SemanticGroup = {
+          id: groupId,
+          label: seg,
+          type: type,
+          ...(stereotype ? { stereotype } : {}),
+          parentId: parentId,
+          children: [],
+          childGroups: [],
+        };
+        if (currentParent && !currentParent.childGroups.includes(groupId)) {
+          currentParent.childGroups.push(groupId);
+        }
+        groups.push(group);
+        chain.push(group);
+        currentParent = group;
+      }
+    }
+    return chain;
+  }
+
+  /**
+   * Ensure a node is registered in the correct group based on its (resolved) id.
+   * - Dotted names → auto-create intermediate packages from root
+   * - Simple names → register in current group on the stack
+   * - Root references (isRoot=true) → skip group registration
+   */
+  function ensureNodeInCorrectGroup(nodeId: string, isRoot: boolean = false): void {
+    if (isRoot) return;
+    // When namespaceSeparator is null ("none"), never auto-create groups from names
+    if (namespaceSeparator === null) {
+      registerNodeInGroup(nodeId);
+      return;
+    }
+    if (nodeId.includes(namespaceSeparator)) {
+      const parts = nodeId.split(namespaceSeparator);
+      const pkgParts = parts.slice(0, -1);
+      if (pkgParts.length === 0) return;
+      const pkgSegments = useIntermediatePackages ? pkgParts : [pkgParts.join(namespaceSeparator)];
+      const chain = findOrCreateGroupChain(pkgSegments, 'package');
+      if (chain.length > 0) {
+        const target = chain[chain.length - 1];
+        if (!target.children.includes(nodeId)) {
+          target.children.push(nodeId);
+        }
+      }
+    } else {
+      registerNodeInGroup(nodeId);
+    }
+  }
+
+  // Detect state diagram: if any statement has [*] endpoints or state declarations
+  const isStateDiagram = statements.some(st =>
+    st && typeof st === 'object' && (
+      (st.kind === 'declaration_statement' && st.type === 'state') ||
+      st.kind === 'state_body_line' ||
+      (st.kind === 'block_statement' && st.type === 'state_block_end') ||
+      (typeof st.from === 'string' && st.from === '[*]') ||
+      (typeof st.to === 'string' && st.to === '[*]')
+    ));
+
+  // Lazy use-case context detection (replicates PlantUML's DescriptionDiagram.isUsecase()).
+  // Returns true when any statement creates a USECASE or ACTOR entity — i.e. an entity
+  // with LeafType.USECASE or with the actor USymbol.  Bare names do NOT trigger this;
+  // only explicit syntax ((Name), :Name:, or actor/usecase keyword) counts.
+  let _hasUsecaseContext: boolean | null = null;
+  function hasUsecaseContext(): boolean {
+    if (_hasUsecaseContext !== null) return _hasUsecaseContext;
+    _hasUsecaseContext = statements.some(st => {
+      if (!st || typeof st !== 'object') return false;
+      // Explicit usecase/actor declarations
+      if (st.kind === 'declaration_statement') {
+        const t = st.type;
+        if (t === 'usecase' || t === 'usecase_actor' || t === 'usecase_alias') return true;
+        // TypedMemberLine: "actor foo" / "usecase UC3"
+        if (t === 'member' && /^(actor|usecase)$/i.test(String(st.dataType || ''))) return true;
+      }
+      // component_statement with actor/usecase keyword: "actor Guest as g"
+      if (st.kind === 'component_statement' && /^(actor|usecase)/i.test(String(st.componentType || '')))
+        return true;
+      // TwoColumnLine: "actor  用户" / "usecase  用例"
+      if (st.kind === 'generic_statement' && st.type === 'two_column' && /^(actor|usecase)$/i.test(String(st.left || '')))
+        return true;
+      // slashy_relation misparse: "actor/ Woman3" / "usecase/ UC3"
+      if (st.kind === 'generic_statement' && st.type === 'slashy_relation' && /^(actor|usecase)$/i.test(String(st.from || '')))
+        return true;
+      // Relation endpoints with explicit (Name) → USECASE or :Name: → ACTOR syntax
+      const from = String(st.from || '').trim();
+      const to = String(st.to || '').trim();
+      if (from && (/^\(.*\)$/.test(from) || /^:.*:$/.test(from))) return true;
+      if (to && (/^\(.*\)$/.test(to) || /^:.*:$/.test(to))) return true;
+      return false;
+    });
+    return _hasUsecaseContext;
+  }
+
+  const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
+
+  for (let i = 0; i < statements.length; i++) {
+    const st = statements[i];
+    if (!st || typeof st !== 'object') continue;
+
+    // Multi-line note block accumulation
+    if (noteBlock) {
+      if (st.kind === 'note_end') {
+        notes.push({
+          id: noteBlock.id || `note_${notes.length + 1}`,
+          text: noteBlock.lines.join('\n'),
+          position: noteBlock.position || undefined,
+          target: noteBlock.target || undefined,
+          memberTarget: noteBlock.memberTarget || undefined,
+          floating: noteBlock.floating || false,
+          onLink: noteBlock.onLink || undefined,
+          linkEdgeId: noteBlock.linkEdgeId || undefined,
+          color: noteBlock.color || undefined,
+        });
+        noteBlock = null;
+        continue;
+      }
+      // note_text_line or any other line inside note block
+      const text = String(st.text || st.raw || '').trim();
+      if (text) noteBlock.lines.push(text);
+      continue;
+    }
+
+    // Legend block accumulation
+    if (legendBlock) {
+      if (st.kind === 'block_statement' && st.type === 'legend_end') {
+        legend = {
+          text: legendBlock.lines.join('\n'),
+          align: legendBlock.align || undefined,
+        };
+        legendBlock = null;
+        continue;
+      }
+      // legend_text_line or any other line inside legend block
+      const text = String(st.text || st.raw || '').trim();
+      if (text) legendBlock.lines.push(text);
+      continue;
+    }
+
+    // Process statement by kind
+    {
+
+      // Capture layout direction directive
+      if (st.kind === 'directive_statement') {
+        const kw = String(st.keyword || '').toLowerCase().trim();
+        if (kw === 'title' && st.text) {
+          title = String(st.text).trim();
+        }
+        if (kw === 'left to right direction') rankdir = 'LR';
+        else if (kw === 'top to bottom direction') rankdir = 'TB';
+        // Handle "set namespaceSeparator <sep>" or "set separator <sep>" directive
+        if (kw === 'set' && (st.key === 'namespaceSeparator' || st.key === 'separator')) {
+          const val = String(st.text || '').trim();
+          namespaceSeparator = val.toLowerCase() === 'none' ? null : val;
+        }
+        // Parse "skinparam <key> <value>" directives
+        if (kw === 'skinparam') {
+          if (st.key) {
+            skinparams[st.key] = String(st.value || st.text || '').trim();
+          } else if (st.text) {
+            // PEG may emit text="key value" without separate key/value fields
+            const txt = String(st.text).trim();
+            const spIdx = txt.indexOf(' ');
+            if (spIdx > 0) {
+              skinparams[txt.slice(0, spIdx)] = txt.slice(spIdx + 1).trim();
+            }
+          }
+        }
+        // Handle "remove <name>", "remove $tag", "remove *", "restore ..." directives
+        if ((kw === 'remove' || kw === 'restore') && st.text) {
+          const target = String(st.text).trim();
+          const action = kw as 'remove' | 'restore';
+          if (target === '*') {
+            removeRules.push({ action, target: '*' });
+          } else if (target.startsWith('$') || target.startsWith('@')) {
+            removeRules.push({ action, target });
+          } else {
+            removeRules.push({ action, target: normalizeId(target) });
+          }
+        }
+        // Handle "hide ..." / "show ..." visibility directives
+        if ((kw === 'hide' || kw === 'show') && st.text) {
+          const action = kw as 'hide' | 'show';
+          const body = String(st.text).trim();
+          // Parse: [scope] aspect
+          // aspect is last word: members|fields|attributes|methods|circle|stereotypes|empty
+          // scope is everything before aspect, or '*' if omitted
+          const ASPECTS = new Set(['members', 'fields', 'attributes', 'methods', 'circle', 'stereotypes', 'empty']);
+          const words = body.split(/\s+/);
+          const lastWord = words[words.length - 1].toLowerCase();
+          if (ASPECTS.has(lastWord)) {
+            const scopeStr = words.length > 1 ? words.slice(0, -1).join(' ') : '*';
+            const aspect = lastWord === 'attributes' ? 'fields' : lastWord;
+            visRules.push({ action, scope: scopeStr, aspect });
+          } else if (action === 'hide') {
+            // "hide empty members/fields/methods" — not yet implemented.
+            // "hide ClassName" — hide the entire class (same as remove).
+            // "hide $tag" — hide classes with the given tag.
+            const emptyMatch = body.match(/^empty\s+(members|fields|attributes|methods)$/i);
+            if (emptyMatch) {
+              // "hide empty fields" — not yet implemented; ignore for now
+            } else if (body.startsWith('$') || body.startsWith('@')) {
+              // Tag-based hiding: "hide $tag13" or special target: "hide @unlinked"
+              removeRules.push({ action: 'remove', target: body });
+            } else {
+              // Bare name: "hide Foo2" → remove the class entirely
+              removeRules.push({ action: 'remove', target: normalizeId(body) });
+            }
+          }
+        }
+        continue;
+      }
+
+      // ── Use-case diagram declarations ────────────────────────────────────
+
+      const declType = String(st?.type || '').toLowerCase();
+
+      // Usecase declaration: "(First usecase)" or "(Another usecase) as (UC2)"
+      // or "usecase UC as Label" or "usecase (text) as alias"
+      if (st.kind === 'declaration_statement' && declType === 'usecase') {
+        const rawName = String(st.name || '').trim();
+        const rawAlias = String(st.alias || '').trim();
+        const rawLabel = String(st.label || '').trim();
+        // Extract display text from (parenthesized) names
+        const nameInner = rawName.startsWith('(') && rawName.endsWith(')') ? rawName.slice(1, -1) : rawName;
+        // Business usecase variant (trailing /): strip for display
+        const isBusiness = nameInner.endsWith('/') || rawName.endsWith('/');
+        const cleanName = isBusiness ? nameInner.replace(/\/$/, '') : nameInner;
+        const aliasInner = rawAlias.startsWith('(') && rawAlias.endsWith(')') ? rawAlias.slice(1, -1) : rawAlias;
+        const label = rawLabel || cleanName;
+        const id = normalizeId(aliasInner || cleanName);
+        // Build stereotype text
+        const stereos: string[] = Array.isArray(st.stereotypes) ? st.stereotypes.map(s => typeof s === 'string' ? s : (s && s.text || '')) : [];
+        const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+        if (id) {
+          // Register alias mapping so relations using the original name resolve correctly
+          if (rawAlias && normalizeId(cleanName) !== id) {
+            // Map the original parenthesized name to the alias id
+            if (!nodesById[normalizeId(cleanName)]) {
+              // Pre-register alias target
+            }
+          }
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Usecase,
+            label,
+            stereotype: isBusiness ? 'usecase/' : 'usecase',
+            stereotypeLabel: stereotypeLabel || '',
+            bodyLines: [],
+            style: st.style || null,
+          };
+          // Also register under the parenthesized form so relations resolve
+          if (rawName && normalizeId(rawName) !== id) {
+            const origId = normalizeId(rawName.replace(/\/$/, ''));
+            if (!nodesById[origId]) {
+              nodesById[origId] = nodesById[id];
+            }
+          }
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Usecase alias: '"Display Name" as (Alias)' or '"Name" as Alias'
+      if (st.kind === 'declaration_statement' && declType === 'usecase_alias') {
+        const rawLabel = String(st.label || '').trim();
+        const rawAlias = String(st.alias || '').trim();
+        const aliasInner = rawAlias.startsWith('(') && rawAlias.endsWith(')') ? rawAlias.slice(1, -1) : rawAlias;
+        const isActor = rawAlias.startsWith(':') && rawAlias.endsWith(':');
+        const actorInner = isActor ? rawAlias.slice(1, -1) : rawAlias;
+        const id = normalizeId(isActor ? actorInner : aliasInner);
+        const label = rawLabel;
+        const nodeType = isActor ? NodeType.UsecaseActor : (hasUsecaseContext() ? NodeType.Usecase : NodeType.Class);
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: nodeType,
+            label,
+            stereotype: null,
+            stereotypeLabel: '',
+            bodyLines: [],
+          };
+          // Also register under the label as an alias
+          const labelId = normalizeId(rawLabel);
+          if (labelId && labelId !== id && !nodesById[labelId]) {
+            nodesById[labelId] = nodesById[id];
+          }
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Actor declaration: ":First Actor:" or ":name: as alias << stereotype >>"
+      if (st.kind === 'declaration_statement' && declType === 'usecase_actor') {
+        const rawName = String(st.name || '').trim();
+        const rawAlias = String(st.alias || '').trim();
+        // Strip surrounding colons from name: ":Actor:" → "Actor"
+        let nameInner = rawName;
+        if (nameInner.startsWith(':') && (nameInner.endsWith(':') || nameInner.endsWith(':/'))) {
+          nameInner = nameInner.replace(/^:/, '').replace(/:?\/?$/, '');
+        }
+        const isBusiness = rawName.endsWith('/');
+        const id = normalizeId(rawAlias || nameInner);
+        const label = nameInner;
+        const stereos: string[] = Array.isArray(st.stereotypes) ? st.stereotypes.map(s => typeof s === 'string' ? s : (s && s.text || '')) : [];
+        const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.UsecaseActor,
+            label,
+            stereotype: isBusiness ? 'actor/' : 'actor',
+            stereotypeLabel: stereotypeLabel || '',
+            bodyLines: [],
+            style: st.style || null,
+          };
+          // Also register under the raw colon-wrapped form
+          const colonId = normalizeId(rawName.replace(/\/$/, ''));
+          if (colonId !== id && !nodesById[colonId]) {
+            nodesById[colonId] = nodesById[id];
+          }
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Actor/usecase via component_statement (non-block): "actor Guest as g" or "usecase c #style"
+      if (st.kind === 'component_statement' && !st.block) {
+        const ctype = String(st.componentType || '').toLowerCase();
+        if (ctype === 'actor' || ctype === 'actor/' || ctype === 'usecase' || ctype === 'usecase/') {
+          const rawName = String(st.name || '').trim();
+          const rawAlias = String(st.alias || '').trim();
+          // Strip surrounding colons from colon-style names
+          let nameInner = rawName;
+          if (nameInner.startsWith(':') && nameInner.endsWith(':')) {
+            nameInner = nameInner.slice(1, -1);
+          }
+          const id = normalizeId(rawAlias || nameInner);
+          const label = nameInner;
+          const isActor = ctype.startsWith('actor');
+          const isBusiness = ctype.endsWith('/');
+          const nodeType = isActor ? NodeType.UsecaseActor : NodeType.Usecase;
+          const stereos: string[] = Array.isArray(st.stereotypes) ? st.stereotypes.map(s => typeof s === 'string' ? s : (s && s.text || '')) : [];
+          const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: nodeType,
+              label,
+              stereotype: isBusiness ? ctype : (isActor ? 'actor' : 'usecase'),
+              stereotypeLabel: stereotypeLabel || '',
+              bodyLines: [],
+              style: st.style || null,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+
+        // Other deployment shapes via component_statement (non-block):
+        // e.g. label "text", agent "name" as a, cloud "C1" #pink
+        if (DEPLOYMENT_SHAPE_KEYWORDS.has(ctype)) {
+          const rawName = String(st.name || '').trim();
+          const rawAlias = String(st.alias || '').trim();
+          const id = normalizeId(rawAlias || rawName);
+          const label = rawName;
+          const stereos: string[] = Array.isArray(st.stereotypes) ? st.stereotypes.map(s => typeof s === 'string' ? s : (s && s.text || '')) : [];
+          const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: ctype,
+              stereotypeLabel: stereotypeLabel || '',
+              bodyLines: [],
+              style: st.style || null,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+      }
+
+      // Bracket component shorthand: [Name] → component node (non-sequence context)
+      if (st.kind === 'generic_statement' && st.type === 'bracketed_event') {
+        const rawName = String(st.head || '').trim();
+        const id = normalizeId(rawName);
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label: rawName,
+            stereotype: 'component',
+            stereotypeLabel: '',
+            bodyLines: [],
+          };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Actor/usecase via TypedMemberLine: "actor foo" or "usecase UC3"
+      if (st.kind === 'declaration_statement' && declType === 'member') {
+        const dataType = String(st.dataType || '').toLowerCase();
+        if (dataType === 'actor' || dataType === 'usecase') {
+          const rawName = String(st.name || '').trim();
+          const id = normalizeId(rawName);
+          const label = rawName;
+          const nodeType = dataType === 'actor' ? NodeType.UsecaseActor : NodeType.Usecase;
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: nodeType,
+              label,
+              stereotype: dataType,
+              stereotypeLabel: '',
+              bodyLines: [],
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+
+        // Deployment-diagram shape keywords: "agent foo", "cloud bar", etc.
+        if (DEPLOYMENT_SHAPE_KEYWORDS.has(dataType)) {
+          const rawName = String(st.name || '').trim();
+          const id = normalizeId(rawName);
+          const label = rawName;
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: dataType,
+              stereotypeLabel: '',
+              bodyLines: [],
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+      }
+
+      // Actor/usecase via TwoColumnLine: "actor  用户" or "usecase  用例"
+      if (st.kind === 'generic_statement' && st.type === 'two_column') {
+        const left = String(st.left || '').toLowerCase();
+        if (left === 'actor' || left === 'usecase') {
+          const rawName = String(st.right || '').trim();
+          const id = normalizeId(rawName);
+          const label = rawName;
+          const nodeType = left === 'actor' ? NodeType.UsecaseActor : NodeType.Usecase;
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: nodeType,
+              label,
+              stereotype: left,
+              stereotypeLabel: '',
+              bodyLines: [],
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+      }
+
+      // Actor/usecase via slashy_relation misparse: "actor/ Woman3" or "usecase/ UC3"
+      if (st.kind === 'generic_statement' && st.type === 'slashy_relation') {
+        const rawFrom = String(st.from || '').toLowerCase();
+        if (rawFrom === 'actor' || rawFrom === 'usecase') {
+          const rawTo = String(st.to || '').trim();
+          const id = normalizeId(rawTo);
+          const label = rawTo;
+          const nodeType = rawFrom === 'actor' ? NodeType.UsecaseActor : NodeType.Usecase;
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: nodeType,
+              label,
+              stereotype: rawFrom + '/',
+              stereotypeLabel: '',
+              bodyLines: [],
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+      }
+
+      // Entity block: "entity Entity01 { ... }" — rendered as class-like node, not a group.
+      // Handles alias: entity "Entity01" as e01 { ... } → id=e01, label=Entity01.
+      // Consume entity_body_line statements until entity_block_end.
+      if (st.kind === 'component_statement' && st.block && String(st.componentType || '').toLowerCase() === 'entity') {
+        const rawName = String(st.name || '').trim();
+        const rawAlias = String(st.alias || '').trim();
+        const id = normalizeId(rawAlias || rawName);
+        const label = rawName || rawAlias || id;
+        if (id) {
+          const bodyLines: BodyLine[] = [];
+          while (i + 1 < statements.length) {
+            i++;
+            const innerSt = statements[i];
+            if (!innerSt || typeof innerSt !== 'object') continue;
+            if (innerSt.kind === 'block_statement' && innerSt.type === 'entity_block_end') break;
+            if (innerSt.kind !== 'entity_body_line') continue;
+            const inner = String(innerSt.text || innerSt.raw || '').trim();
+            if (!inner) continue;
+            bodyLines.push(inner);
+          }
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label,
+            stereotype: 'entity',
+            stereotypeLabel: '',
+            bodyLines,
+            style: st.style || null,
+          };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Package / namespace / container block start: "package A {" or "namespace net.dummy {"
+      // PEG parses this as component_statement with block=true.
+      // Dotted names (e.g., "net.dummy") are split into nested groups.
+      if (st.kind === 'component_statement' && st.block) {
+        const ctype = String(st.componentType || '').toLowerCase();
+        const rawLabel = String(st.name || st.alias || '').trim();
+        // Extract package shape stereotype (e.g., <<Node>>, <<Cloud>>)
+        const stereos: string[] = (st as any).stereotypes || [];
+        const stereotype = stereos.length > 0 ? stereos[0] : undefined;
+        // Split dotted names into nested groups, unless separator is disabled
+        const segments = (namespaceSeparator && rawLabel.includes('.')) ? rawLabel.split('.') : [rawLabel || ctype];
+        const startParent = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+        const chain = findOrCreateGroupChain(segments, ctype, startParent, stereotype);
+        for (const g of chain) groupStack.push(g);
+        blockPushCounts.push(chain.length);
+        continue;
+      }
+
+      // Block end: "}" — may close a package/namespace/state block.
+      // Pop as many groups as the matching block-start pushed.
+      if (st.kind === 'block_statement' && (st.type === 'style_block_end' || st.type === 'block_end' || st.type === 'state_block_end')) {
+        const popCount = blockPushCounts.pop() || 1;
+        for (let j = 0; j < popCount && groupStack.length > 0; j++) {
+          groupStack.pop();
+        }
+        continue;
+      }
+
+      // Bracket body: "node n [...]" — puml.ts has pre-collected lines on the statement
+      if (st.kind === 'block_statement' && st.type === 'component_bracket_start') {
+        const ctype = String(st.componentType || '').toLowerCase();
+        const name = String(st.name || '').trim();
+        const bLines: string[] = Array.isArray(st.lines) ? st.lines.map(String) : [];
+        const id = normalizeId(name);
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label: name,
+            stereotype: ctype,
+            stereotypeLabel: '',
+            bodyLines: bLines,
+            style: st.style || null,
+          };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Map block: "map Name {}" — puml.ts has pre-collected entries on the statement
+      if (st.kind === 'block_statement' && st.type === 'map_block_start') {
+        const name = String(st.name || '').trim();
+        const alias = String(st.alias || '').trim();
+        const id = normalizeId(alias || name);
+        const label = name || id;
+        const rawEntries: any[] = st.entries || [];
+        const mapEntries: { key: string; value: string; linked?: boolean }[] = [];
+        const mapEdges: { key: string; arrow: string; target: string }[] = [];
+        for (const entry of rawEntries) {
+          if (entry.linked) {
+            mapEntries.push({ key: String(entry.key), value: '', linked: true });
+            mapEdges.push({ key: String(entry.key), arrow: String(entry.arrow), target: String(entry.target) });
+          } else {
+            mapEntries.push({ key: String(entry.key), value: String(entry.value || '') });
+          }
+        }
+        if (!nodesById[id]) nodeOrder.push(id);
+        nodesById[id] = {
+          id,
+          type: NodeType.Class,
+          label,
+          stereotype: 'object',
+          stereotypeLabel: '',
+          mapEntries,
+        };
+        ensureNodeInCorrectGroup(id);
+        lastDefinedClass = id;
+        // Create edges for *-> entries (rendered as plain arrows, no diamond)
+        for (const me of mapEdges) {
+          // Resolve target: "foo.baz" may refer to existing node "baz" in group "foo"
+          const resolvedTarget = resolveQualifiedTarget(normalizeId(me.target));
+          if (!nodesById[resolvedTarget]) {
+            nodeOrder.push(resolvedTarget);
+            const shortLabel = (namespaceSeparator && resolvedTarget.includes(namespaceSeparator))
+              ? resolvedTarget.split(namespaceSeparator).pop() : resolvedTarget;
+            nodesById[resolvedTarget] = { id: resolvedTarget, type: NodeType.Class, label: shortLabel, stereotype: null, stereotypeLabel: '', bodyLines: [] };
+            ensureNodeInCorrectGroup(resolvedTarget);
+          }
+          // Map linked entries use plain arrow style: no start arrow, filled classic end arrow
+          edges.push({
+            id: `e${edges.length + 1}`,
+            type: EdgeType.Association,
+            from: id,
+            to: resolvedTarget,
+            label: '',
+            fromPort: me.key,
+            arrow: '->',
+            arrowMeta: { token: '->', startHeadToken: '', endHeadToken: '>', bodyToken: '-', lineStyle: 'solid', structured: true },
+          });
+        }
+        continue;
+      }
+
+      // Single-line note: "note top of X : text" / "note \"text\" as N1" / "note left: text"
+      if (st.kind === 'note_statement') {
+        const rawText = String(st.text || '').trim();
+        // "note on link" — bind to last edge
+        if (st.on === 'link') {
+          notes.push({
+            id: `note_${notes.length + 1}`,
+            text: rawText,
+            position: st.dir || undefined,
+            onLink: true,
+            linkEdgeId: lastEdgeId || undefined,
+            color: st.color || undefined,
+            floating: false,
+          });
+          continue;
+        }
+        const resolved = st.target ? resolveNoteTarget(st.target) : null;
+        const target = resolved ? resolved.classId : (st.dir && lastDefinedClass ? lastDefinedClass : undefined);
+        const alias = st.alias || undefined;
+        notes.push({
+          id: alias || `note_${notes.length + 1}`,
+          text: rawText,
+          position: st.pos || st.dir || undefined,
+          target,
+          memberTarget: resolved?.memberTarget,
+          floating: Boolean(st.floating),
+        });
+        continue;
+      }
+
+      // Multi-line note start: "note top of X" / "note as N1" / "note left"
+      if (st.kind === 'note_start') {
+        // "note [dir] on link" — multi-line link note
+        if (st.on === 'link') {
+          noteBlock = {
+            position: st.dir || undefined,
+            onLink: true,
+            linkEdgeId: lastEdgeId || undefined,
+            color: st.color || undefined,
+            floating: false,
+            lines: [],
+          };
+          continue;
+        }
+        const resolved = st.target ? resolveNoteTarget(st.target) : null;
+        const target = resolved ? resolved.classId : (st.dir && lastDefinedClass ? lastDefinedClass : undefined);
+        noteBlock = {
+          position: st.pos || st.dir || undefined,
+          target,
+          memberTarget: resolved?.memberTarget,
+          floating: Boolean(st.alias),
+          alias: st.alias || undefined,
+          lines: [],
+        };
+        // Use alias as note id if provided
+        if (st.alias) noteBlock.id = st.alias;
+        continue;
+      }
+
+      // Multi-line legend start: "legend" / "legend left" / "legend right"
+      if (st.kind === 'block_statement' && st.type === 'legend_start') {
+        legendBlock = { lines: [], align: st.pos || null };
+        continue;
+      }
+
+      // ── Legacy activity diagram handlers ─────────────────────────────
+
+      // Legacy full arrow: "(*) --> action1" or '"action1" --> "action2"'
+      if (st.kind === 'arrow_statement' && st.legacy && !st.chained) {
+        const rawFrom = String(st.from || '');
+        const rawTo = String(st.to || '');
+        const alias = st.alias || null;
+        const label = st.label || '';
+
+        // Explicit from: clear pending merge (user chose a specific source)
+        pendingMergeTargets = [];
+
+        const fromId = ensureActivityNode(rawFrom, null, st.fromType);
+        if (rawFrom === '(*)') starAsSourceCount++;
+
+        // Inline if...then in target — detected by PEG as toType='if_inline'
+        if (st.toType === 'if_inline') {
+          const decisionId = createDecisionNode(String(st.toCond || ''));
+          addActivityEdge(fromId, decisionId, label, st.arrow);
+          branchStack.push({
+            conditionNode: decisionId,
+            lastTargets: [],
+            beforeIf: lastTarget,
+          });
+          lastTarget = decisionId;
+          lastDefinedClass = decisionId;
+          continue;
+        }
+
+        const toId = ensureActivityNode(rawTo, alias, st.toType);
+        if (rawTo === '(*)') starAsTargetCount++;
+
+        addActivityEdge(fromId, toId, label, st.arrow);
+        lastTarget = toId;
+        lastDefinedClass = toId;
+        continue;
+      }
+
+      // Legacy chained arrow: "--> action2" (continues from last target)
+      if (st.kind === 'arrow_statement' && st.legacy && st.chained) {
+        const rawTo = String(st.to || '');
+        const alias = st.alias || null;
+        const label = st.label || '';
+
+        const from = lastTarget || '(*)';
+        if (!lastTarget && !nodesById['(*)']) {
+          ensureActivityNode('(*)');
+          starAsSourceCount++;
+        }
+
+        // Detect inline if...then in target (e.g. "--> if "Test" then")
+        // Inline if...then in target — detected by PEG as toType='if_inline'
+        if (st.toType === 'if_inline') {
+          const decisionId = createDecisionNode(String(st.toCond || ''));
+          addActivityEdge(from, decisionId, label, st.arrow);
+          // Connect pending merge targets to decision node
+          for (const mt of pendingMergeTargets) {
+            if (mt !== from) addActivityEdge(mt, decisionId, '');
+          }
+          pendingMergeTargets = [];
+          branchStack.push({
+            conditionNode: decisionId,
+            lastTargets: [],
+            beforeIf: lastTarget,
+          });
+          lastTarget = decisionId;
+          lastDefinedClass = decisionId;
+          continue;
+        }
+
+        const toId = ensureActivityNode(rawTo, alias, st.toType);
+        if (rawTo === '(*)') starAsTargetCount++;
+
+        addActivityEdge(from, toId, label, st.arrow);
+        // Apply pending merge: connect all pending branch endpoints to this target
+        for (const mt of pendingMergeTargets) {
+          if (mt !== from) addActivityEdge(mt, toId, '');
+        }
+        pendingMergeTargets = [];
+        lastTarget = toId;
+        lastDefinedClass = toId;
+        continue;
+      }
+
+      // Legacy activity: relation_statement with (*) or simple from/to
+      if (hasLegacyActivityContext && st.kind === 'relation_statement') {
+        const rawFrom = String(st.from || '');
+        const rawTo = String(st.to || '');
+        const label = String(st.label || '');
+
+        pendingMergeTargets = [];
+
+        const fromId = ensureActivityNode(rawFrom);
+        if (rawFrom === '(*)') starAsSourceCount++;
+
+        const toId = ensureActivityNode(rawTo);
+        if (rawTo === '(*)') starAsTargetCount++;
+
+        addActivityEdge(fromId, toId, label, st.arrow);
+        lastTarget = toId;
+        lastDefinedClass = toId;
+        continue;
+      }
+
+      // Legacy if statement: create a decision diamond
+      if (st.kind === 'control_statement' && (st.type === 'if')) {
+        const cond = String(st.cond || '');
+        const decisionId = createDecisionNode(cond);
+
+        const from = lastTarget || '(*)';
+        addActivityEdge(from, decisionId, '');
+        // Connect pending merge targets to decision node
+        for (const mt of pendingMergeTargets) {
+          if (mt !== from) addActivityEdge(mt, decisionId, '');
+        }
+        pendingMergeTargets = [];
+
+        branchStack.push({
+          conditionNode: decisionId,
+          lastTargets: [],
+          beforeIf: lastTarget,
+        });
+        lastTarget = decisionId;
+        lastDefinedClass = decisionId;
+        continue;
+      }
+
+      // else keyword: save current branch endpoint, restart from decision node
+      if ((st.kind === 'block_statement' && st.type === 'sequence_block' && String(st.keyword || '').toLowerCase() === 'else') ||
+          (st.kind === 'control_statement' && st.type === 'else')) {
+        if (branchStack.length > 0) {
+          const ctx = branchStack[branchStack.length - 1];
+          // Only save the branch endpoint when the branch has a single
+          // continuation (no unresolved inner divergence).  When an inner
+          // if/endif produced multiple pending merge targets that were never
+          // consumed by a chained arrow, the branch has diverged and its
+          // endpoints become dead-ends — matching PlantUML behaviour.
+          if (pendingMergeTargets.length === 0) {
+            if (lastTarget) ctx.lastTargets.push(lastTarget);
+          }
+          pendingMergeTargets = [];
+          lastTarget = ctx.conditionNode;
+        }
+        continue;
+      }
+
+      // endif keyword: collect branch endpoints for merge
+      if (st.kind === 'control_statement' && (st.text === 'endif' || st.type === 'endif')) {
+        if (branchStack.length > 0) {
+          const ctx = branchStack.pop()!;
+          if (lastTarget) ctx.lastTargets.push(lastTarget);
+          for (const mt of pendingMergeTargets) {
+            if (!ctx.lastTargets.includes(mt)) ctx.lastTargets.push(mt);
+          }
+          const unique = Array.from(new Set(ctx.lastTargets));
+          // Filter out non-terminal targets that already have edges to other
+          // targets in the set (they converge naturally, no extra merge needed)
+          const terminal = unique.filter(t =>
+            !edges.some(e => e.from === t && unique.includes(e.to))
+          );
+          const effective = terminal.length > 0 ? terminal : unique;
+          if (effective.length > 1) {
+            lastTarget = effective[0];
+            pendingMergeTargets = effective.slice(1);
+          } else if (effective.length === 1) {
+            lastTarget = effective[0];
+            pendingMergeTargets = [];
+          } else {
+            pendingMergeTargets = [];
+          }
+        }
+        continue;
+      }
+
+      // Partition block (legacy activity group) — reuse existing group with same label
+      if (st.kind === 'block_statement' && st.type === 'partition') {
+        const text = String(st.text || '').trim();
+        const cleaned = text.replace(/\s*\{?\s*$/, '').trim();
+        const parts = cleaned.match(/^(.+?)\s+(#\S+)$/);
+        const rawLabel = parts ? parts[1] : cleaned;
+        const label = rawLabel.replace(/^"|"$/g, '').replace(/"/g, '').trim();
+        const color = parts ? parts[2] : undefined;
+
+        // Reuse existing partition with same label at same nesting level
+        const parentId = groupStack.length > 0 ? groupStack[groupStack.length - 1].id : undefined;
+        let group = groups.find(g => g.type === 'partition' && g.label === label && g.parentId === parentId);
+        if (!group) {
+          groupCounter++;
+          const groupId = `group_${groupCounter}`;
+          group = {
+            id: groupId,
+            label,
+            type: 'partition',
+            stereotype: '',
+            parentId,
+            children: [],
+            childGroups: [],
+          };
+          if (color) group.color = color;
+          groups.push(group);
+          if (groupStack.length > 0) {
+            groupStack[groupStack.length - 1].childGroups.push(groupId);
+          }
+        }
+        groupStack.push(group);
+        blockPushCounts.push(1);
+        continue;
+      }
+
+      // Markup title line: "title Some Title"
+      if (st.kind === 'markup_statement' && st.type === 'title_line') {
+        title = st.text;
+        continue;
+      }
+
+      const isRelationToken = st && (
+        st.kind === 'relation_statement'
+        || (st.kind === 'generic_statement' && ['routing_relation', 'decorated_relation', 'slashy_relation', 'usecase_relation', 'tilde_relation', 'hash_relation'].includes(String(st.type || '')))
+      );
+
+      if (isRelationToken) {
+        const rawFrom = String(st.from || '');
+        const rawTo = String(st.to || '');
+        // Port fields are pre-extracted by peggy PortedEndpoint rules
+        const fromPort = st.fromPort ? String(st.fromPort) : undefined;
+        const toPort = st.toPort ? String(st.toPort) : undefined;
+        // Resolve names in namespace context
+        const fromResolved = resolveNameInScope(normalizeId(rawFrom));
+        const toResolved = resolveNameInScope(normalizeId(rawTo));
+        let from = fromResolved.resolved;
+        let to = toResolved.resolved;
+
+        // Handle [*] pseudo-endpoint for state diagrams (scoped per state group)
+        if (rawFrom === '[*]') {
+          const sg = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+          from = sg && sg.type === 'state' ? `${sg.id}.__state_start__` : '__state_start__';
+        }
+        if (rawTo === '[*]') {
+          const sg = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+          to = sg && sg.type === 'state' ? `${sg.id}.__state_end__` : '__state_end__';
+        }
+
+        // Namespace fallback: if the qualified name doesn't exist and the raw name
+        // was unqualified (no dots, no root reference), look for an existing node
+        // with the same short name in any namespace.
+        const nsPrefix = getCurrentNamespacePrefix();
+        if (nsPrefix) {
+          const rawFromNorm = normalizeId(rawFrom);
+          if (!rawFromNorm.startsWith('.') && !rawFromNorm.includes('.') && !nodesById[from]) {
+            const existing = findExistingNodeByShortName(rawFromNorm);
+            if (existing) from = existing;
+          }
+          const rawToNorm = normalizeId(rawTo);
+          if (!rawToNorm.startsWith('.') && !rawToNorm.includes('.') && !nodesById[to]) {
+            const existing = findExistingNodeByShortName(rawToNorm);
+            if (existing) to = existing;
+          }
+        }
+        const arrow = st.arrow;
+        const arrowMeta = st.arrowMeta || null;
+        const label = st.label ? String(st.label).trim() : '';
+
+        // Check if endpoints refer to existing groups (packages/namespaces).
+        // If so, use the group id as the edge endpoint instead of creating a class node.
+        const fromGroup = !nodesById[from] ? findGroupByQualifiedName(from) : undefined;
+        const toGroup = !nodesById[to] ? findGroupByQualifiedName(to) : undefined;
+        const edgeFrom = fromGroup ? fromGroup.id : from;
+        const edgeTo = toGroup ? toGroup.id : to;
+
+        // Detect lollipop (provided interface) arrows from PEG lollipop field.
+        // The () side indicates a circle (interface) node.
+        const lollipopFrom = st.lollipop === 'from';
+        const lollipopTo = st.lollipop === 'to';
+
+        if (!fromGroup && !nodesById[from]) {
+          nodeOrder.push(from);
+          if (from.endsWith('__state_start__')) {
+            nodesById[from] = { id: from, type: NodeType.StateStart, label: '', stereotype: null, stereotypeLabel: '', bodyLines: [] };
+            registerNodeInGroup(from);
+          } else {
+            const shortFrom = (namespaceSeparator && from.includes(namespaceSeparator)) ? from.split(namespaceSeparator).pop() : from;
+            // Detect explicit use-case endpoint syntax: (Name) → usecase, :Name: → actor
+            const ucType = detectUsecaseEndpointType(rawFrom);
+            if (ucType) {
+              nodesById[from] = { id: from, type: ucType.type, label: ucType.label, stereotype: ucType.stereotype, stereotypeLabel: '', bodyLines: [] };
+            } else if (!lollipopFrom && hasUsecaseContext()) {
+              // Bare name in use-case context → actor (PlantUML default)
+              nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
+            } else {
+              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
+            }
+            ensureNodeInCorrectGroup(from, fromResolved.isRoot);
+          }
+        } else if (lollipopFrom && nodesById[from]) {
+          nodesById[from].stereotype = 'circle';
+        }
+        if (!toGroup && !nodesById[to]) {
+          nodeOrder.push(to);
+          if (to.endsWith('__state_end__')) {
+            nodesById[to] = { id: to, type: NodeType.StateEnd, label: '', stereotype: null, stereotypeLabel: '', bodyLines: [] };
+            registerNodeInGroup(to);
+          } else {
+            const shortTo = (namespaceSeparator && to.includes(namespaceSeparator)) ? to.split(namespaceSeparator).pop() : to;
+            // Detect explicit use-case endpoint syntax: (Name) → usecase, :Name: → actor
+            const ucType = detectUsecaseEndpointType(rawTo);
+            if (ucType) {
+              nodesById[to] = { id: to, type: ucType.type, label: ucType.label, stereotype: ucType.stereotype, stereotypeLabel: '', bodyLines: [] };
+            } else if (!lollipopTo && hasUsecaseContext()) {
+              // Bare name in use-case context → actor (PlantUML default)
+              nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
+            } else {
+              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
+            }
+            ensureNodeInCorrectGroup(to, toResolved.isRoot);
+          }
+        } else if (lollipopTo && nodesById[to]) {
+          nodesById[to].stereotype = 'circle';
+        }
+
+        let edgeType;
+        let resolvedMeta;
+        try {
+          resolvedMeta = normalizeArrowMeta(arrowMeta, arrow);
+          edgeType = arrowToEdgeType(arrow, arrowMeta);
+        } catch (error) {
+          if (strict) {
+            throw new Error(`Unsupported class arrow at line ${i}: ${st.raw || ''}`);
+          }
+          continue;
+        }
+
+        edges.push({
+          id: `e${edges.length + 1}`,
+          type: edgeType,
+          from: edgeFrom,
+          to: edgeTo,
+          label,
+          arrow,
+          arrowMeta,
+          cardFrom: st.cardFrom ? String(st.cardFrom).trim() : undefined,
+          cardTo: st.cardTo ? String(st.cardTo).trim() : undefined,
+          style: st.style || null,
+          fromPort: fromPort || undefined,
+          toPort: toPort || undefined,
+          direction: resolvedMeta?.direction || null,
+          length: resolvedMeta?.length || undefined,
+        });
+        lastEdgeId = edges[edges.length - 1].id;
+        continue;
+      }
+
+      const isClassDeclToken = st && st.kind === 'class_declaration';
+
+      if (isClassDeclToken) {
+        const isAbstract = Boolean(st.abstract) || declType === 'abstract';
+        const kind = (declType === 'object') ? 'class'
+          : (declType === 'interface_old') ? 'interface'
+          : (declType === 'abstract') ? 'class'
+          : declType;
+        let rawToken = String(st.name || st.label || st.alias || '');
+        // Use tags array emitted by PEG grammar (ClassDeclLine variant 3).
+        const stTags: string[] = Array.isArray(st.tags) ? st.tags : [];
+        // Use the stereotypes array emitted by the PEG grammar.
+        // Each element is either a plain string or { text, spot: { char, color } }.
+        const cleanName = rawToken;
+        let customSpot: { char: string; color: string } | undefined;
+        const stereoTexts: string[] = [];
+        for (const s of (st.stereotypes || [])) {
+          if (typeof s === 'string') {
+            stereoTexts.push(s);
+          } else if (s && typeof s === 'object') {
+            if (s.spot) customSpot = s.spot;
+            if (s.text) stereoTexts.push(s.text);
+          }
+        }
+        const stereotypeLabel = stereoTexts.map((s: string) => `«${s}»`).join(' ');
+        // Resolve name in namespace context
+        const nameResolved = resolveNameInScope(cleanName);
+        const resolvedName = nameResolved.resolved;
+        // Extract short name using the configured namespace separator
+        let shortName: string;
+        if (namespaceSeparator && resolvedName.includes(namespaceSeparator)) {
+          shortName = resolvedName.split(namespaceSeparator).pop()!;
+        } else {
+          shortName = resolvedName;
+        }
+        // When PEG emits aliasIsLabel, the alias carries the display name.
+        // e.g. class ID as "Display Name" → aliasIsLabel=true, name=ID, alias="Display Name"
+        // vs.  class "Display Name" as ID → name="Display Name", alias=ID (no aliasIsLabel)
+        const aliasIsLabel = Boolean(st.aliasIsLabel);
+        const label = aliasIsLabel ? st.alias : shortName;
+        const id = normalizeId(aliasIsLabel ? resolvedName : (st.alias || resolvedName));
+        const hasBrace = Boolean(st.block);
+
+        const nodeType = kind === 'interface' ? NodeType.Interface : kind === 'enum' ? NodeType.Enum
+          : (st.implicit && hasUsecaseContext()) ? NodeType.UsecaseActor : NodeType.Class;
+
+        const bodyLines: BodyLine[] = [];
+
+        if (hasBrace) {
+          // Consume class_body_line statements until class_block_end
+          while (i + 1 < statements.length) {
+            i++;
+            const innerSt = statements[i];
+            if (!innerSt || typeof innerSt !== 'object') continue;
+            if (innerSt.kind === 'block_statement' && innerSt.type === 'class_block_end') break;
+            if (innerSt.kind !== 'class_body_line') continue;
+            const inner = String(innerSt.text || innerSt.raw || '').trim();
+            if (!inner) continue;
+            if (inner.charAt(0) === "'") continue;
+
+            // Check for {field}/{method} tagged member from PEG
+            if (innerSt.tag) {
+              const vis = innerSt.visibility || '';
+              const cleaned = (vis + (innerSt.memberText || inner)).trim();
+              if (cleaned) bodyLines.push({ text: cleaned, tag: innerSt.tag });
+              continue;
+            }
+
+            bodyLines.push(inner);
+          }
+        }
+
+        if (!nodesById[id]) nodeOrder.push(id);
+        nodesById[id] = {
+          id,
+          type: nodeType,
+          label,
+          stereotype: isAbstract ? 'abstract' : declType === 'interface_old' ? 'circle' : declType === 'object' ? 'object' : (st.implicit && hasUsecaseContext()) ? 'actor' : kind,
+          stereotypeLabel,
+          bodyLines,
+          style: st.style || null,
+          tags: stTags.length > 0 ? stTags : undefined,
+          spot: customSpot,
+        };
+        ensureNodeInCorrectGroup(id, nameResolved.isRoot);
+        lastDefinedClass = id;
+
+        // Handle "class A implements B" / "class A extends B"
+        if (st.relation && st.relationTarget) {
+          const targetId = normalizeId(st.relationTarget);
+          if (targetId) {
+            // Ensure target node exists (implicit declaration)
+            if (!nodesById[targetId]) {
+              nodeOrder.push(targetId);
+              const targetType = st.relation === 'implements' ? NodeType.Interface : NodeType.Class;
+              const targetStereo = st.relation === 'implements' ? 'interface' : 'class';
+              nodesById[targetId] = {
+                id: targetId,
+                type: targetType,
+                label: st.relationTarget,
+                stereotype: targetStereo,
+                stereotypeLabel: '',
+                bodyLines: [],
+              };
+            }
+            // Create edge: child --▷ parent (inheritance/implementation)
+            const edgeId = `e${edges.length + 1}`;
+            const edgeType = st.relation === 'implements' ? EdgeType.Implementation : EdgeType.Inheritance;
+            edges.push({
+              id: edgeId,
+              from: id,
+              to: targetId,
+              type: edgeType,
+              label: '',
+            });
+          }
+        }
+
+        continue;
+      }
+
+      // State declaration: "state ForkState <<fork>>" → declaration_statement|state
+      if (st.kind === 'declaration_statement' && declType === 'state') {
+        const rawName = String(st.name || st.alias || '').trim();
+        const label = String(st.label || rawName);
+        const id = normalizeId(st.alias || rawName);
+        const stereotypes: string[] = Array.isArray(st.stereotypes) ? st.stereotypes : [];
+        const stereo = stereotypes[0] || '';
+
+        // Map stereotypes to NodeType
+        let nodeType: (typeof NodeType)[keyof typeof NodeType] = NodeType.State;
+        if (stereo === 'fork') nodeType = NodeType.StateFork;
+        else if (stereo === 'join') nodeType = NodeType.StateJoin;
+        else if (stereo === 'choice') nodeType = NodeType.StateChoice;
+        else if (stereo === 'start') nodeType = NodeType.StateStart;
+        else if (stereo === 'end') nodeType = NodeType.StateEnd;
+
+        if (st.block) {
+          // Composite state: the state node IS the group container.
+          // Use the node ID as the group ID so compound edges route correctly.
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: nodeType,
+            label,
+            stereotype: stereo || null,
+            stereotypeLabel: stereo || '',
+            bodyLines: [],
+            style: st.style || null,
+          };
+          const parentGroup = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+          const parentId = parentGroup?.id;
+          // Reuse existing group if already created (state defined in multiple blocks)
+          let stateGroup = groups.find(g => g.id === id);
+          if (!stateGroup) {
+            // The explicit block definition determines the real parent.
+            // Remove from any group that auto-registered this id via edge references.
+            for (const g of groups) {
+              const idx = g.children.indexOf(id);
+              if (idx !== -1) g.children.splice(idx, 1);
+            }
+            stateGroup = {
+              id,
+              label,
+              type: 'state',
+              parentId,
+              children: [],
+              childGroups: [],
+            };
+            groups.push(stateGroup);
+            if (parentGroup && !parentGroup.childGroups.includes(id)) {
+              parentGroup.childGroups.push(id);
+            }
+          }
+          groupStack.push(stateGroup);
+          blockPushCounts.push(1);
+        } else {
+          // Simple state (no block)
+          const bodyLines: BodyLine[] = [];
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: nodeType,
+            label,
+            stereotype: stereo || null,
+            stereotypeLabel: stereo || '',
+            bodyLines,
+            style: st.style || null,
+          };
+          registerNodeInGroup(id);
+        }
+        continue;
+      }
+
+      // Diamond short-form: "<> name"
+      if (st.kind === 'generic_statement' && st.type === 'diamond_short_form') {
+        const rawLabel = String(st.text || st.name || st.right || st.label || '');
+        const label = rawLabel;
+        const id = normalizeId(rawLabel);
+        if (id && !nodesById[id]) {
+          nodeOrder.push(id);
+          nodesById[id] = { id, type: NodeType.Class, label, stereotype: 'diamond', stereotypeLabel: '', bodyLines: [] };
+          registerNodeInGroup(id);
+        }
+        continue;
+      }
+
+      // Fallback: "entity Foo" via TwoColumnLine / TypedMemberLine
+      // (entity overlaps with ComponentType and sequence participant keywords,
+      // so it cannot be in BareTypeKeyword)
+      if (
+        (st.kind === 'generic_statement' && st.type === 'two_column' && String(st.left || '').toLowerCase() === 'entity') ||
+        (st.kind === 'declaration_statement' && declType === 'member' && String(st.dataType || '').toLowerCase() === 'entity')
+      ) {
+        const rawLabel = String(st.right || st.name || '');
+        const label = rawLabel;
+        const id = normalizeId(rawLabel);
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = { id, type: NodeType.Class, label, stereotype: 'entity', stereotypeLabel: '', bodyLines: [] };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Member colon syntax: "Object : equals()" → declaration_statement|member with owner + text
+      if (st.kind === 'declaration_statement' && declType === 'member' && st.owner) {
+        const ownerId = normalizeId(st.owner);
+        const text = String(st.text || '').trim();
+        if (ownerId) {
+          if (!nodesById[ownerId]) {
+            nodeOrder.push(ownerId);
+            nodesById[ownerId] = { id: ownerId, type: defaultNodeType, label: ownerId, stereotype: null, stereotypeLabel: '', bodyLines: [] };
+            registerNodeInGroup(ownerId);
+          }
+          if (text) {
+            const node = nodesById[ownerId];
+            if (!node.bodyLines) node.bodyLines = [];
+            node.bodyLines.push(text);
+          }
+        }
+        continue;
+      }
+    }
+  }
+
+  // ── Post-processing: disambiguate (*) start vs end ──────────────────
+  if (nodesById['(*)']) {
+    if (starAsSourceCount > 0 && starAsTargetCount > 0) {
+      // (*) used as both source and target → split into separate start/end nodes
+      nodesById['(*)'].type = NodeType.StateStart as any;
+      const endId = '__activity_end__';
+      nodesById[endId] = {
+        id: endId,
+        type: NodeType.StateEnd as any,
+        label: '',
+        stereotype: null,
+        stereotypeLabel: '',
+        bodyLines: [],
+      };
+      nodeOrder.push(endId);
+      // Rewrite edges: edges TO (*) should point to end node
+      for (const e of edges) {
+        if (e.to === '(*)') e.to = endId;
+      }
+    } else if (starAsTargetCount > 0) {
+      nodesById['(*)'].type = NodeType.StateEnd as any;
+    } else {
+      nodesById['(*)'].type = NodeType.StateStart as any;
+    }
+  }
+
+  // Apply hide/show visibility rules to each node.
+  // Rules are applied in order; later rules override earlier ones.
+  // We only set flags here; the renderer decides how to display.
+  if (visRules.length > 0) {
+    /** Check if a visibility rule scope matches a node. */
+    const scopeMatches = (scope: string, nodeId: string, stereotypes: string[]): boolean => {
+      if (scope === '*') return true;
+      // Stereotype scope: <<Name>>
+      const stereoMatch = scope.match(/^<<(.+)>>$/);
+      if (stereoMatch) {
+        return stereotypes.includes(stereoMatch[1]);
+      }
+      // Node id match
+      return normalizeId(scope) === nodeId;
+    };
+
+    for (const id of Object.keys(nodesById)) {
+      const node = nodesById[id];
+      if (!node) continue;
+      // Extract stereotypes from stereotypeLabel (e.g. '«Serializable»' → ['Serializable'])
+      const stereotypes: string[] = [];
+      if (node.stereotypeLabel) {
+        const re = /[«]([^»]+)[»]/g;
+        let m;
+        while ((m = re.exec(node.stereotypeLabel))) stereotypes.push(m[1]);
+      }
+
+      // Compute effective visibility per aspect by replaying rules in order.
+      // Start with defaults: everything visible.
+      let showFields = true, showMethods = true, showCircle = true;
+      for (const rule of visRules) {
+        if (!scopeMatches(rule.scope, id, stereotypes)) continue;
+        const val = rule.action === 'show';
+        switch (rule.aspect) {
+          case 'members':  showFields = val; showMethods = val; break;
+          case 'fields':   showFields = val; break;
+          case 'methods':  showMethods = val; break;
+          case 'circle':   showCircle = val; break;
+        }
+      }
+
+      // Set visibility flags on the node — the renderer handles filtering.
+      if (!showFields) node.hideFields = true;
+      if (!showMethods) node.hideMethods = true;
+      if (!showCircle) node.hideCircle = true;
+    }
+  }
+
+  // Build set of node ids that appear in at least one edge (linked nodes).
+  const linkedNodes = new Set<string>();
+  for (const e of edges) {
+    linkedNodes.add(e.from);
+    linkedNodes.add(e.to);
+  }
+
+  // Compute per-node removal by replaying removeRules in order.
+  // A node is removed if the last matching rule is 'remove'.
+  function isNodeRemoved(id: string, node: SemanticNode | undefined): boolean {
+    let removed = false;
+    for (const rule of removeRules) {
+      if (rule.target === '*') {
+        removed = rule.action === 'remove';
+      } else if (rule.target === '@unlinked') {
+        if (!linkedNodes.has(id)) {
+          removed = rule.action === 'remove';
+        }
+      } else if (rule.target.startsWith('$')) {
+        if (node?.tags?.includes(rule.target)) {
+          removed = rule.action === 'remove';
+        }
+      } else {
+        if (id === rule.target) {
+          removed = rule.action === 'remove';
+        }
+      }
+    }
+    return removed;
+  }
+
+  // Remove auto-created class nodes that share an id with a note alias.
+  // Note aliases (e.g. "note ... as N1") are valid edge endpoints but should
+  // NOT be rendered as class swimlanes.
+  const noteIds = new Set(notes.map((n) => n.id));
+  const filteredNodeOrder = nodeOrder.filter((id) => {
+    if (noteIds.has(id)) return false;
+    if (isNodeRemoved(id, nodesById[id])) return false;
+    return true;
+  });
+
+  // Filter edges that reference removed/hidden nodes (but NOT note aliases)
+  const removedNodeSet = new Set<string>();
+  for (const id of nodeOrder) {
+    if (isNodeRemoved(id, nodesById[id])) removedNodeSet.add(id);
+  }
+  const filteredEdges = edges.filter(e => !removedNodeSet.has(e.from) && !removedNodeSet.has(e.to));
+
+  // Apply global skinparam packageStyle as default stereotype for groups
+  // that don't have an explicit stereotype, so renderers don't need global context.
+  const packageStyle = skinparams['packageStyle'] || '';
+  if (packageStyle) {
+    for (const g of groups) {
+      if (!g.stereotype) g.stereotype = packageStyle;
+    }
+  }
+
+  return {
+    diagramType: DiagramType.UML,
+    nodes: filteredNodeOrder.map((id) => nodesById[id]),
+    edges: filteredEdges,
+    notes,
+    groups,
+    errors,
+    rankdir,
+    title,
+    legend: legend || undefined,
+    skinparams: Object.keys(skinparams).length > 0 ? skinparams : undefined,
+  };
+}

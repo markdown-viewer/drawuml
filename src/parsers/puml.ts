@@ -1,0 +1,693 @@
+import { parseClassDiagram } from './class.ts';
+import { PeggySyntaxError, parse as parsePeggy } from './puml-peggy.ts';
+
+function safeMessage(error) {
+  if (!error) return 'Unknown error';
+  if (typeof error === 'string') return error;
+  if (error && typeof error.message === 'string') return error.message;
+  return String(error);
+}
+
+function parseDirectiveLine(kind, rawLine) {
+  const input = `${String(rawLine || '')}\n`;
+  try {
+    if (kind === 'start') return parsePeggy(input, { startRule: 'StartDirectiveLine' });
+    if (kind === 'end') return parsePeggy(input, { startRule: 'EndDirectiveLine' });
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseStatementLine(rawLine) {
+  const input = `${String(rawLine || '')}\n`;
+  return parsePeggy(input, { startRule: 'StatementLine' });
+}
+
+
+
+function isTimingHintStatement(st) {
+  if (!st || typeof st !== 'object') return false;
+  if (st.kind === 'declaration_statement' && st.type === 'timing_decl') return true;
+  if (st.kind === 'generic_statement' && st.type === 'timing_at') return true;
+  return false;
+}
+
+function hasTimingHintsFromPeggy(bodyLines) {
+  for (const rawLine of bodyLines) {
+    const trimmed = String(rawLine || '').trim();
+    if (!trimmed) continue;
+    try {
+      const st = parseStatementLine(rawLine);
+      if (isTimingHintStatement(st)) return true;
+    } catch {
+      // ignore parse failures during mode probing
+    }
+  }
+  return false;
+}
+
+export function parsePlantUml(text) {
+  const source = String(text || '');
+  const lines = source.split(/\r?\n/);
+
+  function jsonBraceDelta(line) {
+    const s = String(line || '');
+    let delta = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < s.length; i += 1) {
+      const ch = s[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === '{') delta += 1;
+      else if (ch === '}') delta -= 1;
+    }
+    return delta;
+  }
+
+  let startDirective = null;
+  let startName = null;
+  let endDirective = null;
+
+  let startLine = 0;
+  let endLine = lines.length;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const d = parseDirectiveLine('start', lines[i]);
+    if (!d) continue;
+    startDirective = d.directive;
+    startName = d.name;
+    startLine = i + 1;
+    break;
+  }
+
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const d = parseDirectiveLine('end', lines[i]);
+    if (!d) continue;
+    endDirective = d.directive;
+    endLine = i;
+    break;
+  }
+
+  const bodyLines = lines.slice(startLine, endLine);
+  const statements = [];
+  const errors = [];
+
+  const directiveLower = String(startDirective || '').toLowerCase();
+  const isTimingHint = hasTimingHintsFromPeggy(bodyLines);
+  const parseMode = directiveLower === '@startmindmap' || directiveLower === '@startwbs'
+    ? 'mindmap'
+    : (directiveLower && directiveLower !== '@startuml'
+      ? 'verbatim'
+      : (isTimingHint ? 'timing' : 'default'));
+
+  let inNoteBlock = false;
+  let inActivityTextBlock = false;
+  let inArrowLabelBlock = false;
+  let styleBlockDepth = 0;
+  let inQuoteBlock = false;
+  let inLegendBlock = false;
+  let classBlockDepth = 0;
+  let jsonBlockDepth = 0;
+  let jsonBlockLines: string[] = [];
+  let jsonStartStatement: any = null;
+  let componentBracketDepth = 0;
+  let componentBracketLines: string[] = [];
+  let componentBracketStartStatement: any = null;
+  let spriteBlockDepth = 0;
+  let inTitleBlock = false;
+  let mapBlockDepth = 0;
+  let mapStartStatement: any = null;
+  let mapEntries: any[] = [];
+  let entityBlockDepth = 0;
+  let stateBlockDepth = 0;
+  let saltPending = false;
+  let saltBlockDepth = 0;
+  let saltLayoutDepth = 0;
+  let inRNoteBlock = false;
+  let inHNoteBlock = false;
+  let inRefBlock = false;
+  let inBlockComment = false;
+  let quoteBlockLines: string[] = [];
+  let quoteBlockStartLine = 0;
+
+  for (let i = 0; i < bodyLines.length; i += 1) {
+    const rawLine = String(bodyLines[i] || '');
+    const trimmed = rawLine.trim();
+    const lineNumber = startLine + i + 1;
+
+    // Handle block comments /' ... '/
+    if (inBlockComment) {
+      statements.push({ kind: 'comment_line', line: lineNumber, raw: rawLine, comment: rawLine });
+      if (trimmed.includes("'/")) inBlockComment = false;
+      continue;
+    }
+    if (trimmed.startsWith("\/'" ) && !trimmed.includes("'/")) {
+      inBlockComment = true;
+      statements.push({ kind: 'comment_line', line: lineNumber, raw: rawLine, comment: rawLine });
+      continue;
+    }
+
+    if (!trimmed) {
+      statements.push({ kind: 'blank_line', line: lineNumber, raw: rawLine });
+      continue;
+    }
+
+    if (parseMode === 'mindmap') {
+      const m = trimmed.match(/^(\*+)(:?)(.*)$/);
+      if (m) {
+        const stars = m[1] || '';
+        const hasColon = Boolean(m[2]);
+        const text = String(m[3] || '').trim();
+        statements.push({ kind: 'mindmap_node_line', line: lineNumber, raw: rawLine, level: stars.length, colon: hasColon, text });
+      } else {
+        statements.push({ kind: 'mindmap_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      }
+      continue;
+    }
+
+    if (parseMode === 'timing') {
+      statements.push({ kind: 'timing_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (parseMode === 'verbatim') {
+      statements.push({ kind: 'verbatim_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (saltPending) {
+      if (trimmed === '{') {
+        saltPending = false;
+        saltBlockDepth = 1;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'salt_block_start' });
+        continue;
+      }
+      saltPending = false;
+    }
+
+    if (saltBlockDepth > 0) {
+      if (trimmed === '}' && saltBlockDepth === 1) {
+        saltBlockDepth = 0;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'salt_block_end' });
+        continue;
+      }
+      saltBlockDepth += jsonBraceDelta(rawLine);
+      statements.push({ kind: 'salt_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (saltLayoutDepth > 0) {
+      if (trimmed === '}' && saltLayoutDepth === 1) {
+        saltLayoutDepth = 0;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'salt_layout_end' });
+        continue;
+      }
+      saltLayoutDepth += jsonBraceDelta(rawLine);
+      statements.push({ kind: 'salt_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inNoteBlock) {
+      // Only 'end note' closes the block; everything else is treated as note text content.
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'note_end') {
+          inNoteBlock = false;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore and treat as plain note text
+      }
+
+      statements.push({ kind: 'note_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inRNoteBlock) {
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'block_statement' && st.type === 'rnote_end') {
+          inRNoteBlock = false;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+
+      statements.push({ kind: 'note_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inHNoteBlock) {
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'block_statement' && st.type === 'hnote_end') {
+          inHNoteBlock = false;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+
+      statements.push({ kind: 'note_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inRefBlock) {
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'block_statement' && st.type === 'ref_end') {
+          inRefBlock = false;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+
+      statements.push({ kind: 'ref_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inLegendBlock) {
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'block_statement' && st.type === 'legend_end') {
+          inLegendBlock = false;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+
+      statements.push({ kind: 'legend_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inTitleBlock) {
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'block_statement' && st.type === 'title_end') {
+          inTitleBlock = false;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+
+      statements.push({ kind: 'title_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (jsonBlockDepth > 0) {
+      if (trimmed === '}' && jsonBlockDepth === 1) {
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'json_block_end' });
+
+        const jsonText = `\n{\n${jsonBlockLines.join('\n')}\n}`;
+        try {
+          const parsed = JSON.parse(jsonText);
+          if (jsonStartStatement && typeof jsonStartStatement === 'object') {
+            jsonStartStatement.json = parsed;
+          }
+        } catch {
+          // Intentionally ignore JSON.parse failures (PlantUML JSON blocks may allow extensions).
+        }
+
+        jsonBlockDepth = 0;
+        jsonBlockLines = [];
+        jsonStartStatement = null;
+        continue;
+      }
+
+      jsonBlockLines.push(rawLine);
+      jsonBlockDepth += jsonBraceDelta(rawLine);
+      statements.push({ kind: 'json_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (mapBlockDepth > 0) {
+      if (trimmed === '}' && mapBlockDepth === 1) {
+        // Attach accumulated entries to the start statement
+        if (mapStartStatement) {
+          mapStartStatement.entries = mapEntries.slice();
+        }
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'map_block_end' });
+        mapBlockDepth = 0;
+        mapStartStatement = null;
+        mapEntries = [];
+        continue;
+      }
+      mapBlockDepth += jsonBraceDelta(rawLine);
+      // Parse map entry lines through peggy for structured extraction
+      try {
+        const st = parsePeggy(`${rawLine}\n`, { startRule: 'MapEntryLine' });
+        if (st && st.kind === 'map_entry') {
+          mapEntries.push(st);
+        }
+      } catch {
+        // Unparseable line — treat as plain key
+        if (trimmed) mapEntries.push({ kind: 'map_entry', key: trimmed, value: '' });
+      }
+      continue;
+    }
+
+    if (componentBracketDepth > 0) {
+      const closeIndex = rawLine.indexOf(']');
+      if (trimmed === ']') {
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'component_bracket_end' });
+        componentBracketDepth = 0;
+        if (componentBracketStartStatement && typeof componentBracketStartStatement === 'object') {
+          componentBracketStartStatement.lines = componentBracketLines.slice();
+        }
+        componentBracketLines = [];
+        componentBracketStartStatement = null;
+        continue;
+      }
+
+      if (closeIndex >= 0) {
+        const head = rawLine.slice(0, closeIndex);
+        if (head) componentBracketLines.push(head);
+        statements.push({ kind: 'component_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'component_bracket_end' });
+        componentBracketDepth = 0;
+        if (componentBracketStartStatement && typeof componentBracketStartStatement === 'object') {
+          componentBracketStartStatement.lines = componentBracketLines.slice();
+        }
+        componentBracketLines = [];
+        componentBracketStartStatement = null;
+        continue;
+      }
+
+      componentBracketLines.push(rawLine);
+      statements.push({ kind: 'component_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (spriteBlockDepth > 0) {
+      if (trimmed === '}') {
+        spriteBlockDepth = 0;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'sprite_block_end' });
+        continue;
+      }
+      statements.push({ kind: 'sprite_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (entityBlockDepth > 0) {
+      if (trimmed === '}' && entityBlockDepth === 1) {
+        entityBlockDepth = 0;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'entity_block_end' });
+        continue;
+      }
+      entityBlockDepth += jsonBraceDelta(rawLine);
+      statements.push({ kind: 'entity_body_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (stateBlockDepth > 0) {
+      if (trimmed === '}') {
+        stateBlockDepth -= 1;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'state_block_end' });
+        continue;
+      }
+      // Parse state body lines as regular statements for nested support
+      let parsedState: any = null;
+      try { parsedState = parseStatementLine(rawLine); } catch { /* ignore */ }
+      if (parsedState && typeof parsedState === 'object') {
+        parsedState.line = lineNumber;
+        parsedState.raw = rawLine;
+        // Detect nested state block start
+        if ((parsedState.kind === 'declaration_statement' || parsedState.kind === 'class_declaration') &&
+            String(parsedState.type || '').toLowerCase() === 'state' && parsedState.block === true) {
+          stateBlockDepth += 1;
+        }
+        statements.push(parsedState);
+      } else if (trimmed) {
+        statements.push({ kind: 'state_body_line', line: lineNumber, raw: rawLine, text: rawLine });
+      }
+      continue;
+    }
+
+    if (classBlockDepth > 0) {
+      if (trimmed === '}') {
+        classBlockDepth -= 1;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'class_block_end' });
+        continue;
+      }
+
+      // Try PEG parsing to extract {field}/{method}/{static}/{abstract} tags and visibility
+      let parsed = null;
+      try { parsed = parseStatementLine(rawLine); } catch { /* ignore */ }
+      if (parsed && parsed.kind === 'declaration_statement' && parsed.type === 'member' && parsed.tag) {
+        statements.push({ kind: 'class_body_line', line: lineNumber, raw: rawLine, text: rawLine, tag: parsed.tag, visibility: parsed.visibility || '', memberText: parsed.text || '' });
+      } else {
+        statements.push({ kind: 'class_body_line', line: lineNumber, raw: rawLine, text: rawLine });
+      }
+      continue;
+    }
+
+    if (styleBlockDepth > 0) {
+      try {
+        const st = parseStatementLine(rawLine);
+        if (st && typeof st === 'object') {
+          st.line = lineNumber;
+          st.raw = rawLine;
+        }
+        if (st && st.kind === 'block_statement' && (st.type === 'style_block_start' || st.type === 'loose_block_start' || st.block === true)) {
+          styleBlockDepth += 1;
+          statements.push({ kind: 'style_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+          continue;
+        }
+        if (st && st.kind === 'block_statement' && st.type === 'style_block_end') {
+          styleBlockDepth -= 1;
+          statements.push(st);
+          continue;
+        }
+      } catch {
+        // ignore and treat as style text
+      }
+
+      statements.push({ kind: 'style_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
+    if (inQuoteBlock) {
+      // Accumulate lines for multi-line quoted strings
+      quoteBlockLines.push(rawLine);
+      const quoteCount = (rawLine.match(/"/g) || []).length;
+      if (quoteCount % 2 === 1) {
+        // Quotes balanced — join with literal \\n and re-parse
+        inQuoteBlock = false;
+        const joined = quoteBlockLines.join('\\n');
+        try {
+          const st = parseStatementLine(joined);
+          if (st && typeof st === 'object') {
+            st.line = quoteBlockStartLine;
+            st.raw = quoteBlockLines.join('\n');
+          }
+          statements.push(st);
+        } catch {
+          // Join didn't help — push individual text lines
+          for (let k = 0; k < quoteBlockLines.length; k++) {
+            statements.push({ kind: 'string_text_line', line: quoteBlockStartLine + k, raw: quoteBlockLines[k], text: quoteBlockLines[k] });
+          }
+        }
+        quoteBlockLines = [];
+      }
+      continue;
+    }
+
+    if (inActivityTextBlock) {
+      // Activity multi-line text continues until a line containing ';'
+      const hasEnd = rawLine.indexOf(';') !== -1;
+      statements.push({ kind: 'activity_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      if (hasEnd) inActivityTextBlock = false;
+      continue;
+    }
+
+    if (inArrowLabelBlock) {
+      const hasEnd = rawLine.indexOf(';') !== -1;
+      statements.push({ kind: 'arrow_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      if (hasEnd) inArrowLabelBlock = false;
+      continue;
+    }
+
+    // Pre-detect unbalanced quotes (multi-line string) before PEG parsing
+    {
+      const quoteCount = (rawLine.match(/"/g) || []).length;
+      if (quoteCount % 2 === 1) {
+        inQuoteBlock = true;
+        quoteBlockLines = [rawLine];
+        quoteBlockStartLine = lineNumber;
+        continue;
+      }
+    }
+
+    try {
+      const st = parseStatementLine(rawLine);
+      if (st && typeof st === 'object') {
+        st.line = lineNumber;
+        st.raw = rawLine;
+      }
+      if (st && st.kind === 'note_start') {
+        inNoteBlock = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'rnote_start') {
+        inRNoteBlock = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'hnote_start') {
+        inHNoteBlock = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'ref_start') {
+        inRefBlock = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'style_block_start') {
+        styleBlockDepth = 1;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'loose_block_start') {
+        styleBlockDepth = 1;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'legend_start') {
+        inLegendBlock = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'title_start') {
+        inTitleBlock = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'json_block_start') {
+        jsonBlockDepth = 1;
+        jsonBlockLines = [];
+        jsonStartStatement = st;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'map_block_start') {
+        mapBlockDepth = 1;
+        mapStartStatement = st;
+        mapEntries = [];
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'salt_start') {
+        saltPending = true;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'salt_layout_start') {
+        saltLayoutDepth = 1;
+      }
+      if (st && st.kind === 'block_statement' && st.type === 'component_bracket_start') {
+        componentBracketDepth = 1;
+        componentBracketLines = [];
+        if (st && typeof st === 'object' && st.head) componentBracketLines.push(String(st.head));
+        componentBracketStartStatement = st;
+      }
+      if (st && st.kind === 'preprocessor_statement' && String(st.cmd || '').toLowerCase() === 'sprite' && st.block === true) {
+        spriteBlockDepth = 1;
+      }
+      if (st && st.kind === 'directive_statement' && String(st.keyword || '').toLowerCase() === 'skinparam' && st.block === true) {
+        styleBlockDepth = 1;
+      }
+      if (st && (st.kind === 'declaration_statement' || st.kind === 'class_declaration')) {
+        const t = String(st.type || '').toLowerCase();
+        if ((t === 'class' || t === 'interface' || t === 'enum' || t === 'object') && st.block === true) {
+          classBlockDepth = 1;
+        }
+        if (t === 'state' && st.block === true) {
+          stateBlockDepth = 1;
+        }
+      }
+      if (st && st.kind === 'component_statement') {
+        const t = String(st.componentType || '').toLowerCase();
+        if (t === 'entity' && st.block === true) {
+          entityBlockDepth = 1;
+        }
+      }
+      if (st && st.kind === 'activity_statement') {
+        if (st.type !== 'return' && st.terminated === false) {
+          inActivityTextBlock = true;
+        }
+      }
+      if (st && st.kind === 'arrow_statement') {
+        const hasEnd = rawLine.indexOf(';') !== -1;
+        inArrowLabelBlock = !hasEnd && st.multilineLabel === true;
+      }
+
+      statements.push(st);
+    } catch (error) {
+      const code = error instanceof PeggySyntaxError ? 'PEGGY_SYNTAX_ERROR' : 'STRICT_PARSE_ERROR';
+      errors.push({
+        line: lineNumber,
+        code,
+        message: safeMessage(error),
+        content: trimmed,
+      });
+    }
+  }
+
+  const relations = [];
+  const components = [];
+  for (const statement of statements) {
+    if (statement.kind === 'relation_statement') relations.push(statement);
+    if (statement.kind === 'component_statement') components.push(statement);
+  }
+
+  let classModel = { nodes: [], edges: [], groups: [], errors: [] } as any;
+  if (directiveLower === '@startuml' && parseMode === 'default') {
+    classModel = parseClassDiagram(statements);
+  }
+  if (Array.isArray(classModel.errors) && classModel.errors.length > 0) {
+    errors.push(...classModel.errors);
+  }
+
+  return {
+    type: 'document',
+    startDirective,
+    startName,
+    endDirective,
+    statements,
+    errors,
+    semantic: {
+      nodes: classModel.nodes,
+      edges: classModel.edges,
+      groups: classModel.groups || [],
+      relations,
+      components,
+    },
+  };
+}

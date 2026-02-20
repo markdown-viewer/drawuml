@@ -1,0 +1,267 @@
+/**
+ * Renderer — abstract base class for all visual element renderers.
+ *
+ * A renderer is stateful: constructed once with semantic data,
+ * then reused for both layout (measure) and generation (render).
+ *
+ * Subclasses implement doMeasure() and render(). The base class
+ * provides cached measure() and a default buildPortLabel() hook.
+ *
+ * Two intermediate base classes extract common patterns:
+ *   - RichBodyRenderer  — for rich-body containers (Note, Legend, Bracket)
+ *   - SwimlaneRenderer  — for titled swimlane containers (Class, State)
+ *
+ * Usage:
+ *   const r = createNodeRenderer(node, opts);
+ *   const size = r.measure();        // for layout (cached)
+ *   const cells = r.render(box);     // after layout
+ */
+
+import { Content } from '../shared/content.ts';
+import { mxVertex } from '../shared/xml-utils.ts';
+import type { ContentBox, FinalizeBodyCtx, ContentBlock } from '../shared/content.ts';
+import type { BodyLine } from '../model/class-model.ts';
+
+// ─── Base class ──────────────────────────────────────────────────────────────
+
+/** Context passed to buildDotBlock() for shared global state. */
+export interface DotContext {
+  /** Whether a node has edges connected to specific ports. */
+  hasPortEdges(nodeId: string): boolean;
+  /** Whether a group needs an invisible proxy node for compound edges. */
+  needsProxy(groupId: string): boolean;
+  /** Whether a node participates in any edge (for row-packing orphan detection). */
+  isConnected(nodeId: string): boolean;
+  /** Get a renderer by id. */
+  getRenderer(id: string): Renderer | undefined;
+  /** Pack orphan node IDs into rows, returning DOT rank constraints + invis edges. */
+  buildRowPacking(nodeIds: string[], indent: string, maxRowWidth?: number, maxPerRow?: number): string[];
+}
+
+export abstract class Renderer {
+  readonly id: string;
+  private _size: { width: number; height: number } | null = null;
+  /** Child renderers managed by this container (empty for leaf nodes). */
+  readonly children: Renderer[] = [];
+  /** Parent cell id for nested containers. */
+  parentId?: string;
+
+  constructor(id: string) {
+    this.id = id;
+  }
+
+  /** Add a child renderer (for container renderers). */
+  addChild(renderer: Renderer) { this.children.push(renderer); }
+
+  /** Compute content-based dimensions (result is cached). */
+  measure(): { width: number; height: number } {
+    if (!this._size) this._size = this.doMeasure();
+    return this._size;
+  }
+
+  /** Produce DrawIO mxCell XML strings for a positioned bounding box. */
+  abstract render(box: ContentBox): string[];
+
+  /** Subclass implements actual dimension computation. */
+  protected abstract doMeasure(): { width: number; height: number };
+
+  /** Whether this renderer produces a DOT subgraph cluster (container). */
+  get isCluster(): boolean { return this.children.length > 0; }
+
+  /**
+   * Build a DOT HTML-label with PORT rows for edge routing.
+   * Subclasses with field-level ports override this to return an
+   * HTML-label string; base returns null (no ports).
+   */
+  buildPortLabel(_widthPx: number): string | null {
+    return null;
+  }
+
+  /**
+   * Build DOT node attribute string for this node.
+   * When hasPortEdges is true and buildPortLabel() returns a label,
+   * uses shape=none with the HTML port label for field-level routing.
+   * Otherwise: `shape=rect,fixedsize=true,width=W,height=H,label=""`.
+   */
+  buildDotAttributes(hasPortEdges: boolean): string {
+    const PX_PER_INCH = 72;
+    const sz = this.measure();
+    const wInch = (sz.width / PX_PER_INCH).toFixed(6);
+    const hInch = (sz.height / PX_PER_INCH).toFixed(6);
+    if (hasPortEdges) {
+      const htmlLabel = this.buildPortLabel(sz.width);
+      if (htmlLabel) {
+        return `shape=none,fixedsize=true,width=${wInch},height=${hInch},label=${htmlLabel}`;
+      }
+    }
+    return `shape=rect,fixedsize=true,width=${wInch},height=${hInch},label=""`;
+  }
+
+  /**
+   * Build DOT block lines for this renderer.
+   * Leaf nodes produce a single node declaration;
+   * container renderers (groups) override to produce subgraph clusters.
+   */
+  buildDotBlock(ctx: DotContext, indent: string): string[] {
+    const attrs = this.buildDotAttributes(ctx.hasPortEdges(this.id));
+    return [`${indent}"${this.id}" [${attrs}]`];
+  }
+}
+
+/** Backward-compatible type alias. */
+export type NodeRenderer = Renderer;
+
+// ─── RichBodyRenderer ────────────────────────────────────────────────────────
+
+/**
+ * Base class for rich-body container renderers (Note, Legend, Bracket).
+ *
+ * Subclasses set `content`, `style`, `fillColor`, `strokeColor` in their
+ * constructor, and override `getRowStyle()` / `getSeparatorStyle()` to
+ * provide DrawIO child cell styles.
+ *
+ * The common render logic handles the hasSeparators branching:
+ *   - with separators → empty container + child rows/separators
+ *   - without separators → single cell with html content
+ */
+export abstract class RichBodyRenderer extends Renderer {
+  protected content: Content;
+  protected style: string;
+  protected fillColor: string;
+  protected strokeColor: string;
+
+  constructor(id: string) {
+    super(id);
+  }
+
+  protected doMeasure() {
+    const size = this.content.measure();
+    return { width: size.width, height: size.height };
+  }
+
+  /** DrawIO style for body text row child mxCells. */
+  protected abstract getRowStyle(): string;
+  /** DrawIO style for separator child mxCells. */
+  protected abstract getSeparatorStyle(): string;
+
+  render(box: ContentBox) {
+    const cells: string[] = [];
+    if (this.content.hasSeparators) {
+      cells.push(mxVertex({
+        id: this.id, value: '', style: this.style,
+        x: box.x, y: box.y, width: box.width, height: box.height,
+      }));
+      cells.push(...this.content.renderChildren(this.id, box.width, {
+        rowStyle: this.getRowStyle(),
+        separatorStyle: this.getSeparatorStyle(),
+        fillColor: this.fillColor,
+        strokeColor: this.strokeColor,
+      }));
+    } else {
+      cells.push(mxVertex({
+        id: this.id, value: this.content.html, style: this.style,
+        x: box.x, y: box.y, width: box.width, height: box.height,
+      }));
+    }
+    return cells;
+  }
+}
+
+// ─── SwimlaneRenderer ────────────────────────────────────────────────────────
+
+/**
+ * Base class for titled swimlane container renderers (Class, State).
+ *
+ * Subclasses call `initContent()` in their constructor to build the
+ * Content object. Entity-specific separator behavior is handled by
+ * overriding `finalizeBody()`.
+ *
+ * The common render logic creates a swimlane container with titleHtml
+ * and appends body child rows/separators below the title area.
+ */
+export abstract class SwimlaneRenderer extends Renderer {
+  protected content: Content;
+
+  constructor(nodeId: string) {
+    super(nodeId);
+  }
+
+  /**
+   * Build the Content object for this swimlane.
+   * Wires up `this.finalizeBody()` as the callback for entity-specific
+   * separator behavior inside Content.classBody().
+   */
+  protected initContent(titleHtml: string, opts?: {
+    bodyLines?: BodyLine[];
+    visibilityIcons?: boolean;
+    hideFields?: boolean;
+    hideMethods?: boolean;
+  }) {
+    this.content = Content.classBody({
+      titleHtml,
+      nodeId: this.id,
+      bodyLines: opts?.bodyLines,
+      visibilityIcons: opts?.visibilityIcons,
+      hideFields: opts?.hideFields,
+      hideMethods: opts?.hideMethods,
+      finalizeBody: (ctx) => this.finalizeBody(ctx),
+    });
+  }
+
+  /**
+   * Override to customize body finalization behavior (auto-separator, metrics).
+   * Return null to use the default auto-separator logic (class entity behavior).
+   * Return an object (even {}) to skip auto-separator and apply metric overrides.
+   */
+  protected finalizeBody(_ctx: FinalizeBodyCtx): Partial<Record<string, any>> | null {
+    return null;
+  }
+
+  protected doMeasure() {
+    const size = this.content.measure();
+    return { width: size.width, height: size.height };
+  }
+
+  /** DrawIO swimlane style for the container. */
+  protected abstract getContainerStyle(titleHeight: number): string;
+  /** DrawIO style for body text row child mxCells. */
+  protected abstract getRowStyle(): string;
+  /** DrawIO style for separator child mxCells. */
+  protected abstract getSeparatorStyle(): string;
+
+  render(box: ContentBox) {
+    const cells: string[] = [];
+    const size = this.content.measure();
+    const style = this.getContainerStyle(size.titleHeight!);
+
+    // Swimlane container with title as value
+    cells.push(mxVertex({
+      id: this.id, value: this.content.titleHtml,
+      style, x: box.x, y: box.y, width: box.width, height: box.height,
+    }));
+
+    // Body rows + separators as children, starting below title
+    cells.push(...this.content.renderChildren(this.id, box.width, {
+      rowStyle: this.getRowStyle(),
+      separatorStyle: this.getSeparatorStyle(),
+    }, size.titleHeight));
+
+    return cells;
+  }
+}
+
+// ─── Renderer options ────────────────────────────────────────────────────────
+
+/** Options for class-diagram node renderers. */
+export interface ClassNodeRendererOpts {
+  /** Enable UML visibility icons (+/-/#/~) in body rows. */
+  visibilityIcons?: boolean;
+}
+
+/** Options for note renderers. */
+export interface NoteRendererOpts {
+  /** Note shape type: 'note' | 'hnote' | 'rnote'. Default: 'note'. */
+  noteType?: string;
+  /** Fill color override. Default: '#FEFFDD'. */
+  color?: string | null;
+}
