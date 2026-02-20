@@ -373,6 +373,27 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     return _hasUsecaseContext;
   }
 
+  // Lazy deployment context detection.
+  // Returns true when any statement declares a deployment shape keyword
+  // (node, cloud, database, etc.) via component_statement or declaration_statement.
+  let _hasDeploymentContext: boolean | null = null;
+  function hasDeploymentContext(): boolean {
+    if (_hasDeploymentContext !== null) return _hasDeploymentContext;
+    _hasDeploymentContext = statements.some(st => {
+      if (!st || typeof st !== 'object') return false;
+      if (st.kind === 'component_statement') {
+        const ct = String(st.componentType || '').toLowerCase();
+        if (DEPLOYMENT_SHAPE_KEYWORDS.has(ct)) return true;
+      }
+      if (st.kind === 'declaration_statement' && st.type === 'member') {
+        const dt = String(st.dataType || '').toLowerCase();
+        if (DEPLOYMENT_SHAPE_KEYWORDS.has(dt)) return true;
+      }
+      return false;
+    });
+    return _hasDeploymentContext;
+  }
+
   const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
 
   for (let i = 0; i < statements.length; i++) {
@@ -1284,7 +1305,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else {
-              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
+              const deployStereotype = (!lollipopFrom && hasDeploymentContext()) ? 'circle' : null;
+              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : deployStereotype, stereotypeLabel: '', bodyLines: [] };
             }
             ensureNodeInCorrectGroup(from, fromResolved.isRoot);
           }
@@ -1306,7 +1328,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else {
-              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
+              const deployStereotype = (!lollipopTo && hasDeploymentContext()) ? 'circle' : null;
+              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : deployStereotype, stereotypeLabel: '', bodyLines: [] };
             }
             ensureNodeInCorrectGroup(to, toResolved.isRoot);
           }
