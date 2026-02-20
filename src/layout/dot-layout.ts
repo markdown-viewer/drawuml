@@ -387,13 +387,20 @@ function extractLayout(
     const wPt = knownSize ? knownSize.width : parseFloat(obj.width) * PX_PER_INCH;
     const hPt = knownSize ? knownSize.height : parseFloat(obj.height) * PX_PER_INCH;
 
+    // Apply graphic center offset: shift the box so the visual graphic center
+    // aligns with DOT's node center (cx,cy).  For nodes with icon + label-below
+    // (e.g. actor, boundary, entity, control, circle), the visual center is
+    // above the geometric center; the offset corrects this mismatch so edge
+    // routing hits the icon rather than the label area.
+    const offset = r ? r.graphicCenterOffset() : { dx: 0, dy: 0 };
+
     nodes[name] = {
       id: name,
       cx, cy,
       width: Math.round(wPt),
       height: Math.round(hPt),
-      x: Math.round(cx - wPt / 2),
-      y: Math.round(cy - hPt / 2),
+      x: Math.round(cx - wPt / 2 + offset.dx),
+      y: Math.round(cy - hPt / 2 + offset.dy),
     } as any;
   }
 

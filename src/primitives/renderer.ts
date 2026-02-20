@@ -69,6 +69,16 @@ export abstract class Renderer {
   get isCluster(): boolean { return this.children.length > 0; }
 
   /**
+   * Offset from geometic center to visual graphic center (in pixels).
+   * For nodes whose visual shape (e.g. icon) is not centered within the
+   * full bounding box (e.g. actor with label below), override this so DOT
+   * layout can align edge routing with the actual graphic center.
+   * Positive dy = graphic center is below geometric center.
+   * Negative dy = graphic center is above geometric center.
+   */
+  graphicCenterOffset(): { dx: number; dy: number } { return { dx: 0, dy: 0 }; }
+
+  /**
    * Build a DOT HTML-label with PORT rows for edge routing.
    * Subclasses with field-level ports override this to return an
    * HTML-label string; base returns null (no ports).

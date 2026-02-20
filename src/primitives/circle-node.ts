@@ -51,6 +51,11 @@ class CircleNodeRenderer extends Renderer {
     return { width, height };
   }
 
+  graphicCenterOffset() {
+    const h = this.measure().height;
+    return { dx: 0, dy: CIRCLE_DIAMETER / 2 - h / 2 };
+  }
+
   render(box: ContentBox) {
     const cw = CIRCLE_DIAMETER;
     const ch = CIRCLE_DIAMETER;

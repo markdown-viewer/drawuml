@@ -46,6 +46,11 @@ class ControlRenderer extends Renderer {
     return { width: Math.max(ICON_WIDTH, labelWidth), height: ICON_HEIGHT + 4 + 18 };
   }
 
+  graphicCenterOffset() {
+    const h = this.measure().height;
+    return { dx: 0, dy: ICON_HEIGHT / 2 - h / 2 };
+  }
+
   buildDotBlock(ctx: DotContext, indent: string): string[] {
     return [`${indent}"${this.id}" [${this.buildDotAttributes(false)}]`];
   }

@@ -69,6 +69,12 @@ class ActorNodeRenderer extends Renderer {
     return { width, height };
   }
 
+  graphicCenterOffset() {
+    // Graphic center is at ACTOR_HEIGHT/2 from top; geometric center is at height/2
+    const h = this.measure().height;
+    return { dx: 0, dy: ACTOR_HEIGHT / 2 - h / 2 };
+  }
+
   render(box: ContentBox) {
     // Build line style modifiers
     let lineStyleStr = '';
