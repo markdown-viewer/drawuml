@@ -84,6 +84,7 @@ export interface SemanticGroup {
   children: string[];     // child node ids
   childGroups: string[];  // child group ids
   color?: string;         // background fill color override (normalized hex)
+  style?: string | null;  // raw PlantUML inline style string
 }
 
 export interface SemanticModel {

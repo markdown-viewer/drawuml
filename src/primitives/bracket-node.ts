@@ -114,6 +114,7 @@ function containerStyle(shapeFragment: string, topOffset: number, nodeStyle?: st
 class BracketNodeRenderer extends RichBodyRenderer {
   private _contentYOffset: number;
   private _extraPadY: number;
+  private _extraPadX: number;
 
   constructor(desc: RenderDescriptor) {
     super(desc.id);
@@ -124,6 +125,7 @@ class BracketNodeRenderer extends RichBodyRenderer {
     let shapeFragment = 'rounded=0;';
     let contentYOffset = 0;
     let extraPadY = 0;
+    let extraPadX = 0;
     if (hasRenderer(ctype)) {
       const sr = createRenderer(ctype, desc);
       if (sr instanceof ShapeRenderer) {
@@ -131,11 +133,13 @@ class BracketNodeRenderer extends RichBodyRenderer {
         shapeFragment = extractShapeFragment(info.style);
         contentYOffset = info.contentYOffset;
         extraPadY = info.extraPadY;
+        extraPadX = info.extraPadX;
       }
     }
 
     this._contentYOffset = contentYOffset;
     this._extraPadY = extraPadY;
+    this._extraPadX = extraPadX;
     this.style = containerStyle(shapeFragment, contentYOffset, desc.style);
     this.fillColor = this.style.match(/fillColor=([^;]*)/)?.[1] || DEFAULT_FILL;
     this.strokeColor = this.style.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
@@ -143,9 +147,10 @@ class BracketNodeRenderer extends RichBodyRenderer {
 
   protected doMeasure() {
     const size = this.content.measure();
+    // Add padding: spacingLeft+spacingRight (10+10) and spacingTop+spacingBottom (6+6)
     return {
-      width: Math.max(size.width, 60),
-      height: Math.max(size.height + this._extraPadY, 30),
+      width: Math.max(size.width + 20 + this._extraPadX, 60),
+      height: Math.max(size.height + 12 + this._extraPadY, 30),
     };
   }
 

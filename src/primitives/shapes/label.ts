@@ -25,10 +25,9 @@ class LabelRenderer extends ShapeRenderer {
     let s = this.buildStyle();
     // Label shape uses fontColor instead of fillColor for color override
     if (this.color) s = s.replace(/fontColor=[^;]*/, `fontColor=${normalizeColor(this.color)}`);
-    // Apply inline style (strokeColor, lineStyle, textColor etc.)
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
-    s = styledS;
-    if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
+    // Apply only text color from inline style; label has no fill/stroke.
+    const parsed = Renderer.applyInlineStyle('', this.desc.style);
+    if (parsed.fontColorOverride) s = s.replace(/fontColor=[^;]*;/, parsed.fontColorOverride);
     return [mxVertex({
       id: this.id, value: labelHtml, style: s,
       parent: this.parentId || '1',

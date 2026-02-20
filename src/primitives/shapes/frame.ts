@@ -41,7 +41,16 @@ class FrameShapeRenderer extends ShapeRenderer {
       })];
     }
     // Normal frame: delegate to base class container/leaf render pattern
-    return super.render(box);
+    const cells = super.render(box);
+    // If inline style set a fillColor, move it to swimlaneFillColor
+    // so uml-frame renders it as the content area background.
+    if (cells.length > 0) {
+      cells[0] = cells[0].replace(
+        /fillColor=([^;"]+)/,
+        (_, c) => c === 'none' ? `fillColor=none` : `fillColor=none;swimlaneFillColor=${c}`
+      );
+    }
+    return cells;
   }
 }
 

@@ -26,9 +26,11 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   }
 
   // Generate group container mxCells (package / namespace / state / …)
+  // Empty groups (no children) are laid out as regular nodes, so fall back
+  // to layout.nodes when layout.groups has no entry.
   const groupLayouts = layout.groups || {};
   for (const g of groups) {
-    const gl = groupLayouts[g.id];
+    const gl = groupLayouts[g.id] || layout.nodes[g.id];
     if (!gl) continue;
     // For nested groups, convert to parent-relative coordinates
     let gx = gl.x;

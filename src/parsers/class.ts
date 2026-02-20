@@ -59,7 +59,7 @@ function resolveNoteTarget(raw: string): { classId: string; memberTarget?: strin
  */
 const DEPLOYMENT_SHAPE_KEYWORDS = new Set([
   'agent', 'artifact', 'boundary', 'card', 'cloud', 'collections',
-  'component', 'control', 'database', 'file', 'folder', 'frame',
+  'component', 'control', 'database', 'entity', 'file', 'folder', 'frame',
   'hexagon', 'label', 'node', 'package', 'person', 'queue',
   'rectangle', 'stack', 'storage',
 ]);
@@ -85,6 +85,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   let legend: { text: string; align?: string } | null = null;
   let title: string | undefined;
   const skinparams: Record<string, string> = {};
+  // CSS-like <style> block rules: selector → { BackGroundColor, LineColor, LineThickness }
+  const cssStyleRules: Record<string, Record<string, string>> = {};
+  let styleBlockAccum: { name: string; props: Record<string, string> } | null = null;
   // Ordered remove/restore directives.  Processed sequentially to decide per-node visibility.
   type RemoveRule = { action: 'remove' | 'restore'; target: string }; // target: '*' | '$tag' | normalized id
   const removeRules: RemoveRule[] = [];
@@ -423,6 +426,26 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       continue;
     }
 
+    // <style> block accumulation
+    if (styleBlockAccum) {
+      if (st.kind === 'block_statement' && st.type === 'style_block_end') {
+        cssStyleRules[styleBlockAccum.name] = styleBlockAccum.props;
+        styleBlockAccum = null;
+        continue;
+      }
+      // Parse "Key Value" lines inside <style> block
+      const rawText = String(st.text || st.raw || '').trim();
+      if (rawText) {
+        const spIdx = rawText.indexOf(' ');
+        if (spIdx > 0) {
+          const key = rawText.slice(0, spIdx).trim();
+          const val = rawText.slice(spIdx + 1).trim();
+          styleBlockAccum.props[key.toLowerCase()] = val;
+        }
+      }
+      continue;
+    }
+
     // Legend block accumulation
     if (legendBlock) {
       if (st.kind === 'block_statement' && st.type === 'legend_end') {
@@ -441,6 +464,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
     // Process statement by kind
     {
+
+      // <style> block start: "actor {", "componentDiagram {" etc.
+      if (st.kind === 'block_statement' && st.type === 'style_block_start') {
+        styleBlockAccum = { name: String(st.name || '').toLowerCase(), props: {} };
+        continue;
+      }
 
       // Capture layout direction directive
       if (st.kind === 'directive_statement') {
@@ -694,6 +723,28 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         }
       }
 
+      // PEG parses "label <name>" as jump_statement (activity diagram keyword).
+      // In deployment context, treat it as a deployment shape node declaration.
+      if (st.kind === 'jump_statement' && String(st.keyword || '').toLowerCase() === 'label') {
+        const rawName = String(st.target || '').trim();
+        const id = normalizeId(rawName);
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label: rawName,
+            stereotype: 'label',
+            stereotypeLabel: '',
+            bodyLines: [],
+            style: st.style || null,
+          };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
       // Bracket component shorthand: [Name] → component node (non-sequence context)
       if (st.kind === 'generic_statement' && st.type === 'bracketed_event') {
         const rawName = String(st.head || '').trim();
@@ -859,6 +910,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         const segments = (namespaceSeparator && rawLabel.includes('.')) ? rawLabel.split('.') : [rawLabel || ctype];
         const startParent = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
         const chain = findOrCreateGroupChain(segments, ctype, startParent, stereotype);
+        // Apply color/style to the innermost (leaf) group
+        if (chain.length > 0) {
+          const leaf = chain[chain.length - 1];
+          if (st.color) leaf.color = st.color;
+          if (st.style) leaf.style = st.style;
+        }
         for (const g of chain) groupStack.push(g);
         blockPushCounts.push(chain.length);
         continue;
@@ -1737,6 +1794,63 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     if (isNodeRemoved(id, nodesById[id])) removedNodeSet.add(id);
   }
   const filteredEdges = edges.filter(e => !removedNodeSet.has(e.from) && !removedNodeSet.has(e.to));
+
+  // Apply <style> CSS rules to nodes that don't have explicit inline styles.
+  // Convert CSS properties (BackGroundColor, LineColor, LineThickness) to inline style format.
+  if (Object.keys(cssStyleRules).length > 0) {
+    // Find global rules (e.g., "componentDiagram") that apply to all nodes
+    const globalSelectors = ['componentdiagram', 'classdiagram', 'objectdiagram',
+      'usecasediagram', 'statediagram', 'deploymentdiagram'];
+    let globalRule: Record<string, string> | null = null;
+    for (const gs of globalSelectors) {
+      if (cssStyleRules[gs]) { globalRule = cssStyleRules[gs]; break; }
+    }
+
+    // Helper: build inline style string from CSS rule properties.
+    // For label shapes, BackGroundColor maps to text color (label has no fill).
+    // skipBg: when true, BackGroundColor is ignored (e.g. global rule on label).
+    function buildInlineStyle(rule: Record<string, string>, stereo?: string, skipBg?: boolean): string | null {
+      const parts: string[] = [];
+      const bg = rule['backgroundcolor'];
+      if (bg && !skipBg) {
+        if (stereo === 'label') parts.push(`text:${bg}`);
+        else parts.push(`back:${bg}`);
+      }
+      const lc = rule['linecolor'];
+      if (lc) parts.push(`line:${lc}`);
+      const lt = rule['linethickness'];
+      if (lt && parseInt(lt) >= 2) parts.push('line.bold');
+      const tc = rule['fontcolor'];
+      if (tc) parts.push(`text:${tc}`);
+      return parts.length > 0 ? '#' + parts.join(';') : null;
+    }
+
+    for (const id of nodeOrder) {
+      const node = nodesById[id];
+      if (!node || node.style) continue; // skip nodes with explicit inline style
+      const stereo = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
+      // In PlantUML, 'circle' is an alias for 'interface' — use interface CSS rule
+      const lookupStereo = stereo === 'circle' ? 'interface' : stereo;
+      const specificRule = cssStyleRules[lookupStereo];
+      const rule = specificRule || globalRule;
+      if (!rule) continue;
+      // For label shapes, only apply BackGroundColor→text from a label-specific rule,
+      // not from global diagram rules (label is text-only, no fill).
+      const skipBg = stereo === 'label' && !specificRule;
+      const s = buildInlineStyle(rule, stereo, skipBg);
+      if (s) node.style = s;
+    }
+
+    // Apply to groups as well
+    for (const g of groups) {
+      if (g.color) continue;
+      const gtype = String(g.type || '').toLowerCase();
+      const rule = cssStyleRules[gtype] || globalRule;
+      if (!rule) continue;
+      const bg = rule['backgroundcolor'];
+      if (bg) g.color = bg;
+    }
+  }
 
   // Apply global skinparam packageStyle as default stereotype for groups
   // that don't have an explicit stereotype, so renderers don't need global context.
