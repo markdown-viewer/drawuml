@@ -50,6 +50,7 @@ import { registerNoteRenderer } from './shapes/note.ts';
 import { registerLegendRenderer } from './shapes/legend.ts';
 import { registerTitleRenderer } from './title.ts';
 import { registerBoxRenderer } from './box.ts';
+import { registerPortNodeRenderer } from './port-node.ts';
 import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
@@ -88,6 +89,7 @@ registerNoteRenderer();
 registerLegendRenderer();
 registerTitleRenderer();
 registerBoxRenderer();
+registerPortNodeRenderer();
 
 // ── Unified node factory (dispatches via registry) ───────────────────────────
 import { createRenderer, hasRenderer } from './registry.ts';

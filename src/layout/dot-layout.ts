@@ -190,6 +190,55 @@ function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRe
     return lines;
   }
 
+  // --- Groups that have at least one edge to an external sibling node ---
+  // Used by buildClusterDotBlock() to widen the cluster margin so the group
+  // has enough space for external routing (e.g. snapped ports, or direct edges).
+  const parentIdMap = new Map<string, string>();
+  for (const g of model.groups || []) {
+    for (const childId of g.children) parentIdMap.set(childId, g.id);
+  }
+
+  function isDescendantOrSelf(descId: string, ancId: string): boolean {
+    let cur: string | undefined = descId;
+    while (cur) {
+      if (cur === ancId) return true;
+      cur = parentIdMap.get(cur);
+    }
+    return false;
+  }
+
+  function getTopLevelAncestor(nodeId: string, targetParentId: string | undefined): string | undefined {
+    let cur: string | undefined = nodeId;
+    let prev: string | undefined = cur;
+    while (cur) {
+      if (parentIdMap.get(cur) === targetParentId) return cur;
+      prev = cur;
+      cur = parentIdMap.get(cur);
+    }
+    if (targetParentId === undefined) return prev;
+    return undefined;
+  }
+
+  const groupsWithExternalEdge = new Set<string>();
+  for (const g of model.groups || []) {
+    for (const edge of model.edges) {
+      const fromInG = isDescendantOrSelf(edge.from, g.id);
+      const toInG = isDescendantOrSelf(edge.to, g.id);
+      
+      if (fromInG && !toInG) {
+        if (getTopLevelAncestor(edge.to, g.parentId) !== undefined) {
+          groupsWithExternalEdge.add(g.id);
+          break;
+        }
+      } else if (!fromInG && toInG) {
+        if (getTopLevelAncestor(edge.from, g.parentId) !== undefined) {
+          groupsWithExternalEdge.add(g.id);
+          break;
+        }
+      }
+    }
+  }
+
   // --- Build DotContext for unified tree traversal ---
   const ctx: DotContext = {
     hasPortEdges: (id) => portNodes.has(id),
@@ -197,6 +246,7 @@ function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRe
     isConnected: (id) => connectedNodes.has(id),
     getRenderer: (id) => renderers.get(id),
     buildRowPacking,
+    hasExternalEdge: (groupId) => groupsWithExternalEdge.has(groupId),
   };
 
   // --- Node + group DOT blocks (unified tree traversal) ---
@@ -696,6 +746,89 @@ function clamp(v: number, min: number, max: number): number {
  * constraints and edge direction). This function only fine-tunes Y for
  * notes that point to a specific field rather than the whole class.
  */
+const PORT_HALF = 6; // half of PORT_SIZE (12px)
+const PORT_SIZE = PORT_HALF * 2;
+
+/**
+ * Snap port nodes to their parent group boundary after DOT layout,
+ * then clip edge waypoints for edges that cross the port from outside the group.
+ *
+ * Port nodes are kept inside their cluster in DOT so internal edges (port→child)
+ * route correctly. However DOT routes external edges (outside→port) through the
+ * cluster interior to reach the port. After snapping the port to the boundary,
+ * those waypoints look wrong — we clip them at the port's snapped bounding box,
+ * exactly like we clip group-boundary edges.
+ */
+function snapPortNodes(
+  layout: LayoutResult,
+  model: SemanticModel,
+  renderers: Map<string, Renderer>,
+): void {
+  // Build nodeId → parentGroupId map for "same-group" detection
+  const nodeGroupMap = new Map<string, string>();
+  for (const group of model.groups || []) {
+    for (const childId of group.children) nodeGroupMap.set(childId, group.id);
+    for (const cgId of group.childGroups) nodeGroupMap.set(cgId, group.id);
+  }
+
+  for (const group of model.groups || []) {
+    const groupBox = (layout.groups || {})[group.id];
+    if (!groupBox) continue;
+    for (const childId of group.children) {
+      const r = renderers.get(childId);
+      if (!r?.isPort) continue;
+      const portNode = layout.nodes[childId];
+      if (!portNode) continue;
+
+      // Snap port center to group boundary
+      if (r.portKind === 'portout') {
+        portNode.y = groupBox.y + groupBox.height - PORT_HALF;
+      } else {
+        portNode.y = groupBox.y - PORT_HALF;
+      }
+
+      // Port bounding box after snap (used to forward-clip internal edges only;
+      // external edges are clipped at the PARENT GROUP boundary, see below).
+      const portBox: LayoutGroup = {
+        id: childId,
+        x: portNode.x,
+        y: portNode.y,
+        width: PORT_SIZE,
+        height: PORT_SIZE,
+      };
+
+      // Clip edges that cross the group boundary to reach/from this port.
+      // - External edges (other end is outside the group): clip at GROUP boundary so they
+      //   terminate exactly at the boundary where the port is rendered.
+      // - Internal edges (other end is inside the same group): clip at the port's own
+      //   small box so they start/end at the port square and don't extend outward.
+      for (const edge of layout.edges || []) {
+        if (!edge.points || edge.points.length < 2) continue;
+
+        if (edge.to === childId) {
+          const otherGroupId = nodeGroupMap.get(edge.from);
+          if (otherGroupId !== group.id) {
+            // External → port: clip at group boundary (same as edges to a group)
+            edge.points = clipPathAtGroupBoundary(edge.points, groupBox, 'end');
+          } else {
+            // Internal → port: clip at port box to stop at the port square
+            edge.points = clipPathAtGroupBoundary(edge.points, portBox, 'end');
+          }
+        } else if (edge.from === childId) {
+          const otherGroupId = nodeGroupMap.get(edge.to);
+          if (otherGroupId !== group.id) {
+            // Port → external: clip at group boundary
+            edge.points = clipPathAtGroupBoundary(edge.points, groupBox, 'start');
+          } else {
+            // Port → internal: clip at port box
+            edge.points = clipPathAtGroupBoundary(edge.points, portBox, 'start');
+          }
+        }
+      }
+    }
+  }
+}
+
 function alignFieldNotes(
   nodes: Record<string, LayoutNode>,
   notes: Array<{ id: string; position?: string; target?: string; memberTarget?: string }>,
@@ -944,6 +1077,9 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
   // 5. Extract + transform coordinates
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
 
+  // 5a. Snap port nodes to their parent group boundary
+  snapPortNodes(layout, model, renderers);
+
   // 6. Fine-tune field-targeting notes (memberTarget) Y alignment
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
 
@@ -984,6 +1120,10 @@ export function dotLayoutSync(model: SemanticModel): DotLayoutResult {
   const { dot, groupIds } = buildDot(model, renderers, rootRenderers);
   const vizJson = vizInstance.renderJSON(dot);
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
+
+  // Snap port nodes to their parent group boundary
+  snapPortNodes(layout, model, renderers);
+
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
 
   // Position title above diagram with negative Y (not via DOT)

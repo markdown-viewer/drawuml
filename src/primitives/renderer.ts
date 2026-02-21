@@ -37,6 +37,11 @@ export interface DotContext {
   getRenderer(id: string): Renderer | undefined;
   /** Pack orphan node IDs into rows, returning DOT rank constraints + invis edges. */
   buildRowPacking(nodeIds: string[], indent: string, maxRowWidth?: number, maxPerRow?: number): string[];
+  /**
+   * Whether a group has edges connecting it (or its children) to an external sibling node.
+   * Used to expand cluster margin so the group has enough space for external routing.
+   */
+  hasExternalEdge(groupId: string): boolean;
 }
 
 export abstract class Renderer {
@@ -79,6 +84,8 @@ export abstract class Renderer {
     if (!myAbs) return [];
     const cells: string[] = [];
     for (const child of this.children) {
+      // Port nodes are rendered separately with absolute coordinates in drawio-gen.ts
+      if (child.isPort) continue;
       // Child layout may be in nodes (leaf or empty group) or groups (cluster)
       const cl = layout.nodes[child.id] || (layout.groups && layout.groups[child.id]);
       if (!cl) continue;
@@ -104,8 +111,14 @@ export abstract class Renderer {
   /** Subclass implements actual dimension computation. */
   protected abstract doMeasure(): { width: number; height: number };
 
-  /** Whether this renderer produces a DOT subgraph cluster (container). */
+  /** Whether this renderer is a DOT subgraph cluster (container). */
   get isCluster(): boolean { return this.children.length > 0; }
+
+  /** Whether this renderer is a port node (port/portin/portout). */
+  get isPort(): boolean { return false; }
+
+  /** Port direction for port nodes. null for non-port nodes. */
+  get portKind(): 'portin' | 'portout' | null { return null; }
 
   /**
    * Offset from geometic center to visual graphic center (in pixels).

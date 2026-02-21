@@ -371,6 +371,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     'frame', 'card', 'hexagon', 'storage',
     'rectangle', 'rect', 'folder', 'package',
     'file', 'stack', 'process', 'person', 'label',
+    'port', 'portin', 'portout',
   ]);
 
   // Lazy deployment context detection: true when there is at least one explicit
@@ -714,15 +715,31 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           }
           if (id) {
             if (!nodesById[id]) nodeOrder.push(id);
-            nodesById[id] = {
-              id,
-              type: NodeType.Class,
-              label,
-              stereotype: ctype,
-              stereotypeLabel: stereotypeLabel || '',
-              bodyLines: [],
-              style: st.style || null,
-            };
+            // Port nodes (port/portin/portout) — small square on group boundary
+            if (ctype === 'port' || ctype === 'portin' || ctype === 'portout') {
+              const portType: 'portin' | 'portout' = ctype === 'portout' ? 'portout' : 'portin';
+              nodesById[id] = {
+                id,
+                type: NodeType.Class,
+                label,
+                stereotype: portType,
+                stereotypeLabel: '',
+                bodyLines: [],
+                style: st.style || null,
+                isPort: true,
+                portType,
+              };
+            } else {
+              nodesById[id] = {
+                id,
+                type: NodeType.Class,
+                label,
+                stereotype: ctype,
+                stereotypeLabel: stereotypeLabel || '',
+                bodyLines: [],
+                style: st.style || null,
+              };
+            }
             registerNodeInGroup(id);
             lastDefinedClass = id;
           }

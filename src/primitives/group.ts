@@ -11,6 +11,7 @@
 import { Renderer } from './renderer.ts';
 import type { DotContext } from './renderer.ts';
 import { hasRenderer } from './registry.ts';
+import { DOT_NODESEP_PX } from '../shared/theme.ts';
 
 /** Warning item for unimplemented shapes (matches RenderWarning in index.ts). */
 interface ShapeWarning {
@@ -99,15 +100,22 @@ export function buildClusterDotBlock(
   // Outer protection subgraph increases inter-cluster spacing
   // (mirrors PlantUML's "p0" wrapper — Graphviz's default cluster margin
   //  enlarges the bounding box, pushing adjacent clusters apart)
+  // Enlarge the wrapper margin when the group has external edges to sibling nodes,
+  // so the group has enough space for external routing (e.g. snapped ports, or direct edges).
+  const portChildren = children.filter(c => c.isPort);
+  const normalChildren = children.filter(c => !c.isPort);
+  const outerMargin = ctx.hasExternalEdge(id)
+    ? DOT_NODESEP_PX
+    : 8;
   lines.push(`${indent}subgraph "cluster_${id}_p0" {`);
   lines.push(`${indent}  label=""`);
+  lines.push(`${indent}  margin="${outerMargin}"`);
 
   const inner = indent + '  ';
   lines.push(`${inner}subgraph "cluster_${id}" {`);
   lines.push(`${inner}  label="${label}"`);
   lines.push(`${inner}  style=rounded`);
   lines.push(`${inner}  margin="20"`);
-
   // Add invisible proxy node for compound edges targeting this group
   if (ctx.needsProxy(id)) {
     lines.push(`${inner}  "__proxy_${id}" [shape=point,width=0.01,height=0.01,style=invis,label=""]`);
@@ -119,16 +127,30 @@ export function buildClusterDotBlock(
     lines.push(`${inner}  "__empty_${id}" [shape=point,width=0.01,height=0.01,style=invis,label=""]`);
   }
 
-  // All children (leaf nodes and nested containers alike)
+  // All children (leaf nodes and nested containers alike).
+  // Port children are included so DOT places them inside the cluster — this
+  // ensures internal edges (port→child) route correctly without leaving the cluster.
+  // snapPortNodes() moves their rendered position to the boundary afterwards.
   for (const child of children) {
     lines.push(...child.buildDotBlock(ctx, inner + '  '));
   }
 
-  // Row-packing: only pack non-cluster (leaf) children
-  const leafChildren = children.filter(c => !c.isCluster);
-  const totalItems = children.length;
+  // rank=source pins portin nodes to the cluster's top rank (near the top boundary)
+  const portinIds = portChildren.filter(c => c.portKind !== 'portout').map(c => `"${c.id}"`);
+  if (portinIds.length > 0) {
+    lines.push(`${inner}  {rank=source; ${portinIds.join('; ')}}`);
+  }
+  // rank=sink pins portout nodes to the cluster's bottom rank (near the bottom boundary)
+  const portoutIds = portChildren.filter(c => c.portKind === 'portout').map(c => `"${c.id}"`);
+  if (portoutIds.length > 0) {
+    lines.push(`${inner}  {rank=sink; ${portoutIds.join('; ')}}`);
+  }
+
+  // Row-packing: only pack non-port, non-cluster (leaf) normal children
+  const leafNormal = normalChildren.filter(c => !c.isCluster);
+  const totalItems = normalChildren.length;
   const targetCols = Math.max(Math.ceil(Math.sqrt(totalItems)), 2);
-  const leafIds = leafChildren.map(r => r.id);
+  const leafIds = leafNormal.map(r => r.id);
   lines.push(...ctx.buildRowPacking(leafIds, inner + '  ', 700, targetCols));
 
   lines.push(`${inner}}`);

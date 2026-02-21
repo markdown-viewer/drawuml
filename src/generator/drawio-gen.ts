@@ -29,7 +29,18 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   // Each group renderer renders its own direct children via renderChildren().
   for (const [id, r] of renderers) {
     if (r.parentId) continue; // children are rendered by their parent group
+    if (r.isPort) continue;   // ports rendered separately below with absolute coords
     const l = layout.nodes[id] || (layout.groups || {})[id];
+    if (!l) continue;
+    cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height }));
+  }
+
+  // Port nodes straddle group boundaries, so render them with absolute coordinates
+  // (not relative to their parent group).
+  for (const node of model.nodes) {
+    const r = renderers.get(node.id);
+    if (!r?.isPort) continue;
+    const l = layout.nodes[node.id];
     if (!l) continue;
     cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height }));
   }

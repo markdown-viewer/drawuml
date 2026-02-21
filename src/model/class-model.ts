@@ -29,6 +29,10 @@ export interface SemanticNode {
   mapEntries?: { key: string; value: string; linked?: boolean }[];
   /** User-defined $tags from class declaration syntax. */
   tags?: string[];
+  /** Whether this node is a port (port/portin/portout). */
+  isPort?: boolean;
+  /** Port direction: 'portin' for input/bidirectional, 'portout' for output. */
+  portType?: 'portin' | 'portout';
 }
 
 export interface SemanticEdge {
