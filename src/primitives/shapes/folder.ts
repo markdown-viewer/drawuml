@@ -39,7 +39,10 @@ class FolderRenderer extends RichRenderer {
   protected getBodyHtml(): string {
     if (this.isPackage) {
       if (!this.desc.stereotypeLabel) return '';
-      return `<div style="font-size:12px;font-style:italic;line-height:1.3;">${escapeXml(this.desc.stereotypeLabel)}</div>`;
+      // Apply italic only for real stereotype text («...»); display names are plain
+      const isStereotype = this.desc.stereotypeLabel.includes('«');
+      const fontStyle = isStereotype ? 'font-style:italic;' : '';
+      return `<div style="font-size:12px;${fontStyle}line-height:1.3;">${escapeXml(this.desc.stereotypeLabel)}</div>`;
     }
     return super.getBodyHtml();
   }

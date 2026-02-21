@@ -104,11 +104,13 @@ export abstract class RichRenderer extends Renderer {
 
   /**
    * Detect whether this node uses rich body content.
-   * Default: true when desc.bodyLines present. Override for note/legend
-   * which use desc.lines as rich body.
+   * Only true when bodyLines contain at least one separator (----/====/....).
+   * Plain multi-line bodies without separators are rendered as label content.
    */
   protected detectRichBody(): boolean {
-    return !!(this.desc.bodyLines && this.desc.bodyLines.length > 0);
+    if (!this.desc.bodyLines || this.desc.bodyLines.length === 0) return false;
+    const lines = (this.desc.bodyLines as any[]).map(l => typeof l === 'string' ? l : l.text);
+    return Content.richBody(lines).hasSeparators;
   }
 
   /**
@@ -137,6 +139,12 @@ export abstract class RichRenderer extends Renderer {
   protected buildContent(): Content {
     if (this.hasRichBody) {
       return Content.richBody(this.getRichBodyLines(), this.getRichBodyMetrics());
+    }
+    // bodyLines without separators: render lines as the node's display content
+    if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
+      const lines = this.getRichBodyLines();
+      const html = lines.map(l => Content.inline(l).html).join('<br />');
+      return Content.rich(html);
     }
     const labelHtml = Content.inline(this.label).html;
     return Content.rich(buildLabelHtml({

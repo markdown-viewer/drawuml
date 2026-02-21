@@ -364,6 +364,36 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     return _hasUsecaseContext;
   }
 
+  // Deployment-specific component keywords — distinct from sequence/usecase stereotypes.
+  const DEPLOYMENT_COMPONENT_KEYWORDS = new Set([
+    'node', 'cloud', 'artifact', 'agent',
+    'component', 'component1', 'component2',
+    'frame', 'card', 'hexagon', 'storage',
+    'rectangle', 'rect', 'folder', 'package',
+    'file', 'stack', 'process', 'person', 'label',
+  ]);
+
+  // Lazy deployment context detection: true when there is at least one explicit
+  // deployment-type keyword declaration (node, cloud, artifact, etc.).
+  let _hasDeploymentContext: boolean | null = null;
+  function hasDeploymentContext(): boolean {
+    if (_hasDeploymentContext !== null) return _hasDeploymentContext;
+    _hasDeploymentContext = statements.some(st => {
+      if (!st || typeof st !== 'object') return false;
+      if (st.kind === 'component_statement') {
+        const ct = String(st.componentType || '').toLowerCase();
+        if (DEPLOYMENT_COMPONENT_KEYWORDS.has(ct)) return true;
+      }
+      // two_column misparse of "keyword  name" (2+ spaces) — e.g. "node  foo"
+      if (st.kind === 'generic_statement' && st.type === 'two_column') {
+        const left = String(st.left || '').toLowerCase();
+        if (DEPLOYMENT_COMPONENT_KEYWORDS.has(left)) return true;
+      }
+      return false;
+    });
+    return _hasDeploymentContext;
+  }
+
   const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
 
   for (let i = 0; i < statements.length; i++) {
@@ -640,7 +670,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             nameInner = nameInner.slice(1, -1);
           }
           const id = normalizeId(rawAlias || nameInner);
-          const label = nameInner;
+          const label = String(st.displayName || nameInner || '').trim();
           const isActor = ctype.startsWith('actor');
           const isBusiness = ctype.endsWith('/');
           const nodeType = isActor ? NodeType.UsecaseActor : NodeType.Usecase;
@@ -670,9 +700,17 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           const rawName = String(st.name || '').trim();
           const rawAlias = String(st.alias || '').trim();
           const id = normalizeId(rawAlias || rawName);
-          const label = rawName;
           const stereos: string[] = Array.isArray(st.stereotypes) ? st.stereotypes.map(s => typeof s === 'string' ? s : (s && s.text || '')) : [];
-          const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+          // package type: tab shows reference identifier; quoted display name goes to body (stereotypeLabel)
+          let label: string;
+          let stereotypeLabel: string;
+          if (ctype === 'package' && st.displayName) {
+            label = (rawAlias || rawName);
+            stereotypeLabel = st.displayName;
+          } else {
+            label = String(st.displayName || rawName || '').trim();
+            stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+          }
           if (id) {
             if (!nodesById[id]) nodeOrder.push(id);
             nodesById[id] = {
@@ -803,6 +841,27 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           }
           continue;
         }
+        // Deployment keyword via TwoColumnLine: "node  foo" / "cloud  C" etc.
+        // Occurs when PEG parses "keyword  name" (2+ spaces) as two_column.
+        if (DEPLOYMENT_COMPONENT_KEYWORDS.has(left)) {
+          const rawName = String(st.right || '').trim();
+          const id = normalizeId(rawName);
+          const label = rawName;
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: left,
+              stereotypeLabel: '',
+              bodyLines: [],
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
       }
 
       // Actor/usecase via slashy_relation misparse: "actor/ Woman3" or "usecase/ UC3"
@@ -871,7 +930,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // Dotted names (e.g., "net.dummy") are split into nested groups.
       if (st.kind === 'component_statement' && st.block) {
         const ctype = String(st.componentType || '').toLowerCase();
-        const rawLabel = String(st.name || st.alias || '').trim();
+        const rawLabel = String(st.displayName || st.name || st.alias || '').trim();
         // Extract package shape stereotype (e.g., <<Node>>, <<Cloud>>)
         const stereos: string[] = (st as any).stereotypes || [];
         const stereotype = stereos.length > 0 ? stereos[0] : undefined;
@@ -1330,6 +1389,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             } else if (!lollipopFrom && hasUsecaseContext()) {
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
+            } else if (!lollipopFrom && hasDeploymentContext()) {
+              // Bare name in deployment context → circle node (PlantUML default)
+              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: 'circle', stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
@@ -1352,6 +1414,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             } else if (!lollipopTo && hasUsecaseContext()) {
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
+            } else if (!lollipopTo && hasDeploymentContext()) {
+              // Bare name in deployment context → circle node (PlantUML default)
+              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: 'circle', stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
