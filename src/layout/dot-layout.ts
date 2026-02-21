@@ -222,8 +222,16 @@ function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRe
   const groupsWithExternalEdge = new Set<string>();
   for (const g of model.groups || []) {
     for (const edge of model.edges) {
-      const fromInG = isDescendantOrSelf(edge.from, g.id);
-      const toInG = isDescendantOrSelf(edge.to, g.id);
+      // We only care about edges that connect DIRECTLY to the group itself,
+      // or to a port node on the group's boundary.
+      // Edges connecting to normal internal children do NOT trigger margin expansion.
+      const fromIsGroup = edge.from === g.id;
+      const toIsGroup = edge.to === g.id;
+      const fromIsPort = parentIdMap.get(edge.from) === g.id && renderers.get(edge.from)?.isPort;
+      const toIsPort = parentIdMap.get(edge.to) === g.id && renderers.get(edge.to)?.isPort;
+
+      const fromInG = fromIsGroup || fromIsPort;
+      const toInG = toIsGroup || toIsPort;
       
       if (fromInG && !toInG) {
         if (getTopLevelAncestor(edge.to, g.parentId) !== undefined) {
