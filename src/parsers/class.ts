@@ -462,9 +462,10 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     // Process statement by kind
     {
 
-      // <style> block start: "actor {", "componentDiagram {" etc.
+      // <style> block start: "actor {", ".stereo {", "componentDiagram {}" etc.
+      // Strip leading '.' from CSS class selectors (e.g. '.stereo' -> 'stereo')
       if (st.kind === 'block_statement' && st.type === 'style_block_start') {
-        styleBlockAccum = { name: String(st.name || '').toLowerCase(), props: {} };
+        styleBlockAccum = { name: String(st.name || '').toLowerCase().replace(/^\./, ''), props: {} };
         continue;
       }
 
@@ -1007,6 +1008,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           stereotype: 'map',
           stereotypeLabel: '',
           mapEntries,
+          style: st.style || null,
         };
         ensureNodeInCorrectGroup(id);
         lastDefinedClass = id;
@@ -1863,7 +1865,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       const stereo = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
       // In PlantUML, 'circle' is an alias for 'interface' — use interface CSS rule
       const lookupStereo = stereo === 'circle' ? 'interface' : stereo;
-      const specificRule = cssStyleRules[lookupStereo];
+      // Also resolve CSS class rules (.stereo) matched against custom stereotype labels («stereo» -> 'stereo')
+      const customStereos = node.stereotypeLabel
+        ? String(node.stereotypeLabel).split(/[\s«»]+/).map((s: string) => s.toLowerCase()).filter(Boolean)
+        : [];
+      const specificRule = cssStyleRules[lookupStereo]
+        || customStereos.reduce((r: Record<string, string> | null, cs: string) => r || cssStyleRules[cs] || null, null);
       const rule = specificRule || globalRule;
       if (!rule) continue;
       // For label shapes, only apply BackGroundColor→text from a label-specific rule,
@@ -1878,7 +1885,11 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     for (const g of groups) {
       if (g.color) continue;
       const gtype = String(g.type || '').toLowerCase();
-      const rule = cssStyleRules[gtype];
+      // Also check CSS class rules (.stereo) matched against group's custom stereotype labels
+      const gCustomStereos: string[] = g.color ? [] : (g.stereotypes || [])
+        .flatMap((s: string) => String(s).split(/[«»\s]+/).map((x: string) => x.toLowerCase()).filter(Boolean));
+      const rule = cssStyleRules[gtype]
+        || gCustomStereos.reduce((r: Record<string, string> | null, cs: string) => r || cssStyleRules[cs] || null, null);
       if (!rule) continue;
       const bg = rule['backgroundcolor'];
       if (bg) g.color = bg;
