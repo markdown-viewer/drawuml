@@ -68,6 +68,7 @@ class ActivityNodeRenderer extends Renderer {
       id: this.desc.id,
       value: this.labelHtml,
       style: this.isOctagon ? OCTAGON_STYLE : ACTIVITY_STYLE,
+      parent: this.parentId || '1',
       x, y, width, height,
     })];
   }

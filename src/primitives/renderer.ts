@@ -19,6 +19,7 @@
 
 import { Content } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
+import type { LayoutResult } from '../model/index.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import type { ContentBox, FinalizeBodyCtx, ContentBlock } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
@@ -46,13 +47,51 @@ export abstract class Renderer {
   readonly children: Renderer[] = [];
   /** Parent cell id for nested containers. */
   parentId?: string;
+  /** Layout data reference for recursive child rendering. */
+  private _layoutRef: LayoutResult | null = null;
 
   constructor(id: string) {
     this.id = id;
   }
 
+  /** Set layout reference for this renderer and all descendants. */
+  setLayoutRef(layout: LayoutResult): void {
+    this._layoutRef = layout;
+    for (const child of this.children) child.setLayoutRef(layout);
+  }
+
   /** Add a child renderer (for container renderers). */
-  addChild(renderer: Renderer) { this.children.push(renderer); }
+  addChild(renderer: Renderer) {
+    renderer.parentId = this.id;
+    this.children.push(renderer);
+  }
+
+  /**
+   * Render all direct children with coordinates relative to this container.
+   * Looks up own absolute position and each child's absolute position from
+   * the layout reference, then converts to parent-relative coordinates.
+   * Sub-groups handle their own children via polymorphic render().
+   */
+  protected renderChildren(): string[] {
+    const layout = this._layoutRef;
+    if (!layout || this.children.length === 0) return [];
+    // Look up own absolute coordinates from layout
+    const myAbs = (layout.groups && layout.groups[this.id]) || layout.nodes[this.id];
+    if (!myAbs) return [];
+    const cells: string[] = [];
+    for (const child of this.children) {
+      // Child layout may be in nodes (leaf or empty group) or groups (cluster)
+      const cl = layout.nodes[child.id] || (layout.groups && layout.groups[child.id]);
+      if (!cl) continue;
+      cells.push(...child.render({
+        x: cl.x - myAbs.x,
+        y: cl.y - myAbs.y,
+        width: cl.width,
+        height: cl.height,
+      }));
+    }
+    return cells;
+  }
 
   /** Compute content-based dimensions (result is cached). */
   measure(): { width: number; height: number } {
@@ -187,6 +226,7 @@ export abstract class RichBodyRenderer extends Renderer {
     if (this.content.hasSeparators) {
       cells.push(mxVertex({
         id: this.id, value: '', style: this.style,
+        parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       }));
       cells.push(...this.content.renderChildren(this.id, box.width, {
@@ -198,6 +238,7 @@ export abstract class RichBodyRenderer extends Renderer {
     } else {
       cells.push(mxVertex({
         id: this.id, value: this.content.html, style: this.style,
+        parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       }));
     }
@@ -275,7 +316,8 @@ export abstract class SwimlaneRenderer extends Renderer {
     // Swimlane container with title as value
     cells.push(mxVertex({
       id: this.id, value: this.content.titleHtml,
-      style, x: box.x, y: box.y, width: box.width, height: box.height,
+      style, parent: this.parentId || '1',
+      x: box.x, y: box.y, width: box.width, height: box.height,
     }));
 
     // Body rows + separators as children, starting below title

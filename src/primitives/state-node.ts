@@ -26,7 +26,7 @@ import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
 // Constants
 // ---------------------------------------------------------------------------
 
-const START_DIAMETER = 20;
+const START_DIAMETER = 28;
 const END_OUTER = 22;
 
 const FORK_WIDTH = 80;
@@ -71,7 +71,7 @@ class StateStartRenderer extends Renderer {
     const d = START_DIAMETER;
     const x = box.x + Math.round((box.width - d) / 2);
     const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: START_STYLE, x, y, width: d, height: d })];
+    return [mxVertex({ id: this.node.id, value: '', style: START_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
 
@@ -87,7 +87,7 @@ class StateEndRenderer extends Renderer {
     const d = END_OUTER;
     const x = box.x + Math.round((box.width - d) / 2);
     const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: END_STYLE, x, y, width: d, height: d })];
+    return [mxVertex({ id: this.node.id, value: '', style: END_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
 
@@ -108,7 +108,7 @@ class StateForkJoinRenderer extends Renderer {
     const h = FORK_HEIGHT;
     const x = box.x + Math.round((box.width - w) / 2);
     const y = box.y + Math.round((box.height - h) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: FORK_STYLE, x, y, width: w, height: h })];
+    return [mxVertex({ id: this.node.id, value: '', style: FORK_STYLE, parent: this.parentId || '1', x, y, width: w, height: h })];
   }
 }
 
@@ -157,15 +157,16 @@ class StateChoiceRenderer extends Renderer {
         id: `${this.node.id}__label`,
         value: this.label,
         style: CHOICE_LABEL_STYLE,
+        parent: this.parentId || '1',
         x: labelX, y: labelY, width: this.labelWidth, height: this.labelHeight,
       }));
       // Diamond centered in box
-      cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, x: dx, y: dy, width: d, height: d }));
+      cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
     } else {
       // No label — just diamond centered
       const x = box.x + Math.round((box.width - d) / 2);
       const y = box.y + Math.round((box.height - d) / 2);
-      cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, x, y, width: d, height: d }));
+      cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, parent: this.parentId || '1', x, y, width: d, height: d }));
     }
 
     return cells;
@@ -247,9 +248,12 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const labelHtml = Content.inline(this.nodeLabel).html;
       const parentCellId = this.parentId || '1';
       const style = stateGroupStyle(this.nodeStyle);
-      return [`<mxCell id="${escapeXml(this.id)}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(parentCellId)}">`
+      const cells = [`<mxCell id="${escapeXml(this.id)}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(parentCellId)}">`
         + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
         + `</mxCell>`];
+      // Render direct children; sub-groups handle their own via polymorphism
+      cells.push(...this.renderChildren());
+      return cells;
     }
     return super.render(box);
   }

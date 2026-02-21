@@ -38,6 +38,7 @@ export function renderDurationConstraint(dc: {
     const labelStyle = `text;html=1;align=left;verticalAlign=middle;whiteSpace=nowrap;fontSize=${SMALL_FONT_SIZE};`;
     cells.push(mxVertex({
       id: dc.id + '_label', value: labelHtml, style: labelStyle,
+      parent: '1',
       x: dc.labelX, y: labelY, width: dc.labelWidth, height: 14,
     }));
   }

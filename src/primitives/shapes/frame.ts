@@ -37,6 +37,7 @@ class FrameShapeRenderer extends ShapeRenderer {
       const style = `shape=umlFrame;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=-2;corner=7;width=${tabW};height=${tabH};fillColor=${CLASS_FILL};`;
       return [mxVertex({
         id: this.id, value: labelHtml, style,
+        parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       })];
     }

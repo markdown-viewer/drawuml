@@ -38,6 +38,7 @@ export function renderDivider(divider: {
     const hh = divider.halfHeight;
     cells.push(mxVertex({
       id: divider.id, value: labelHtml, style: divStyle,
+      parent: '1',
       x: divider.x1, y: divider.y - hh, width: divider.x2 - divider.x1, height: hh * 2,
     }));
     return cells;
@@ -48,10 +49,12 @@ export function renderDivider(divider: {
   const lineY2 = divider.y + 2;
   cells.push(mxVertex({
     id: divider.id + '_line1', value: '', style: `shape=line;strokeWidth=1;strokeColor=${COLOR_DARK};`,
+    parent: '1',
     x: divider.x1, y: lineY1, width: divider.x2 - divider.x1, height: 1,
   }));
   cells.push(mxVertex({
     id: divider.id + '_line2', value: '', style: `shape=line;strokeWidth=1;strokeColor=${COLOR_DARK};`,
+    parent: '1',
     x: divider.x1, y: lineY2, width: divider.x2 - divider.x1, height: 1,
   }));
   // Bordered text box centered between the lines
@@ -60,6 +63,7 @@ export function renderDivider(divider: {
   const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fillColor=${DIVIDER_FILL};strokeColor=${COLOR_DARK};strokeWidth=2;`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
+    parent: '1',
     x: divider.labelX, y: divider.y - hh, width: divider.labelWidth, height: hh * 2,
   }));
 

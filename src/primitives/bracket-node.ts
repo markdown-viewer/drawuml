@@ -159,6 +159,7 @@ class BracketNodeRenderer extends RichBodyRenderer {
     if (this.content.hasSeparators) {
       cells.push(mxVertex({
         id: this.id, value: '', style: this.style,
+        parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       }));
       cells.push(...this.content.renderChildren(this.id, box.width, {
@@ -170,6 +171,7 @@ class BracketNodeRenderer extends RichBodyRenderer {
     } else {
       cells.push(mxVertex({
         id: this.id, value: this.content.html, style: this.style,
+        parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       }));
     }

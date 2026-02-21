@@ -41,11 +41,13 @@ class FolderRenderer extends ShapeRenderer {
       s = styledS;
       if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
       if (!this.isCluster) s = s.replace('container=1;', '');
-      return [mxVertex({
+      const cells = [mxVertex({
         id: this.id, value: labelHtml, style: s,
         parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       })];
+      if (this.isCluster) cells.push(...this.renderChildren());
+      return cells;
     }
     // Folder: delegate to base class container/leaf render pattern
     return super.render(box);

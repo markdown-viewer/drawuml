@@ -77,7 +77,10 @@ export abstract class ShapeRenderer extends Renderer {
       parent: this.parentId || '1',
       x: box.x, y: box.y, width: box.width, height: box.height,
     })];
-    if (!this.isCluster && labelHtml) {
+    if (this.isCluster) {
+      // Render direct children; sub-groups handle their own via polymorphism
+      cells.push(...this.renderChildren());
+    } else if (labelHtml) {
       const labelStyle = `fontSize=${DEFAULT_FONT_SIZE};${fontColorOverride || `fontColor=${COLOR_DARK};`}`;
       cells.push(mxContentLabel(
         this.id, labelHtml,

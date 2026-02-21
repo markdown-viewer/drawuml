@@ -13,68 +13,25 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   cells.push('<mxCell id="0"/>');
   cells.push('<mxCell id="1" parent="0"/>');
 
-  // Build nodeId → groupId map for parent assignment
-  const nodeGroupMap = new Map<string, string>(); // nodeId → groupId
-  const groups = model.groups || [];
   // Build groupId set for compound edge detection
+  const groups = model.groups || [];
   const groupIdSet = new Set<string>();
   for (const g of groups) {
     groupIdSet.add(g.id);
-    for (const childId of g.children || []) {
-      nodeGroupMap.set(childId, g.id);
-    }
   }
 
-  // Generate group container mxCells (package / namespace / state / …)
-  // Empty groups (no children) are laid out as regular nodes, so fall back
-  // to layout.nodes when layout.groups has no entry.
-  const groupLayouts = layout.groups || {};
-  for (const g of groups) {
-    const gl = groupLayouts[g.id] || layout.nodes[g.id];
-    if (!gl) continue;
-    // For nested groups, convert to parent-relative coordinates
-    let gx = gl.x;
-    let gy = gl.y;
-    if (g.parentId) {
-      const parentGl = groupLayouts[g.parentId];
-      if (parentGl) {
-        gx -= parentGl.x;
-        gy -= parentGl.y;
-      }
-    }
-    const groupRenderer = renderers.get(g.id);
-    if (groupRenderer) {
-      cells.push(...groupRenderer.render({ x: gx, y: gy, width: gl.width, height: gl.height }));
-    }
+  // Set layout reference so group renderers can look up child coordinates
+  for (const r of renderers.values()) {
+    if (!r.parentId) r.setLayoutRef(layout);
   }
 
-  // Nodes
-  for (const node of model.nodes) {
-    const l = layout.nodes[node.id];
+  // Render all root elements (nodes, groups, notes, global elements).
+  // Each group renderer renders its own direct children via renderChildren().
+  for (const [id, r] of renderers) {
+    if (r.parentId) continue; // children are rendered by their parent group
+    const l = layout.nodes[id] || (layout.groups || {})[id];
     if (!l) continue;
-
-    // Convert to group-relative coordinates if node is inside a group.
-    const groupId = nodeGroupMap.get(node.id);
-    let adjustedLayout = l;
-    if (groupId) {
-      const gl = groupLayouts[groupId];
-      if (gl) {
-        adjustedLayout = { ...l, x: l.x - gl.x, y: l.y - gl.y };
-      }
-    }
-
-    const renderer = renderers.get(node.id);
-    if (!renderer) continue;
-
-    const nodeCells = renderer.render(adjustedLayout);
-    if (groupId) {
-      // Only the root cell (first cell, parent="1") needs re-parenting.
-      // Child cells (field rows, separator) are already parented to the node.
-      cells.push(nodeCells[0].replace(' parent="1"', ` parent="${escapeXml(groupId)}"`));
-      for (let ci = 1; ci < nodeCells.length; ci++) cells.push(nodeCells[ci]);
-    } else {
-      cells.push(...nodeCells);
-    }
+    cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height }));
   }
 
   // Edges

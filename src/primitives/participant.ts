@@ -187,6 +187,7 @@ export function renderParticipant(
     cells.push(mxVertex({
       id: p.id, value: '',
       style: containerStyleStr,
+      parent: '1',
       x: cellX, y: layout.y, width: cellW, height: layout.height,
     }));
     if (content.hasSeparators) {
@@ -211,6 +212,7 @@ export function renderParticipant(
   return [mxVertex({
     id: p.id, value: labelHtml,
     style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight }),
+    parent: '1',
     x: cellX, y: layout.y, width: cellW, height: layout.height,
   })];
 }
@@ -240,6 +242,7 @@ export function renderFootbox(
     cells.push(mxVertex({
       id: footId, value: '',
       style: footStyleStr,
+      parent: '1',
       x: footX, y: footY, width: footW, height: footH,
     }));
     if (content.hasSeparators) {
@@ -264,6 +267,7 @@ export function renderFootbox(
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
     style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH }),
+    parent: '1',
     x: footX, y: footY, width: footW, height: footH,
   })];
 }

@@ -99,6 +99,7 @@ class ActorNodeRenderer extends Renderer {
         stereotypeLabel: this.node.stereotypeLabel || undefined,
       }),
       style,
+      parent: this.parentId || '1',
       x: cx,
       y: cy,
       width: ACTOR_WIDTH,

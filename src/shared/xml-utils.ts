@@ -18,19 +18,19 @@ export function escapeXml(value) {
  */
 export function mxVertex(opts: {
   id?: string;
-  value?: string;
+  value: string;
   style: string;
-  parent?: string;
+  parent: string;
   x?: number;
-  y?: number;
+  y: number;
   width: number;
   height: number;
 }): string {
   const idAttr = opts.id != null ? ` id="${escapeXml(opts.id)}"` : '';
-  const value = escapeXml(opts.value ?? '');
-  const parent = escapeXml(opts.parent ?? '1');
+  const value = escapeXml(opts.value);
+  const parent = escapeXml(opts.parent);
   const xAttr = opts.x != null ? ` x="${opts.x}"` : '';
-  const yAttr = opts.y != null ? ` y="${opts.y}"` : '';
+  const yAttr = ` y="${opts.y}"`;
   return `<mxCell${idAttr} value="${value}" style="${opts.style}" vertex="1" parent="${parent}">`
     + `<mxGeometry${xAttr}${yAttr} width="${opts.width}" height="${opts.height}" as="geometry"/>`
     + `</mxCell>`;

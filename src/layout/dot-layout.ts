@@ -853,13 +853,11 @@ function buildRendererTree(
       // Reuse the StateNodeRenderer already created for this node
       const existing = renderers.get(g.id);
       if (existing) {
-        existing.parentId = g.parentId;
         groupRenderers.set(g.id, existing);
       }
     } else {
       const shape = resolveGroupShape(g.type, g.stereotype, globalPkgStyle);
       const gr = createNodeRenderer({ id: g.id, label: g.label, stereotype: shape, color: g.color, style: g.style });
-      gr.parentId = g.parentId;
       groupRenderers.set(g.id, gr);
       renderers.set(g.id, gr);
     }

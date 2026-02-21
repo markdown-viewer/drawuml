@@ -41,6 +41,7 @@ class TitleRenderer extends Renderer {
     const style = `text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${this.fontSize};`;
     return [mxVertex({
       id: this.id, value: this.htmlLabel, style,
+      parent: this.parentId || '1',
       x: box.x, y: box.y, width: box.width, height: this.textHeight || box.height,
     })];
   }

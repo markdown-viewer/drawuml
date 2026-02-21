@@ -69,6 +69,7 @@ class CircleNodeRenderer extends Renderer {
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
       id: this.node.id, value: this.labelHtml, style: s,
+      parent: this.parentId || '1',
       x: cx, y: cy, width: cw, height: ch,
     })];
   }

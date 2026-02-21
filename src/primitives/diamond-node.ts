@@ -42,6 +42,7 @@ class DiamondNodeRenderer extends Renderer {
     const dy = box.y + Math.round((box.height - dh) / 2);
     return [mxVertex({
       id: this.node.id, value: '', style: DIAMOND_STYLE,
+      parent: this.parentId || '1',
       x: dx, y: dy, width: dw, height: dh,
     })];
   }

@@ -47,12 +47,14 @@ class BoxRenderer extends Renderer {
     const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=5;fillColor=${this.fillColor};strokeColor=${this.strokeColor};strokeWidth=0.5;dashed=1;dashPattern=5 5;`;
     cells.push(mxVertex({
       id: this.id, value: '', style: boxStyle,
+      parent: this.parentId || '1',
       x: box.x, y: box.y, width: box.width, height: box.height,
     }));
     if (this.htmlLabel) {
       const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${LABEL_FONT_SIZE};fontStyle=1;`;
       cells.push(mxVertex({
         id: this.id + '_label', value: this.htmlLabel, style: labelStyle,
+        parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: this.labelHeight,
       }));
     }

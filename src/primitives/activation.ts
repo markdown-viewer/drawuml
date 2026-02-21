@@ -35,6 +35,7 @@ export function renderDestroyMarker(
   }
   return mxVertex({
     id, value: '', style: DESTROY_STYLE,
+    parent: '1',
     x: cx - s, y: cy - s, width: s * 2, height: s * 2,
   });
 }
@@ -92,6 +93,7 @@ export function renderActivationBar(
   } else {
     cells.push(mxVertex({
       id: act.id, value: '', style,
+      parent: '1',
       x: act.x, y: act.y, width: act.width, height: act.height,
     }));
   }

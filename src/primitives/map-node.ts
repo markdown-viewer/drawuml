@@ -100,6 +100,7 @@ class MapNodeRenderer extends Renderer {
       id: this.node.id,
       value: this.titleContent.html,
       style,
+      parent: this.parentId || '1',
       x: box.x,
       y: box.y,
       width: box.width,
