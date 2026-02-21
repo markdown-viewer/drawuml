@@ -11,8 +11,20 @@ import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class UsecaseRenderer extends RichRenderer {
+  private readonly isBusiness: boolean;
+
+  constructor(desc: RenderDescriptor, isBusiness = false) {
+    super(desc);
+    this.isBusiness = isBusiness;
+  }
+
   protected buildStyle(): string {
-    return `ellipse;whiteSpace=wrap;html=1;fillColor=${CLASS_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;verticalAlign=middle;`;
+    const base = `whiteSpace=wrap;html=1;fillColor=${CLASS_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;verticalAlign=middle;`;
+    if (this.isBusiness) {
+      // Business usecase: ellipse with a diagonal slash (lineEllipse extension)
+      return `shape=lineEllipse;line=diagonal;` + base;
+    }
+    return `ellipse;` + base;
   }
 
   // Ellipse needs generous padding for visual balance
@@ -24,8 +36,7 @@ class UsecaseRenderer extends RichRenderer {
 }
 
 export function registerUsecaseShape(): void {
-  const factory = (desc: RenderDescriptor) => new UsecaseRenderer(desc);
-  registerRenderer('usecase', factory);
-  // Business usecase variant
-  registerRenderer('usecase/', factory);
+  registerRenderer('usecase', (desc: RenderDescriptor) => new UsecaseRenderer(desc, false));
+  // Business usecase variant: ellipse with diagonal slash
+  registerRenderer('usecase/', (desc: RenderDescriptor) => new UsecaseRenderer(desc, true));
 }
