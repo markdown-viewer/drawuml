@@ -16,24 +16,28 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class QueueRenderer extends ShapeRenderer {
   protected buildStyle(): string {
-    return `shape=cylinder3;size=10;direction=south;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=middle;spacingRight=10;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};whiteSpace=wrap;`;
+    return `shape=cylinder3;size=10;direction=south;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=middle;spacingRight=10;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};whiteSpace=wrap;container=1;collapsible=0;`;
   }
   // Extra width accounts for the cylinder end caps
   protected get extraPadX(): number { return 20; }
-  get isCluster(): boolean { return false; }
 
   render(box: ContentBox): string[] {
     const labelHtml = Content.inline(this.label).html;
     let s = this.buildStyle();
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
+    if (!this.isCluster) s = s.replace('container=1;', '');
+    // Container labels should appear at the top, not centered
+    if (this.isCluster) s = s.replace('verticalAlign=middle', 'verticalAlign=top');
     const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
-    return [mxVertex({
+    const cells = [mxVertex({
       id: this.id, value: labelHtml, style: s,
       parent: this.parentId || '1',
       x: box.x, y: box.y, width: box.width, height: box.height,
     })];
+    if (this.isCluster) cells.push(...this.renderChildren());
+    return cells;
   }
 }
 

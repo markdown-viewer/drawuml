@@ -65,6 +65,8 @@ export abstract class ShapeRenderer extends Renderer {
     let s = this.buildStyle();
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
     if (!this.isCluster) s = s.replace('container=1;', '');
+    // Container labels should appear at the top, not centered
+    if (this.isCluster) s = s.replace('verticalAlign=middle', 'verticalAlign=top');
 
     // Apply parsed inline style via base class utility
     const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
