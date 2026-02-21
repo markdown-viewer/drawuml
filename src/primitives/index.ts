@@ -7,8 +7,8 @@
  */
 
 // ── Renderer base class + options types ──────────────────────────────────────
-export { Renderer, RichBodyRenderer, SwimlaneRenderer } from './renderer.ts';
-export type { NodeRenderer, ClassNodeRendererOpts, NoteRendererOpts, DotContext } from './renderer.ts';
+export { Renderer, SwimlaneRenderer } from './renderer.ts';
+export type { NodeRenderer, ClassNodeRendererOpts, DotContext } from './renderer.ts';
 
 // ── Global registry API re-exports ───────────────────────────────────────────
 export { createRenderer } from './registry.ts';
@@ -17,13 +17,12 @@ export type { RenderDescriptor, NodeDescriptor, ElementDescriptor } from './regi
 // ── Registration calls — import each module to trigger registration ──────────
 import { registerCircleNodeRenderer } from './circle-node.ts';
 import { registerDiamondNodeRenderer } from './diamond-node.ts';
-import { registerBracketNodeRenderer } from './bracket-node.ts';
 import { registerClassNodeRenderer } from './class-node.ts';
 import { registerMapNodeRenderer } from './map-node.ts';
 import { registerStateNodeRenderers } from './state-node.ts';
 import { registerUsecaseShape } from './shapes/usecase.ts';
 import { registerActorNodeRenderer } from './actor-node.ts';
-import { registerActivityNodeRenderer } from './activity-node.ts';
+import { registerActivityNodeRenderer } from './shapes/activity.ts';
 import { registerFolderShape } from './shapes/folder.ts';
 import { registerRectangleShape } from './shapes/rectangle.ts';
 import { registerNodeCubeShape } from './shapes/node-cube.ts';
@@ -41,19 +40,21 @@ import { registerFileShape } from './shapes/file.ts';
 import { registerHexagonShape } from './shapes/hexagon.ts';
 import { registerLabelShape } from './shapes/label.ts';
 import { registerPersonShape } from './shapes/person.ts';
+import { registerProcessShape } from './shapes/process.ts';
+import { registerActionShape } from './shapes/action.ts';
 import { registerQueueShape } from './shapes/queue.ts';
 import { registerStackShape } from './shapes/stack.ts';
 import { registerCollectionsShape } from './shapes/collections.ts';
 import { registerEntityShape } from './shapes/entity.ts';
-import { registerNoteRenderer } from './note.ts';
-import { registerLegendRenderer } from './legend.ts';
+import { registerNoteRenderer } from './shapes/note.ts';
+import { registerLegendRenderer } from './shapes/legend.ts';
 import { registerTitleRenderer } from './title.ts';
 import { registerBoxRenderer } from './box.ts';
+import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
 registerCircleNodeRenderer();
 registerDiamondNodeRenderer();
-registerBracketNodeRenderer();
 registerClassNodeRenderer();
 registerMapNodeRenderer();
 registerStateNodeRenderers();
@@ -77,6 +78,8 @@ registerFileShape();
 registerHexagonShape();
 registerLabelShape();
 registerPersonShape();
+registerProcessShape();
+registerActionShape();
 registerQueueShape();
 registerStackShape();
 registerCollectionsShape();
@@ -87,66 +90,65 @@ registerTitleRenderer();
 registerBoxRenderer();
 
 // ── Unified node factory (dispatches via registry) ───────────────────────────
-import { createRenderer } from './registry.ts';
+import { createRenderer, hasRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { Renderer as RendererType } from './renderer.ts';
 
-/** Bracket body component types (deployment entities with rich body content). */
-const BRACKET_BODY_TYPES = new Set([
-  'node', 'rectangle', 'file', 'person', 'card', 'cloud',
-  'component', 'artifact', 'folder', 'frame', 'hexagon',
-  'stack', 'storage', 'agent', 'database', 'usecase',
-]);
+// ── Rendering warnings collector ────────────────────────────────────────────
 
-/** Standalone deployment shapes (no body — rendered by per-shape renderers). */
-const DEPLOYMENT_SHAPES = new Set([
-  'folder', 'rectangle', 'rect', 'node', 'frame', 'cloud', 'database',
-  'agent', 'storage', 'component', 'component1', 'component2',
-  'artifact', 'card',
-  'boundary', 'control', 'entity', 'file', 'hexagon', 'label',
-  'package', 'person', 'queue', 'stack', 'collections', 'usecase',
-]);
+export interface RenderWarning {
+  type: 'unimplemented_shape';
+  nodeId: string;
+  stereotype: string;
+  message: string;
+}
+
+let _renderWarnings: RenderWarning[] = [];
+
+// Wire up group.ts warnings collector (avoids circular import)
+_setWarningsGetter(() => _renderWarnings);
+
+/** Collect warnings generated during rendering (e.g. unimplemented shapes). */
+export function getRenderWarnings(): RenderWarning[] {
+  return _renderWarnings;
+}
+
+/** Clear all collected warnings (call before each render pass). */
+export function clearRenderWarnings(): void {
+  _renderWarnings = [];
+}
 
 /**
  * Create the appropriate Renderer for a semantic node.
- * Dispatches to the correct registered factory based on node type/stereotype.
+ * Dispatches solely via the global registry — no type-specific branching.
+ * Lookup order: stereotype → node type → 'class' fallback.
  */
 export function createNodeRenderer(desc: RenderDescriptor): RendererType {
-  const stype = desc.stereotype || desc.type || '';
+  const stype = desc.stereotype || '';
   const ntype = desc.type || '';
 
-  // State diagram special nodes
-  if (['state_start', 'state_end', 'state_fork', 'state_join', 'state_choice', 'state'].includes(ntype)) {
-    return createRenderer(ntype, desc);
-  }
-
-  // Use-case diagram nodes
-  if (ntype === 'usecase') return createRenderer('usecase', desc);
-  if (ntype === 'usecase_actor') return createRenderer('usecase_actor', desc);
-
-  // Activity diagram nodes
-  if (stype === 'activity') return createRenderer('activity', desc);
-
-  // Special stereotypes
-  if (stype === 'circle' || stype === 'interface') return createRenderer('circle', desc);
-  if (stype === 'diamond') return createRenderer('diamond', desc);
-
-  // Map nodes
-  if (desc.mapEntries && desc.mapEntries.length > 0) {
-    return createRenderer('map', desc);
-  }
-
-  // Bracket body (deployment entities with rich body)
-  if (BRACKET_BODY_TYPES.has(stype) && desc.bodyLines && desc.bodyLines.length > 0) {
-    return createRenderer('bracket', desc);
-  }
-
-  // Standalone deployment shapes (no body content)
-  if (DEPLOYMENT_SHAPES.has(stype)) {
+  // Stereotype takes priority (specific shape > generic type)
+  if (stype && hasRenderer(stype)) {
     return createRenderer(stype, desc);
   }
 
-  // Default: class/interface/enum swimlane node
+  // Then try by node type
+  if (ntype && hasRenderer(ntype)) {
+    return createRenderer(ntype, desc);
+  }
+
+  // No registered renderer — warn about unimplemented shape
+  const key = stype || ntype;
+  if (key) {
+    _renderWarnings.push({
+      type: 'unimplemented_shape',
+      nodeId: desc.id,
+      stereotype: key,
+      message: `Unimplemented shape '${key}' for node '${desc.id}', falling back to class renderer`,
+    });
+  }
+
+  // Fallback to class renderer
   return createRenderer('class', desc);
 }
 
@@ -170,7 +172,7 @@ export {
 // Note primitives
 export {
   noteStyle,
-} from './note.ts';
+} from './shapes/note.ts';
 
 // Sequence diagram primitives
 export {

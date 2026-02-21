@@ -325,6 +325,11 @@ class ClassNodeRenderer extends SwimlaneRenderer {
 
 /** Register class-node renderer into global registry. */
 export function registerClassNodeRenderer(): void {
-  registerRenderer('class', (desc: RenderDescriptor) => new ClassNodeRenderer(desc as NodeDescriptor));
+  const factory = (desc: RenderDescriptor) => new ClassNodeRenderer(desc as NodeDescriptor);
+  registerRenderer('class', factory);
+  // Class-like type aliases — all legitimately rendered by the swimlane renderer
+  for (const alias of ['abstract', 'annotation', 'enum', 'exception', 'metaclass', 'protocol', 'stereotype', 'struct', 'object']) {
+    registerRenderer(alias, factory);
+  }
 }
 

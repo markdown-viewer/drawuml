@@ -4,18 +4,16 @@
  *
  * Content processing is delegated to the shared Content module.
  * This file provides:
- *   - createNoteRenderer(id, rawLines, opts) — factory returning Renderer
  *   - noteStyle(noteType, fillColor) — generate DrawIO note shape style
+ *   - NoteNodeRenderer — extends RichRenderer with rich body mode
  */
 
-import { Content, richTextStyle } from '../shared/content.ts';
-import { normalizeColor, darkenColor } from '../shared/color-utils.ts';
-import { RichBodyRenderer } from './renderer.ts';
-import { CONTENT_PAD_X, CONTENT_PAD_Y } from '../shared/theme.ts';
-import { registerRenderer } from './registry.ts';
-import type { RenderDescriptor } from './registry.ts';
-import type { NoteRendererOpts } from './renderer.ts';
-import type { ContentBox } from '../shared/content.ts';
+import { richTextStyle } from '../../shared/content.ts';
+import { normalizeColor, darkenColor } from '../../shared/color-utils.ts';
+import { RichRenderer } from './rich-renderer.ts';
+import { CONTENT_PAD_X, CONTENT_PAD_Y } from '../../shared/theme.ts';
+import { registerRenderer } from '../registry.ts';
+import type { RenderDescriptor } from '../registry.ts';
 
 // ---------------------------------------------------------------------------
 // Note sizing constants
@@ -23,7 +21,6 @@ import type { ContentBox } from '../shared/content.ts';
 const NOTE_PADDING_V = 5;        // vertical padding each side
 const NOTE_H_PAD_EXTRA = 8;      // extra horizontal padding beyond spacing
 const NOTE_MIN_WIDTH = 30;
-const NOTE_MIN_HEIGHT = 28;
 
 /** Horizontal padding per note shape type (spacingLeft + spacingRight + extra). */
 function noteHPadding(noteType: string): number {
@@ -52,7 +49,7 @@ export function noteStyle(noteType = 'note', fillColor = '#FEFFDD'): string {
   return `shape=note;size=10;whiteSpace=wrap;html=1;align=left;spacingLeft=5;spacingRight=10;fillColor=${fill};strokeColor=${stroke};`;
 }
 
-/** Separator style inside notes (same structure as bracket-node). */
+/** Separator style inside notes. */
 function noteSepStyle(): string {
   return [
     'line', 'strokeWidth=1', 'align=left', 'verticalAlign=middle',
@@ -70,36 +67,43 @@ function noteTextStyle(): string {
 // Renderer class
 // ---------------------------------------------------------------------------
 
-class NoteNodeRenderer extends RichBodyRenderer {
-  constructor(
-    id: string,
-    rawLines: string[],
-    opts?: NoteRendererOpts,
-  ) {
-    super(id);
-    const nt = opts?.noteType || 'note';
-    const fill = normalizeColor(opts?.color || '#FEFFDD');
-    this.fillColor = fill;
-    this.strokeColor = darkenColor(fill);
-    this.style = noteStyle(nt, fill);
-    this.content = Content.richBody(rawLines, {
-      paddingX: noteHPadding(nt),
-      paddingY: CONTENT_PAD_Y,
-      minWidth: NOTE_MIN_WIDTH,
-      minHeight: NOTE_MIN_HEIGHT,
-    });
+class NoteNodeRenderer extends RichRenderer {
+  constructor(desc: RenderDescriptor) {
+    super(desc);
   }
 
-  protected getRowStyle() { return noteTextStyle(); }
-  protected getSeparatorStyle() { return noteSepStyle(); }
+  private get noteType(): string { return this.desc.noteType || 'note'; }
+  private get fillColor(): string { return normalizeColor(this.desc.color || '#FEFFDD'); }
+
+  get isCluster(): boolean { return false; }
+
+  // Note always uses rich body mode (desc.lines as content)
+  protected detectRichBody(): boolean { return true; }
+  protected getRichBodyLines(): string[] { return this.desc.lines || []; }
+
+  protected getRichBodyMetrics(): Record<string, number> {
+    return {
+      paddingX: noteHPadding(this.noteType),
+      paddingY: CONTENT_PAD_Y,
+      minWidth: NOTE_MIN_WIDTH,
+    };
+  }
+
+  // Note style is a complete container style (no fragment extraction needed)
+  protected get richBodyStyleComplete(): boolean { return true; }
+
+  protected buildStyle(): string {
+    return noteStyle(this.noteType, this.fillColor);
+  }
+
+  // Note doesn't use deployment shape color override — color is baked into style
+  protected applyColorOverride(s: string): string { return s; }
+
+  protected getRichBodyRowStyle(): string { return noteTextStyle(); }
+  protected getRichBodySepStyle(): string { return noteSepStyle(); }
 }
 
 /** Register note renderer into global registry. */
 export function registerNoteRenderer(): void {
-  registerRenderer('note', (desc: RenderDescriptor) => {
-    return new NoteNodeRenderer(desc.id, desc.lines || [], {
-      noteType: desc.noteType,
-      color: desc.color,
-    });
-  });
+  registerRenderer('note', (desc: RenderDescriptor) => new NoteNodeRenderer(desc));
 }

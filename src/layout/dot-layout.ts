@@ -856,7 +856,7 @@ function buildRendererTree(
         groupRenderers.set(g.id, existing);
       }
     } else {
-      const shape = resolveGroupShape(g.type, g.stereotype, globalPkgStyle);
+      const shape = resolveGroupShape(g.type, g.stereotype, globalPkgStyle, g.id);
       const gr = createNodeRenderer({ id: g.id, label: g.label, stereotype: shape, color: g.color, style: g.style });
       groupRenderers.set(g.id, gr);
       renderers.set(g.id, gr);

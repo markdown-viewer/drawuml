@@ -52,18 +52,6 @@ function resolveNoteTarget(raw: string): { classId: string; memberTarget?: strin
   return { classId: s };
 }
 
-/**
- * Deployment-diagram shape keywords recognised as standalone node declarations.
- * When the PEG parser emits declaration_statement with dataType matching one of
- * these, it is treated as a deployment shape node (not a class member).
- */
-const DEPLOYMENT_SHAPE_KEYWORDS = new Set([
-  'agent', 'artifact', 'boundary', 'card', 'cloud', 'collections',
-  'component', 'control', 'database', 'entity', 'file', 'folder', 'frame',
-  'hexagon', 'label', 'node', 'package', 'person', 'queue',
-  'rectangle', 'stack', 'storage',
-]);
-
 export function parseClassDiagram(statements: any[], options: ParseClassDiagramOptions = {}) {
   const strict = options.strict === true;
 
@@ -376,27 +364,6 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     return _hasUsecaseContext;
   }
 
-  // Lazy deployment context detection.
-  // Returns true when any statement declares a deployment shape keyword
-  // (node, cloud, database, etc.) via component_statement or declaration_statement.
-  let _hasDeploymentContext: boolean | null = null;
-  function hasDeploymentContext(): boolean {
-    if (_hasDeploymentContext !== null) return _hasDeploymentContext;
-    _hasDeploymentContext = statements.some(st => {
-      if (!st || typeof st !== 'object') return false;
-      if (st.kind === 'component_statement') {
-        const ct = String(st.componentType || '').toLowerCase();
-        if (DEPLOYMENT_SHAPE_KEYWORDS.has(ct)) return true;
-      }
-      if (st.kind === 'declaration_statement' && st.type === 'member') {
-        const dt = String(st.dataType || '').toLowerCase();
-        if (DEPLOYMENT_SHAPE_KEYWORDS.has(dt)) return true;
-      }
-      return false;
-    });
-    return _hasDeploymentContext;
-  }
-
   const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
 
   for (let i = 0; i < statements.length; i++) {
@@ -696,9 +663,10 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           continue;
         }
 
-        // Other deployment shapes via component_statement (non-block):
+        // All other component_statement (non-block, non-actor/usecase):
         // e.g. label "text", agent "name" as a, cloud "C1" #pink
-        if (DEPLOYMENT_SHAPE_KEYWORDS.has(ctype)) {
+        // Parser is permissive — let the renderer detect unimplemented shapes.
+        {
           const rawName = String(st.name || '').trim();
           const rawAlias = String(st.alias || '').trim();
           const id = normalizeId(rawAlias || rawName);
@@ -789,8 +757,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           continue;
         }
 
-        // Deployment-diagram shape keywords: "agent foo", "cloud bar", etc.
-        if (DEPLOYMENT_SHAPE_KEYWORDS.has(dataType)) {
+        // All other typed member declarations: "agent foo", "cloud bar", etc.
+        // Parser is permissive — let the renderer detect unimplemented shapes.
+        {
           const rawName = String(st.name || '').trim();
           const id = normalizeId(rawName);
           const label = rawName;
@@ -976,7 +945,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           id,
           type: NodeType.Class,
           label,
-          stereotype: 'object',
+          stereotype: 'map',
           stereotypeLabel: '',
           mapEntries,
         };
@@ -1362,8 +1331,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else {
-              const deployStereotype = (!lollipopFrom && hasDeploymentContext()) ? 'circle' : null;
-              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : deployStereotype, stereotypeLabel: '', bodyLines: [] };
+              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
             ensureNodeInCorrectGroup(from, fromResolved.isRoot);
           }
@@ -1385,8 +1353,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else {
-              const deployStereotype = (!lollipopTo && hasDeploymentContext()) ? 'circle' : null;
-              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : deployStereotype, stereotypeLabel: '', bodyLines: [] };
+              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
             ensureNodeInCorrectGroup(to, toResolved.isRoot);
           }
@@ -1841,11 +1808,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (s) node.style = s;
     }
 
-    // Apply to groups as well
+    // Apply to groups — only type-specific CSS rules, not the global diagram rule
+    // (PlantUML does not apply global BackGroundColor to containers)
     for (const g of groups) {
       if (g.color) continue;
       const gtype = String(g.type || '').toLowerCase();
-      const rule = cssStyleRules[gtype] || globalRule;
+      const rule = cssStyleRules[gtype];
       if (!rule) continue;
       const bg = rule['backgroundcolor'];
       if (bg) g.color = bg;

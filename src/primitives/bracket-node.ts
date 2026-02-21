@@ -12,14 +12,14 @@
  * Separators are drawn as proper DrawIO line mxCells (same mechanism as classNode).
  *
  * Shape style and content offsets are obtained from the corresponding
- * ShapeRenderer via getShapeInfo(), eliminating duplicate style definitions.
+ * RichRenderer via getShapeInfo(), eliminating duplicate style definitions.
  */
 
 import { Content, richTextStyle } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import { RichBodyRenderer } from './renderer.ts';
-import { ShapeRenderer } from './shapes/shape-renderer.ts';
+import { RichRenderer } from './shapes/rich-renderer.ts';
 import { DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
 import { createRenderer, hasRenderer, registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
@@ -39,7 +39,7 @@ const COMMON_STYLE_KEYS = new Set([
 ]);
 
 /**
- * Extract shape-specific style fragment from a full ShapeRenderer style.
+ * Extract shape-specific style fragment from a full RichRenderer style.
  * Strips common layout properties, keeping only the shape identity
  * (e.g. 'shape=cube;size=10;').
  */
@@ -121,14 +121,14 @@ class BracketNodeRenderer extends RichBodyRenderer {
     const ctype = (desc.stereotype || '').toLowerCase();
     this.content = Content.richBody((desc.bodyLines || []).map(l => typeof l === 'string' ? l : l.text));
 
-    // Get shape info from the corresponding ShapeRenderer
+    // Get shape info from the corresponding RichRenderer
     let shapeFragment = 'rounded=0;';
     let contentYOffset = 0;
     let extraPadY = 0;
     let extraPadX = 0;
     if (hasRenderer(ctype)) {
       const sr = createRenderer(ctype, desc);
-      if (sr instanceof ShapeRenderer) {
+      if (sr instanceof RichRenderer) {
         const info = sr.getShapeInfo();
         shapeFragment = extractShapeFragment(info.style);
         contentYOffset = info.contentYOffset;

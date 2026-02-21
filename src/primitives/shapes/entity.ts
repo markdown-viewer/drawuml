@@ -8,6 +8,7 @@
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { Renderer } from '../renderer.ts';
+import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
@@ -57,6 +58,10 @@ class EntityRenderer extends Renderer {
 
   render(box: ContentBox): string[] {
     const labelHtml = Content.inline(this.label).html;
+    const value = buildLabelHtml({
+      label: labelHtml,
+      stereotypeLabel: this.desc.stereotypeLabel || undefined,
+    });
     const cx = box.x + Math.round((box.width - ICON_WIDTH) / 2);
     let s = `shape=umlEntity;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
       + `fillColor=none;strokeColor=${COLOR_DARK};strokeWidth=0.5;`
@@ -66,7 +71,7 @@ class EntityRenderer extends Renderer {
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
-      id: this.id, value: labelHtml, style: s,
+      id: this.id, value, style: s,
       parent: this.parentId || '1',
       x: cx, y: box.y, width: ICON_WIDTH, height: ICON_HEIGHT,
     })];

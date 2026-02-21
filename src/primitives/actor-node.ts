@@ -110,5 +110,9 @@ class ActorNodeRenderer extends Renderer {
 
 /** Register actor-node renderer into global registry. */
 export function registerActorNodeRenderer(): void {
-  registerRenderer('usecase_actor', (desc: RenderDescriptor) => new ActorNodeRenderer(desc));
+  const factory = (desc: RenderDescriptor) => new ActorNodeRenderer(desc);
+  registerRenderer('usecase_actor', factory);
+  // Stereotype aliases so registry dispatch works directly
+  registerRenderer('actor', factory);
+  registerRenderer('actor/', factory);
 }

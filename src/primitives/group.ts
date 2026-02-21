@@ -12,6 +12,24 @@ import { Renderer } from './renderer.ts';
 import type { DotContext } from './renderer.ts';
 import { hasRenderer } from './registry.ts';
 
+/** Warning item for unimplemented shapes (matches RenderWarning in index.ts). */
+interface ShapeWarning {
+  type: string;
+  nodeId: string;
+  stereotype: string;
+  message: string;
+}
+
+// Use a late-binding reference to avoid circular import:
+// group.ts is imported by index.ts, which defines _renderWarnings.
+// We access the warnings array via a getter exported from index.ts.
+let _getWarnings: (() => ShapeWarning[]) | null = null;
+
+/** @internal Called by index.ts to wire up the warnings collector. */
+export function _setWarningsGetter(fn: () => ShapeWarning[]): void {
+  _getWarnings = fn;
+}
+
 // ---------------------------------------------------------------------------
 // Shape resolution
 // ---------------------------------------------------------------------------
@@ -29,6 +47,7 @@ export function resolveGroupShape(
   type: string,
   stereotype?: string,
   globalPackageStyle?: string,
+  groupId?: string,
 ): string {
   // Per-group stereotype takes highest priority (e.g., package <<Cloud>>)
   if (stereotype) {
@@ -42,6 +61,19 @@ export function resolveGroupShape(
     const key = globalPackageStyle.toLowerCase();
     if (hasRenderer(key)) return key;
   }
+
+  // Warn when falling back to 'folder' for a non-package type.
+  // 'package' and 'namespace' legitimately default to folder.
+  const FOLDER_DEFAULT_TYPES = new Set(['package', 'namespace', 'folder', '']);
+  if (!FOLDER_DEFAULT_TYPES.has(type) && _getWarnings) {
+    _getWarnings().push({
+      type: 'unimplemented_shape',
+      nodeId: groupId || type,
+      stereotype: stereotype || type,
+      message: `Unimplemented group shape '${stereotype || type}' for group '${groupId || type}', falling back to folder`,
+    });
+  }
+
   // Default
   return 'folder';
 }

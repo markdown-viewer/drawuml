@@ -5,12 +5,12 @@
  * a horizontal divider line (archimate businessObject shape).
  */
 
-import { ShapeRenderer } from './shape-renderer.ts';
+import { RichRenderer } from './rich-renderer.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
-class CardRenderer extends ShapeRenderer {
+class CardRenderer extends RichRenderer {
   protected buildStyle(): string {
     // Use plain rectangle when card has title only (no body content and no children)
     const hasContent = this.desc.bodyLines && this.desc.bodyLines.length > 0;

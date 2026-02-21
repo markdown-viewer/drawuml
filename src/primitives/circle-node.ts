@@ -7,8 +7,10 @@ import { measureText } from '@markdown-viewer/text-measure';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
 import { Content } from '../shared/content.ts';
+import { buildLabelHtml } from './label.ts';
 import { DEFAULT_FONT_FAMILY, TITLE_FONT_SIZE, DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
+import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 import type { SemanticNode } from '../model/class-model.ts';
 
@@ -68,7 +70,10 @@ class CircleNodeRenderer extends Renderer {
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
-      id: this.node.id, value: this.labelHtml, style: s,
+      id: this.node.id, value: buildLabelHtml({
+        label: this.labelHtml,
+        stereotypeLabel: (this.node as any).stereotypeLabel || undefined,
+      }), style: s,
       parent: this.parentId || '1',
       x: cx, y: cy, width: cw, height: ch,
     })];
@@ -77,6 +82,9 @@ class CircleNodeRenderer extends Renderer {
 
 /** Register circle-node renderer into global registry. */
 export function registerCircleNodeRenderer(): void {
-  registerRenderer('circle', (desc: RenderDescriptor) => new CircleNodeRenderer(desc as NodeDescriptor));
+  const factory = (desc: RenderDescriptor) => new CircleNodeRenderer(desc as NodeDescriptor);
+  registerRenderer('circle', factory);
+  // In class diagrams, interface nodes render as circles (lollipop notation)
+  registerRenderer('interface', factory);
 }
 

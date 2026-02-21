@@ -4,35 +4,22 @@
  * Renders as plain text with no border or background (just the label).
  */
 
-import { Content } from '../../shared/content.ts';
-import { mxVertex } from '../../shared/xml-utils.ts';
-import { ShapeRenderer } from './shape-renderer.ts';
-import { Renderer } from '../renderer.ts';
+import { RichRenderer } from './rich-renderer.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
-class LabelRenderer extends ShapeRenderer {
+class LabelRenderer extends RichRenderer {
   protected buildStyle(): string {
     return `text;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=middle;fillColor=none;strokeColor=none;fontColor=${COLOR_DARK};whiteSpace=wrap;`;
   }
   get isCluster(): boolean { return false; }
 
-  render(box: ContentBox): string[] {
-    const labelHtml = Content.inline(this.label).html;
-    let s = this.buildStyle();
-    // Label shape uses fontColor instead of fillColor for color override
-    if (this.color) s = s.replace(/fontColor=[^;]*/, `fontColor=${normalizeColor(this.color)}`);
-    // Apply only text color from inline style; label has no fill/stroke.
-    const parsed = Renderer.applyInlineStyle('', this.desc.style);
-    if (parsed.fontColorOverride) s = s.replace(/fontColor=[^;]*;/, parsed.fontColorOverride);
-    return [mxVertex({
-      id: this.id, value: labelHtml, style: s,
-      parent: this.parentId || '1',
-      x: box.x, y: box.y, width: box.width, height: box.height,
-    })];
+  // Label uses fontColor for color override (no fill/stroke)
+  protected applyColorOverride(style: string): string {
+    if (this.color) return style.replace(/fontColor=[^;]*/, `fontColor=${normalizeColor(this.color)}`);
+    return style;
   }
 }
 

@@ -7,8 +7,7 @@
  * Subclasses implement doMeasure() and render(). The base class
  * provides cached measure() and a default buildPortLabel() hook.
  *
- * Two intermediate base classes extract common patterns:
- *   - RichBodyRenderer  — for rich-body containers (Note, Legend, Bracket)
+ * One intermediate base class extracts common patterns:
  *   - SwimlaneRenderer  — for titled swimlane containers (Class, State)
  *
  * Usage:
@@ -188,63 +187,6 @@ export abstract class Renderer {
 /** Backward-compatible type alias. */
 export type NodeRenderer = Renderer;
 
-// ─── RichBodyRenderer ────────────────────────────────────────────────────────
-
-/**
- * Base class for rich-body container renderers (Note, Legend, Bracket).
- *
- * Subclasses set `content`, `style`, `fillColor`, `strokeColor` in their
- * constructor, and override `getRowStyle()` / `getSeparatorStyle()` to
- * provide DrawIO child cell styles.
- *
- * The common render logic handles the hasSeparators branching:
- *   - with separators → empty container + child rows/separators
- *   - without separators → single cell with html content
- */
-export abstract class RichBodyRenderer extends Renderer {
-  protected content: Content;
-  protected style: string;
-  protected fillColor: string;
-  protected strokeColor: string;
-
-  constructor(id: string) {
-    super(id);
-  }
-
-  protected doMeasure() {
-    const size = this.content.measure();
-    return { width: size.width, height: size.height };
-  }
-
-  /** DrawIO style for body text row child mxCells. */
-  protected abstract getRowStyle(): string;
-  /** DrawIO style for separator child mxCells. */
-  protected abstract getSeparatorStyle(): string;
-
-  render(box: ContentBox) {
-    const cells: string[] = [];
-    if (this.content.hasSeparators) {
-      cells.push(mxVertex({
-        id: this.id, value: '', style: this.style,
-        parent: this.parentId || '1',
-        x: box.x, y: box.y, width: box.width, height: box.height,
-      }));
-      cells.push(...this.content.renderChildren(this.id, box.width, {
-        rowStyle: this.getRowStyle(),
-        separatorStyle: this.getSeparatorStyle(),
-        fillColor: this.fillColor,
-        strokeColor: this.strokeColor,
-      }));
-    } else {
-      cells.push(mxVertex({
-        id: this.id, value: this.content.html, style: this.style,
-        parent: this.parentId || '1',
-        x: box.x, y: box.y, width: box.width, height: box.height,
-      }));
-    }
-    return cells;
-  }
-}
 
 // ─── SwimlaneRenderer ────────────────────────────────────────────────────────
 
@@ -338,10 +280,4 @@ export interface ClassNodeRendererOpts {
   visibilityIcons?: boolean;
 }
 
-/** Options for note renderers. */
-export interface NoteRendererOpts {
-  /** Note shape type: 'note' | 'hnote' | 'rnote'. Default: 'note'. */
-  noteType?: string;
-  /** Fill color override. Default: '#FEFFDD'. */
-  color?: string | null;
-}
+

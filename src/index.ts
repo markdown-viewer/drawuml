@@ -8,12 +8,20 @@ import { sequenceTableLayout } from './layout/table-layout.ts';
 import { semanticToDrawioXml } from './generator/drawio-gen.ts';
 import { sequenceToDrawioXml } from './generator/sequence-gen.ts';
 import { DiagramType } from './model/index.ts';
+import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
 
 // Re-export init helper so callers can pre-warm viz.js
 export { dotLayout, initViz } from './layout/dot-layout.ts';
 export type { DotLayoutResult } from './layout/dot-layout.ts';
 
+// Re-export render warning API for external consumers
+export { getRenderWarnings, clearRenderWarnings } from './primitives/index.ts';
+export type { RenderWarning } from './primitives/index.ts';
+
 export function textToDrawioXml(dsl) {
+  // Clear warnings from previous render pass
+  clearRenderWarnings();
+
   const { diagramType, body, parsed } = dispatch(dsl);
   const { source, pragmas } = preprocess(body);
 

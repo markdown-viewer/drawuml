@@ -4,12 +4,12 @@
  * Renders as multiple stacked rectangles using DrawIO `mxgraph.basic.layered_rect` shape.
  */
 
-import { ShapeRenderer } from './shape-renderer.ts';
+import { RichRenderer } from './rich-renderer.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
-class StackRenderer extends ShapeRenderer {
+class StackRenderer extends RichRenderer {
   protected buildStyle(): string {
     return `shape=mxgraph.basic.layered_rect;fontStyle=1;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=middle;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};whiteSpace=wrap;collapsible=0;container=1;`;
   }

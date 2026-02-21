@@ -1,14 +1,13 @@
 /**
  * Legend primitive — sizing and rendering for class-diagram legends.
- * Processes raw PlantUML Creole lines internally via Content.richBody().
+ * Extends RichRenderer with rich body mode (desc.lines as content).
  */
 
-import { Content, richTextStyle } from '../shared/content.ts';
-import { RichBodyRenderer } from './renderer.ts';
-import { COLOR_DARK, LEGEND_FILL, TITLE_PAD_X } from '../shared/theme.ts';
-import { registerRenderer } from './registry.ts';
-import type { RenderDescriptor } from './registry.ts';
-import type { ContentBox } from '../shared/content.ts';
+import { richTextStyle } from '../../shared/content.ts';
+import { RichRenderer } from './rich-renderer.ts';
+import { COLOR_DARK, LEGEND_FILL, TITLE_PAD_X } from '../../shared/theme.ts';
+import { registerRenderer } from '../registry.ts';
+import type { RenderDescriptor } from '../registry.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -44,30 +43,40 @@ function legendSepStyle(): string {
 // Renderer class
 // ---------------------------------------------------------------------------
 
-class LegendRenderer extends RichBodyRenderer {
-  constructor(
-    id: string,
-    rawLines: string[],
-    opts?: { align?: string },
-  ) {
-    super(id);
-    this.style = legendStyle();
-    this.fillColor = LEGEND_FILL;
-    this.strokeColor = COLOR_DARK;
-    this.content = Content.richBody(rawLines, {
+class LegendRenderer extends RichRenderer {
+  constructor(desc: RenderDescriptor) {
+    super(desc);
+  }
+
+  get isCluster(): boolean { return false; }
+
+  // Legend always uses rich body mode (desc.lines as content)
+  protected detectRichBody(): boolean { return true; }
+  protected getRichBodyLines(): string[] { return this.desc.lines || []; }
+
+  protected getRichBodyMetrics(): Record<string, number> {
+    return {
       paddingX: LEGEND_PADDING_X,
       paddingY: LEGEND_PADDING_Y,
       minWidth: LEGEND_MIN_WIDTH,
-    });
+    };
   }
 
-  protected getRowStyle() { return legendTextStyle(); }
-  protected getSeparatorStyle() { return legendSepStyle(); }
+  // Legend style is a complete container style (no fragment extraction needed)
+  protected get richBodyStyleComplete(): boolean { return true; }
+
+  protected buildStyle(): string {
+    return legendStyle();
+  }
+
+  // Legend doesn't use deployment shape color override — colors are fixed
+  protected applyColorOverride(s: string): string { return s; }
+
+  protected getRichBodyRowStyle(): string { return legendTextStyle(); }
+  protected getRichBodySepStyle(): string { return legendSepStyle(); }
 }
 
 /** Register legend renderer into global registry. */
 export function registerLegendRenderer(): void {
-  registerRenderer('legend', (desc: RenderDescriptor) => {
-    return new LegendRenderer(desc.id, desc.lines || []);
-  });
+  registerRenderer('legend', (desc: RenderDescriptor) => new LegendRenderer(desc));
 }
