@@ -92,6 +92,16 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   // Pending merge targets from if/else/endif resolution
   let pendingMergeTargets: string[] = [];
 
+  // State-diagram stereotypes that map to port nodes (entry/exit points on group boundary)
+  const PORT_STEREOTYPE_MAP: Record<string, 'portin' | 'portout'> = {
+    entryPoint: 'portin',
+    inputPin: 'portin',
+    expansionInput: 'portin',
+    exitPoint: 'portout',
+    outputPin: 'portout',
+    expansionOutput: 'portout',
+  };
+
   // Lazy detection: diagram has legacy activity arrows
   const hasLegacyActivityContext = statements.some(st =>
     st && typeof st === 'object' &&
@@ -1152,6 +1162,19 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         const toId = ensureActivityNode(rawTo, alias, st.toType);
         if (rawTo === '(*)') starAsTargetCount++;
 
+        // Check stereotypes on the arrow target for port node types (e.g. <<exitPoint>>)
+        const arrowStereos: string[] = Array.isArray(st.stereotypes) ? st.stereotypes : [];
+        if (arrowStereos.length > 0 && nodesById[toId]) {
+          const portDir = PORT_STEREOTYPE_MAP[arrowStereos[0]];
+          if (portDir) {
+            nodesById[toId].type = NodeType.Class as any;
+            nodesById[toId].stereotype = portDir;
+            nodesById[toId].stereotypeLabel = '';
+            nodesById[toId].isPort = true;
+            nodesById[toId].portType = portDir;
+          }
+        }
+
         addActivityEdge(fromId, toId, label, st.arrow);
         lastTarget = toId;
         lastDefinedClass = toId;
@@ -1608,11 +1631,31 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
         // Map stereotypes to NodeType
         let nodeType: (typeof NodeType)[keyof typeof NodeType] = NodeType.State;
-        if (stereo === 'fork') nodeType = NodeType.StateFork;
+        const portDirection = PORT_STEREOTYPE_MAP[stereo];
+        if (portDirection) nodeType = NodeType.Class; // port nodes use Class type
+        else if (stereo === 'fork') nodeType = NodeType.StateFork;
         else if (stereo === 'join') nodeType = NodeType.StateJoin;
         else if (stereo === 'choice') nodeType = NodeType.StateChoice;
         else if (stereo === 'start') nodeType = NodeType.StateStart;
         else if (stereo === 'end') nodeType = NodeType.StateEnd;
+
+        if (portDirection) {
+          // Port node: entry/exit point on state boundary
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: nodeType,
+            label,
+            stereotype: portDirection,
+            stereotypeLabel: '',
+            bodyLines: [],
+            style: st.style || null,
+            isPort: true,
+            portType: portDirection,
+          };
+          registerNodeInGroup(id);
+          continue;
+        }
 
         if (st.block) {
           // Composite state: the state node IS the group container.
