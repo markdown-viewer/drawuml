@@ -123,11 +123,13 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     const type = ENDPOINT_NODE_MAP[endpointType!] || (rawId === '(*)' ? NodeType.StateStart : NodeType.Class);
     const label = type === NodeType.Class ? rawId : '';
 
+    // Only regular activity nodes get the 'activity' stereotype;
+    // special nodes (fork bars, start/end) use their own renderers.
     nodesById[id] = {
       id,
       type: type as any,
       label,
-      stereotype: rawId === '(*)' ? null : 'activity',
+      stereotype: type === NodeType.Class ? 'activity' : null,
       stereotypeLabel: '',
       bodyLines: [],
     };

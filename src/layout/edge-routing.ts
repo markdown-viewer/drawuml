@@ -98,7 +98,33 @@ export function parseEdgePos(
     if (endPoint) waypoints.push(transform(endPoint));
   }
 
-  return waypoints;
+  return simplifyCollinear(waypoints);
+}
+
+/**
+ * Remove collinear intermediate points from a waypoint list.
+ * If three consecutive points lie on the same line (within a small epsilon),
+ * the middle point is redundant and can be removed.
+ * This prevents straight-line edges from carrying unnecessary waypoints.
+ */
+function simplifyCollinear(points: Point[], epsilon = 1.5): Point[] {
+  if (points.length <= 2) return points;
+  const result: Point[] = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const cur = points[i];
+    const next = points[i + 1];
+    // Cross product of vectors (prev→cur) and (prev→next)
+    const cross = (cur.x - prev.x) * (next.y - prev.y)
+                - (cur.y - prev.y) * (next.x - prev.x);
+    // Normalize by |prev→next| so epsilon represents perpendicular pixel distance
+    const dist = Math.sqrt((next.x - prev.x) ** 2 + (next.y - prev.y) ** 2);
+    if (dist > 0 && Math.abs(cross) / dist > epsilon) {
+      result.push(cur);
+    }
+  }
+  result.push(points[points.length - 1]);
+  return result;
 }
 
 // ---------------------------------------------------------------------------

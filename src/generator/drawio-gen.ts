@@ -107,10 +107,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     const layoutEdge = layout.edges?.find((le) => le.id === edge.id);
     let points = layoutEdge?.points || null;
 
-    // For port edges, derive exit/entry side from DOT endpoints and add
-    // constraints so drawio2svg pins the connection to the field cell border.
-    // Only strip the endpoint when we actually constrain that side; endpoints
-    // that are NOT near the node border (e.g. self-referencing loops) are kept.
+    // For port edges (field-level connections), derive exit/entry side from DOT
+    // endpoints and add constraints so drawio2svg pins the connection to the
+    // field cell's left/right border.
     if (hasPort && points && points.length >= 2) {
       const sides = computePortEdgeSides(points, edge, layout);
       if (sides.exitX != null) {
@@ -125,33 +124,27 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       points = points.slice(startIdx, endIdx);
     }
 
-    // Compute geometry based on edge type
+    // Compute geometry — unified for all edge types.
+    // sourcePoint/targetPoint are used when the endpoint has no cell binding
+    // (group endpoints use omitSource/omitTarget; port edges with constraints
+    // have already stripped the constrained endpoints above).
     let geometry: { sourcePoint?: { x: number; y: number }; targetPoint?: { x: number; y: number }; waypoints?: { x: number; y: number }[] } | undefined;
-    if (!hasPort && points && points.length >= 2) {
-      const midPoints = points.slice(1, -1);
+    if (points && points.length >= 2) {
+      const needSourcePt = omitSource || !hasPort;
+      const needTargetPt = omitTarget || !hasPort;
+      const sp = needSourcePt ? points[0] : undefined;
+      const tp = needTargetPt ? points[points.length - 1] : undefined;
+      const startIdx = sp ? 1 : 0;
+      const endIdx = tp ? points.length - 1 : points.length;
+      const midPts = points.slice(startIdx, endIdx);
       geometry = {
-        sourcePoint: points[0],
-        targetPoint: points[points.length - 1],
-        waypoints: midPoints.length > 0 ? midPoints : undefined,
+        sourcePoint: sp,
+        targetPoint: tp,
+        waypoints: midPts.length > 0 ? midPts : undefined,
       };
-    } else if (hasPort && points && points.length > 0) {
-      // Port edges with a group endpoint: the group side has no cell ref
-      // (omitSource/omitTarget), so we must provide an explicit coordinate
-      // via sourcePoint/targetPoint instead of relying on DrawIO cell binding.
-      if (omitSource || omitTarget) {
-        const sp = omitSource && points.length >= 1 ? points[0] : undefined;
-        const tp = omitTarget && points.length >= 1 ? points[points.length - 1] : undefined;
-        const startIdx = sp ? 1 : 0;
-        const endIdx = tp ? points.length - 1 : points.length;
-        const midPts = points.slice(startIdx, endIdx);
-        geometry = {
-          sourcePoint: sp,
-          targetPoint: tp,
-          waypoints: midPts.length > 0 ? midPts : undefined,
-        };
-      } else {
-        geometry = { waypoints: points };
-      }
+    } else if (points && points.length > 0) {
+      // Only waypoints remain (e.g. port edge with both endpoints constrained)
+      geometry = { waypoints: points };
     }
 
     cells.push(...buildEdgeCells({
@@ -228,14 +221,6 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       source: note.id,
       target: edgeTarget,
     }));
-  }
-
-  // Global elements (title, legend) — rendered via factory-created renderers
-  for (const gid of ['__title__', '__legend__']) {
-    const l = layout.nodes[gid];
-    if (!l) continue;
-    const r = renderers.get(gid);
-    if (r) cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height }));
   }
 
   return wrapMxfile(cells, { diagramId, diagramName });
