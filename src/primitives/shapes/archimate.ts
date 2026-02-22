@@ -11,11 +11,18 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
+
+// Junction geometry constants (same pattern as actor / boundary)
+const JUNCTION_SIZE     = 16;  // circle diameter
+const JUNCTION_TEXT_GAP = 4;   // gap between circle and label
+const JUNCTION_TEXT_H   = 18;  // label area height
+const JUNCTION_PAD_X    = 20;  // horizontal padding for label
 
 // ---------------------------------------------------------------------------
 // Stereotype → DrawIO style mapping
@@ -355,13 +362,23 @@ class FolderArchimateRenderer extends ArchimateRenderer {
   }
 }
 
-/** Junction renderer: small circle with label below. */
+/** Junction renderer: small circle with label below (same pattern as actor / boundary). */
 class JunctionRenderer extends ArchimateRenderer {
   protected override get topPadY(): number { return 0; }
 
   protected override doMeasure() {
-    // Circle only; label appears below via verticalLabelPosition=bottom.
-    return { width: 16, height: 16 };
+    // Full bounding box = circle + gap + label, so DOT allocates correct spacing.
+    const labelW = Content.inline(this.desc.label ?? '').measure().width;
+    return {
+      width:  Math.max(JUNCTION_SIZE, labelW + JUNCTION_PAD_X),
+      height: JUNCTION_SIZE + JUNCTION_TEXT_GAP + JUNCTION_TEXT_H,
+    };
+  }
+
+  override graphicCenterOffset() {
+    // Circle center is at JUNCTION_SIZE/2 from top; geometric center is height/2.
+    const h = this.measure().height;
+    return { dx: 0, dy: JUNCTION_SIZE / 2 - h / 2 };
   }
 
   override render(box: ContentBox): string[] {
@@ -378,12 +395,14 @@ class JunctionRenderer extends ArchimateRenderer {
       'html=1',
       `fontSize=${DEFAULT_FONT_SIZE}`,
     ].join(';') + ';';
+    // Center the circle horizontally; place at top of the DOT bounding box.
+    const cx = box.x + Math.round((box.width - JUNCTION_SIZE) / 2);
     return [mxVertex({
       id: this.id,
       value: this.content.html,
       style,
       parent: this.parentId || '1',
-      x: box.x, y: box.y, width: box.width, height: box.height,
+      x: cx, y: box.y, width: JUNCTION_SIZE, height: JUNCTION_SIZE,
     })];
   }
 }

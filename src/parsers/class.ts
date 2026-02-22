@@ -806,12 +806,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             // Ensure endpoints exist as nodes
             if (!nodesById[from]) {
               nodeOrder.push(from);
-              nodesById[from] = { id: from, type: NodeType.Class, label: from, stereotype: 'archimate', stereotypeLabel: '', bodyLines: [] };
+              nodesById[from] = { id: from, type: NodeType.Class, label: from, stereotype: 'archimate-junction-or', stereotypeLabel: '', bodyLines: [] };
               registerNodeInGroup(from);
             }
             if (!nodesById[to]) {
               nodeOrder.push(to);
-              nodesById[to] = { id: to, type: NodeType.Class, label: to, stereotype: 'archimate', stereotypeLabel: '', bodyLines: [] };
+              nodesById[to] = { id: to, type: NodeType.Class, label: to, stereotype: 'archimate-junction-or', stereotypeLabel: '', bodyLines: [] };
               registerNodeInGroup(to);
             }
             edges.push({
@@ -820,8 +820,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               from,
               to,
               label,
-              arrow: null,
-              arrowMeta: null,
+              arrow: (relInfo.arrowMeta as any).token,
+              arrowMeta: relInfo.arrowMeta,
               direction: relInfo.direction || null,
             });
           }

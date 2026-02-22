@@ -5,6 +5,11 @@ const KNOWN_HEAD_TOKENS = new Set([
   '<||', '<|', '<',
   '||>', '|>', '>',
   '*', 'o', 'x', '#',
+  // Archimate-specific tokens
+  '^^',       // filled flat triangle (block fill=1)
+  '**',       // filled large diamond
+  'oo',       // hollow large diamond
+  '~/',       // open (unfilled) upper-half line arrow (halfBottom fill=0)
   '}|', '}o', '||', '|o', '|{', '{',
   'o|', 'o{', '{|', '}',
   '0)', '(0',
@@ -52,6 +57,7 @@ function normalizeMeta(meta, token) {
       endHeadToken: endHead,
       bodyToken,
       lineStyle,
+      dashPattern: meta.dashPattern || null,
       middleShape: meta.middleShape || null,
       direction,
       length,
@@ -95,6 +101,8 @@ function parseRawArrowToken(token) {
     endHeadToken: endHead,
     bodyToken: bodyRaw,
     lineStyle,
+    dashPattern: null,
+    middleShape: null,
     direction,
     length,
   };
@@ -151,6 +159,11 @@ function headTokenToDrawio(token, isStart = false) {
   // Compound: >> + diamond
   if (token === '>>o') return { arrow: 'block', fill: 0 };
   if (token === '@') return { arrow: 'oval', fill: 1 };
+  // Archimate-specific tokens
+  if (token === '^^') return { arrow: 'block', fill: 1 };      // filled flat triangle
+  if (token === '**') return { arrow: 'diamond', fill: 1 };    // filled large diamond
+  if (token === 'oo') return { arrow: 'diamond', fill: 0 };    // hollow large diamond
+  if (token === '~/') return { arrow: isStart ? 'halfTop' : 'halfBottom', fill: 0 }; // open upper-half line
   if (token === '') {
     return { arrow: 'none', fill: null };
   }
@@ -189,7 +202,10 @@ export function edgeStyleForArrow(arrow, meta = null) {
   const dashed = (parsedMeta.lineStyle === 'dashed' || parsedMeta.lineStyle === 'dotted') ? 1 : 0;
 
   const parts = [`dashed=${dashed}`];
-  if (parsedMeta.lineStyle === 'dotted') parts.push('dashPattern=1 2');
+  // Use explicit dashPattern from meta (e.g. archimate '1 3' or '7 7'),
+  // otherwise fall back to the dotted default '1 2'.
+  const dashPat = parsedMeta.dashPattern || (parsedMeta.lineStyle === 'dotted' ? '1 2' : null);
+  if (dashPat) parts.push(`dashPattern=${dashPat}`);
   if (parsedMeta.lineStyle === 'bold') parts.push('strokeWidth=2');
   parts.push(`startArrow=${start.arrow}`);
   parts.push(`endArrow=${end.arrow}`);

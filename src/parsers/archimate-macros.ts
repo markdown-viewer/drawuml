@@ -153,7 +153,30 @@ export function lookupArchimateElementMacro(name: string): ArchimateMacroInfo | 
 export interface RelMacroInfo {
   edgeType: string;     // EdgeType value: 'composition', 'association', etc.
   direction?: string;   // 'up' | 'down' | 'left' | 'right' | null
-  drawioStyle: string;  // DrawIO edge style fragment
+  arrowMeta: object;    // Structured meta for edgeStyleForArrow()
+}
+
+/**
+ * Build a structured arrowMeta object consumable by edgeStyleForArrow().
+ * startHead/endHead use the tokens defined in arrow.ts headTokenToDrawio().
+ * lineStyle: 'solid' | 'dashed' | 'dotted'
+ * dashPattern: optional override, e.g. '1 3' or '7 7'
+ */
+function makeArrowMeta(startHead: string, endHead: string, lineStyle: string, dashPattern?: string): object {
+  const bodyToken = (lineStyle === 'dashed' || lineStyle === 'dotted') ? '..' : '--';
+  const token = `${startHead}${bodyToken}${endHead}` || bodyToken;
+  return {
+    structured: true,
+    token,
+    startHeadToken: startHead,
+    endHeadToken: endHead,
+    bodyToken,
+    lineStyle,
+    dashPattern: dashPattern || null,
+    middleShape: null,
+    direction: null,
+    length: 2,
+  };
 }
 
 /**
@@ -167,22 +190,32 @@ function resolveRelDirection(name: string): { baseName: string; direction: strin
 }
 
 /** Base relation type → edge info (without direction). */
-const BASE_RELATIONS: Record<string, { edgeType: string; drawioStyle: string }> = {
-  'Rel_Composition':      { edgeType: 'composition',  drawioStyle: 'startArrow=diamondThin;startFill=1;endArrow=none;' },
-  'Rel_Aggregation':      { edgeType: 'aggregation',  drawioStyle: 'startArrow=diamondThin;startFill=0;endArrow=none;' },
-  'Rel_Assignment':       { edgeType: 'association',   drawioStyle: 'startArrow=oval;startFill=1;endArrow=classic;endFill=1;dashed=0;' },
-  'Rel_Association':      { edgeType: 'association',   drawioStyle: 'startArrow=none;endArrow=none;dashed=0;' },
-  'Rel_Association_dir':  { edgeType: 'association',   drawioStyle: 'startArrow=none;endArrow=halfBottom;endFill=1;dashed=0;' },
-  'Rel_Access':           { edgeType: 'dependency',    drawioStyle: 'startArrow=none;endArrow=none;dashed=1;' },
-  'Rel_Access_r':         { edgeType: 'dependency',    drawioStyle: 'startArrow=classic;startFill=1;endArrow=none;dashed=1;' },
-  'Rel_Access_w':         { edgeType: 'dependency',    drawioStyle: 'startArrow=none;endArrow=classic;endFill=1;dashed=1;' },
-  'Rel_Access_rw':        { edgeType: 'dependency',    drawioStyle: 'startArrow=classic;startFill=1;endArrow=classic;endFill=1;dashed=1;' },
-  'Rel_Flow':             { edgeType: 'dependency',    drawioStyle: 'startArrow=none;endArrow=classic;endFill=1;dashed=1;' },
-  'Rel_Influence':        { edgeType: 'dependency',    drawioStyle: 'startArrow=none;endArrow=classic;endFill=1;dashed=1;' },
-  'Rel_Realization':      { edgeType: 'dependency',    drawioStyle: 'startArrow=none;endArrow=block;endFill=0;dashed=1;' },
-  'Rel_Serving':          { edgeType: 'association',   drawioStyle: 'startArrow=none;endArrow=classic;endFill=1;dashed=0;' },
-  'Rel_Specialization':   { edgeType: 'inheritance',   drawioStyle: 'startArrow=none;endArrow=block;endFill=0;dashed=0;' },
-  'Rel_Triggering':       { edgeType: 'association',   drawioStyle: 'startArrow=none;endArrow=classic;endFill=1;dashed=0;' },
+const BASE_RELATIONS: Record<string, { edgeType: string; arrowMeta: object }> = {
+  // Structural: large diamond at source, no end arrow
+  'Rel_Composition':      { edgeType: 'composition', arrowMeta: makeArrowMeta('**', '',   'solid') },
+  'Rel_Aggregation':      { edgeType: 'aggregation', arrowMeta: makeArrowMeta('oo', '',   'solid') },
+  // Assignment: filled circle at source + filled flat triangle at target
+  'Rel_Assignment':       { edgeType: 'association', arrowMeta: makeArrowMeta('@',  '^^', 'solid') },
+  // Association: plain solid line; directed uses open upper-half line arrow at end
+  'Rel_Association':      { edgeType: 'association', arrowMeta: makeArrowMeta('',   '',   'solid') },
+  'Rel_Association_dir':  { edgeType: 'association', arrowMeta: makeArrowMeta('',   '~/', 'solid') },
+  // Access variants: dotted line (1 3); classic filled chevron as arrow
+  'Rel_Access':           { edgeType: 'dependency',  arrowMeta: makeArrowMeta('',  '',   'dotted', '1 3') },
+  'Rel_Access_r':         { edgeType: 'dependency',  arrowMeta: makeArrowMeta('<', '',   'dotted', '1 3') },
+  'Rel_Access_w':         { edgeType: 'dependency',  arrowMeta: makeArrowMeta('',  '>',  'dotted', '1 3') },
+  'Rel_Access_rw':        { edgeType: 'dependency',  arrowMeta: makeArrowMeta('<', '>',  'dotted', '1 3') },
+  // Flow: long-dashed (7 7) + filled flat triangle
+  'Rel_Flow':             { edgeType: 'dependency',  arrowMeta: makeArrowMeta('',  '^^', 'dashed', '7 7') },
+  // Influence: long-dashed (7 7) + filled classic chevron
+  'Rel_Influence':        { edgeType: 'dependency',  arrowMeta: makeArrowMeta('',  '>',  'dashed', '7 7') },
+  // Realization: dotted (1 3) + hollow flat triangle
+  'Rel_Realization':      { edgeType: 'dependency',  arrowMeta: makeArrowMeta('',  '|>', 'dotted', '1 3') },
+  // Serving: solid + filled classic chevron
+  'Rel_Serving':          { edgeType: 'association', arrowMeta: makeArrowMeta('',  '>',  'solid') },
+  // Specialization: solid + hollow flat triangle
+  'Rel_Specialization':   { edgeType: 'inheritance', arrowMeta: makeArrowMeta('',  '|>', 'solid') },
+  // Triggering: solid + filled flat triangle
+  'Rel_Triggering':       { edgeType: 'association', arrowMeta: makeArrowMeta('',  '^^', 'solid') },
 };
 
 /**
@@ -195,7 +228,7 @@ export function lookupArchimateRelMacro(name: string): RelMacroInfo | null {
   return {
     edgeType: base.edgeType,
     direction: direction || undefined,
-    drawioStyle: base.drawioStyle,
+    arrowMeta: base.arrowMeta,
   };
 }
 
