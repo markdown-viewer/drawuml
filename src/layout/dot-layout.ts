@@ -1057,6 +1057,7 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
   // Derive visibility-icon flag from skinparams
   const visIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   const activityShape = model.skinparams?.activityShape;
+  const actorStyle = model.skinparams?.actorStyle;
 
   // 1. Create renderers for each node (renderers self-measure in buildDotAttributes)
   const renderers = new Map<string, Renderer>();
@@ -1064,6 +1065,7 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
     const desc: NodeDescriptor = { ...node };
     if (!visIcons) desc.visibilityIcons = false;
     if (activityShape) desc.activityShape = activityShape;
+    if (actorStyle) desc.actorStyle = actorStyle;
     renderers.set(node.id, createNodeRenderer(desc));
   }
   for (const note of model.notes || []) {
@@ -1109,12 +1111,14 @@ export function dotLayoutSync(model: SemanticModel): DotLayoutResult {
   // Derive visibility-icon flag from skinparams
   const visIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   const activityShape = model.skinparams?.activityShape;
+  const actorStyle = model.skinparams?.actorStyle;
 
   const renderers = new Map<string, Renderer>();
   for (const node of model.nodes) {
     const desc: NodeDescriptor = { ...node };
     if (!visIcons) desc.visibilityIcons = false;
     if (activityShape) desc.activityShape = activityShape;
+    if (actorStyle) desc.actorStyle = actorStyle;
     renderers.set(node.id, createNodeRenderer(desc));
   }
   for (const note of model.notes || []) {

@@ -64,6 +64,8 @@ export interface RenderDescriptor {
   visibilityIcons?: boolean;
   /** Activity shape variant ('octagon'). */
   activityShape?: string;
+  /** Actor style variant ('awesome' | 'hollow'). */
+  actorStyle?: string;
 
   // ── Element-specific ────────────────────────────────────────────────
   /** Text alignment ('left' | 'center' | 'right'). */

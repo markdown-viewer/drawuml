@@ -195,6 +195,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
   let guillemet = true;
   let stereotypePosition: 'top' | 'bottom' = 'top';
   let participantAlign: 'left' | 'center' | 'right' = 'center';
+  let actorStyle: string | undefined;
   const titleLines: string[] = [];
   let mainframeLabel: string | undefined;
   let currentBox: { label: string; color?: string; participants: string[] } | null = null;
@@ -805,6 +806,10 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       if (kw === 'skinparam' && /stereotypeposition\s+bottom/i.test(txt)) {
         stereotypePosition = 'bottom';
       }
+      if (kw === 'skinparam' && /actorstyle\s+(\w+)/i.test(txt)) {
+        const m = txt.match(/actorstyle\s+(\w+)/i);
+        if (m) actorStyle = m[1].toLowerCase();
+      }
       if (kw === 'autonumber') {
         handleAutonumber(txt);
       }
@@ -1280,6 +1285,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     responseMessageBelowArrow,
     stereotypePosition,
     participantAlign,
+    actorStyle,
     title: titleText,
   };
 }

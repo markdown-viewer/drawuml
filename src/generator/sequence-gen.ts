@@ -46,7 +46,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
     if (!lp) continue;
-    cells.push(...renderParticipant(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign }));
+    cells.push(...renderParticipant(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign, actorStyle: model.actorStyle }));
 
     // Destroy marker (X cross) at the destroy row position on the lifeline
     if (lp.isDestroyed && lp.destroyY != null) {
@@ -59,7 +59,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     for (const p of model.participants) {
       const lp = layout.participants[p.id];
       if (!lp) continue;
-      cells.push(...renderFootbox(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign }));
+      cells.push(...renderFootbox(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign, actorStyle: model.actorStyle }));
     }
   }
 

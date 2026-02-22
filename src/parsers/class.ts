@@ -609,9 +609,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (st.kind === 'declaration_statement' && declType === 'usecase_alias') {
         const rawLabel = String(st.label || '').trim();
         const rawAlias = String(st.alias || '').trim();
-        const aliasInner = rawAlias.startsWith('(') && rawAlias.endsWith(')') ? rawAlias.slice(1, -1) : rawAlias;
-        const isActor = rawAlias.startsWith(':') && rawAlias.endsWith(':');
-        const actorInner = isActor ? rawAlias.slice(1, -1) : rawAlias;
+        const isUsecase = rawAlias.startsWith('(') && rawAlias.endsWith(')');
+        const isColonActor = rawAlias.startsWith(':') && rawAlias.endsWith(':');
+        // In use-case context, bare alias (no parens) is an actor
+        const isActor = isColonActor || (!isUsecase && hasUsecaseContext());
+        const aliasInner = isUsecase ? rawAlias.slice(1, -1) : rawAlias;
+        const actorInner = isColonActor ? rawAlias.slice(1, -1) : rawAlias;
         const id = normalizeId(isActor ? actorInner : aliasInner);
         const label = rawLabel;
         const nodeType = isActor ? NodeType.UsecaseActor : (hasUsecaseContext() ? NodeType.Usecase : NodeType.Class);

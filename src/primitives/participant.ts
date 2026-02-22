@@ -69,7 +69,7 @@ export function participantCellGeom(
 /** Generate the DrawIO style for a umlLifeline participant cell. */
 export function participantStyle(
   nodeType: string,
-  opts: { isFootbox?: boolean; color?: string; iconHeight?: number } = {},
+  opts: { isFootbox?: boolean; color?: string; iconHeight?: number; actorStyle?: string } = {},
 ): string {
   const cfg = PARTICIPANT_CONFIG[nodeType] || PARTICIPANT_CONFIG.participant;
   const size = opts.iconHeight || cfg.iconSize;
@@ -89,6 +89,9 @@ export function participantStyle(
     'html=1',
   ];
   if (cfg.participant) parts.push(`participant=${cfg.participant}`);
+  if (opts.actorStyle && cfg.participant === 'umlActor') {
+    parts.push(`actorStyle=${opts.actorStyle}`);
+  }
   if (opts.color) {
     // PlantUML #red → CSS 'red', #99FF99 → '#99FF99'
     const c = opts.color.startsWith('#') && !/^#[0-9a-fA-F]+$/.test(opts.color)
@@ -173,7 +176,7 @@ export function measureBracketBody(bracketLines: string[]): { width: number; hei
 export function renderParticipant(
   p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
-  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right' },
+  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string },
 ): string[] {
   const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width);
 
@@ -181,7 +184,7 @@ export function renderParticipant(
     // Bracket body participant: container + rich content children
     const content = Content.bracketBody(p.bracketLines);
     const cells: string[] = [];
-    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight });
+    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle });
     const fillColor = containerStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = containerStyleStr.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
     cells.push(mxVertex({
@@ -211,7 +214,7 @@ export function renderParticipant(
   const labelHtml = buildParticipantLabel(p, opts);
   return [mxVertex({
     id: p.id, value: labelHtml,
-    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight }),
+    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle }),
     parent: '1',
     x: cellX, y: layout.y, width: cellW, height: layout.height,
   })];
@@ -224,7 +227,7 @@ export function renderParticipant(
 export function renderFootbox(
   p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
-  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right' },
+  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string },
 ): string[] {
   const cfg = PARTICIPANT_CONFIG[p.type] || PARTICIPANT_CONFIG.participant;
   const footY = layout.y + layout.height;
@@ -236,7 +239,7 @@ export function renderFootbox(
     const content = Content.bracketBody(p.bracketLines);
     const footId = p.id + '_foot';
     const cells: string[] = [];
-    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH });
+    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle });
     const fillColor = footStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = footStyleStr.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
     cells.push(mxVertex({
@@ -266,7 +269,7 @@ export function renderFootbox(
   const labelHtml = buildParticipantLabel(p, opts);
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
-    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH }),
+    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle }),
     parent: '1',
     x: footX, y: footY, width: footW, height: footH,
   })];

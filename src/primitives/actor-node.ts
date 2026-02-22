@@ -84,10 +84,12 @@ class ActorNodeRenderer extends Renderer {
     else if (this.lineStyle === 'bold') strokeWidth = '2';
 
     const isBusiness = this.node.stereotype === 'actor/';
+    const actorStyleAttr = this.node.actorStyle ? `actorStyle=${this.node.actorStyle};` : '';
     const style = `shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
       + `fillColor=${this.fillColor};strokeColor=${this.strokeColor};strokeWidth=${strokeWidth};`
       + `${lineStyleStr}`
       + (isBusiness ? 'business=1;' : '')
+      + actorStyleAttr
       + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${this.textColor};align=center;`;
 
     // Center the stick figure within the box
