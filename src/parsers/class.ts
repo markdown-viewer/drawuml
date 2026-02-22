@@ -2,6 +2,13 @@ import { DiagramType, NodeType, EdgeType } from '../model/index.ts';
 import type { SemanticGroup, SemanticModel } from '../model/index.ts';
 import type { BodyLine, SemanticNode, SemanticEdge, ClassNote } from '../model/class-model.ts';
 import { arrowToEdgeType, edgeStyleForArrow, normalizeArrowMeta } from './arrow.ts';
+import {
+  lookupArchimateElementMacro,
+  lookupArchimateRelMacro,
+  parseArchimateElementArgs,
+  parseArchimateRelArgs,
+  resolveArchimateLayerColor,
+} from './archimate-macros.ts';
 
 // Legacy activity diagram logic is merged into parseClassDiagram via lazy detection.
 
@@ -409,6 +416,21 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
   const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
 
+  // Pre-scan: build sprite map from "sprite $name jar:archimate/stereotype" directives.
+  // Used to resolve <<$name>> stereotypes on rectangle declarations (003-style archimate diagrams).
+  const spriteMap: Record<string, string> = {};
+  for (const st0 of statements) {
+    if (!st0 || typeof st0 !== 'object') continue;
+    if (st0.kind === 'preprocessor_statement' && st0.cmd === 'sprite') {
+      const spriteName = String(st0.id   || '').trim();   // e.g. "$bProcess"
+      const spriteSrc  = String(st0.src  || '').trim();   // e.g. "jar:archimate/business-process"
+      const m = spriteSrc.match(/^jar:archimate\/(.+)$/i);
+      if (m && spriteName.startsWith('$')) {
+        spriteMap[spriteName] = m[1]; // "$bProcess" → "business-process"
+      }
+    }
+  }
+
   for (let i = 0; i < statements.length; i++) {
     const st = statements[i];
     if (!st || typeof st !== 'object') continue;
@@ -673,6 +695,203 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           lastDefinedClass = id;
         }
         continue;
+      }
+
+      // ── ArchiMate declarations ───────────────────────────────────────────
+
+      // ArchiMate declaration: "archimate #BUSINESS "Label" <<business-service>> as svc"
+      if (st.kind === 'declaration_statement' && declType === 'archimate') {
+        const rawLabel = String(st.label || '').trim();
+        const rawAlias = String(st.alias || '').trim();
+        const id = normalizeId(rawAlias || rawLabel);
+        const label = rawLabel;
+        // Stereotype may be a plain string or an object with .text
+        let stereo: string | null = null;
+        if (st.stereotype) {
+          stereo = typeof st.stereotype === 'string' ? st.stereotype : (st.stereotype.text || null);
+        }
+        if (id) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label,
+            stereotype: stereo || 'archimate',
+            stereotypeLabel: '',
+            bodyLines: [],
+            style: st.style || null,
+            centeredIcon: true,
+          };
+          // Apply layer color from tag as inline style
+          if (st.tag) {
+            const bg = resolveArchimateLayerColor(st.tag);
+            if (bg) nodesById[id].style = bg;
+          }
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
+      // Rectangle declarations with archimate stereos: "rectangle "Label" as HC <<$bProcess>> #Business"
+      // Handles sprite-based stereotypes (003) and $archimate/XXX stereotypes (004).
+      if (st.kind === 'declaration_statement' && (declType === 'rectangle' || declType === 'rect')) {
+        const stereos: string[] = Array.isArray(st.stereotypes)
+          ? st.stereotypes.map(s => typeof s === 'string' ? s : (s?.text || ''))
+          : [];
+        let archimateStereotype: string | null = null;
+        for (const s of stereos) {
+          // Direct $archimate/XXX pattern: <<$archimate/business-process>>
+          const direct = s.match(/^\$archimate\/(.+)$/);
+          if (direct) { archimateStereotype = direct[1]; break; }
+          // Sprite map lookup: <<$bProcess>> where spriteMap['$bProcess']='business-process'
+          if (spriteMap[s]) { archimateStereotype = spriteMap[s]; break; }
+        }
+        if (archimateStereotype) {
+          const rawLabel = String(st.label || st.name || '').trim();
+          const rawAlias = String(st.alias || '').trim();
+          const id = normalizeId(rawAlias || rawLabel);
+          const label = rawLabel;
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            const bg = st.tag ? resolveArchimateLayerColor(st.tag) : null;
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: archimateStereotype,
+              stereotypeLabel: '',
+              bodyLines: [],
+              style: bg || st.style || null,
+              centeredIcon: true,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+        // No archimate stereotype found — fall through to later handlers
+      }
+
+      // ArchiMate stdlib element macros: "Business_Service(svc, "Label")"
+      if (st.kind === 'generic_statement' && st.type === 'generic_call') {
+        const macroInfo = lookupArchimateElementMacro(st.name);
+        if (macroInfo) {
+          const [alias, label] = parseArchimateElementArgs(st.args || '');
+          const id = normalizeId(alias);
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            const bg = resolveArchimateLayerColor(macroInfo.layer);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: macroInfo.stereotype,
+              stereotypeLabel: '',
+              bodyLines: [],
+              style: bg || null,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+
+        const relInfo = lookupArchimateRelMacro(st.name);
+        if (relInfo) {
+          const [fromArg, toArg, label] = parseArchimateRelArgs(st.args || '');
+          const from = normalizeId(fromArg);
+          const to = normalizeId(toArg);
+          if (from && to) {
+            // Ensure endpoints exist as nodes
+            if (!nodesById[from]) {
+              nodeOrder.push(from);
+              nodesById[from] = { id: from, type: NodeType.Class, label: from, stereotype: 'archimate', stereotypeLabel: '', bodyLines: [] };
+              registerNodeInGroup(from);
+            }
+            if (!nodesById[to]) {
+              nodeOrder.push(to);
+              nodesById[to] = { id: to, type: NodeType.Class, label: to, stereotype: 'archimate', stereotypeLabel: '', bodyLines: [] };
+              registerNodeInGroup(to);
+            }
+            edges.push({
+              id: `e${edges.length + 1}`,
+              type: relInfo.edgeType as any,
+              from,
+              to,
+              label,
+              arrow: null,
+              arrowMeta: null,
+              direction: relInfo.direction || null,
+            });
+          }
+          continue;
+        }
+        // Not an archimate macro — fall through to other handlers
+      }
+
+      // ArchiMate macros that PEG mis-parses as sequence_block (e.g. "Group(...)").
+      // sequence_block: st.keyword is lowercase; macro keys are PascalCase.
+      // st.text contains the raw arg string including outer parens: "(alias, label)"
+      if (st.kind === 'block_statement' && st.type === 'sequence_block') {
+        const kw = String(st.keyword || '');
+        const capitalized = kw.charAt(0).toUpperCase() + kw.slice(1);
+        const macroInfo = lookupArchimateElementMacro(capitalized);
+        if (macroInfo) {
+          // Strip outer parens from st.text to obtain the args string
+          const rawText = String(st.text || '');
+          const argsStr = rawText.startsWith('(') ? rawText.slice(1, rawText.lastIndexOf(')')) : rawText;
+          const [alias, label] = parseArchimateElementArgs(argsStr);
+          const id = normalizeId(alias);
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            const bg = resolveArchimateLayerColor(macroInfo.layer);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: macroInfo.stereotype,
+              stereotypeLabel: '',
+              bodyLines: [],
+              style: bg || null,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+      }
+
+      // ArchiMate macros that PEG mis-parses as block_statement|group
+      // e.g. "Grouping(alias, "Label")" — PEG strips the leading "Group" keyword
+      // so st.type='group' and st.text='ing(alias, "Label")'.
+      // Reconstruct the full call from st.raw and re-look up the macro.
+      if (st.kind === 'block_statement' && st.type === 'group') {
+        const raw = String(st.raw || '');
+        const m = raw.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)\s*$/s);
+        if (m) {
+          const macroInfo = lookupArchimateElementMacro(m[1]);
+          if (macroInfo) {
+            const [alias, label] = parseArchimateElementArgs(m[2]);
+            const id = normalizeId(alias);
+            if (id) {
+              if (!nodesById[id]) nodeOrder.push(id);
+              const bg = resolveArchimateLayerColor(macroInfo.layer);
+              nodesById[id] = {
+                id,
+                type: NodeType.Class,
+                label,
+                stereotype: macroInfo.stereotype,
+                stereotypeLabel: '',
+                bodyLines: [],
+                style: bg || null,
+              };
+              registerNodeInGroup(id);
+              lastDefinedClass = id;
+            }
+            continue;
+          }
+        }
       }
 
       // Actor/usecase via component_statement (non-block): "actor Guest as g" or "usecase c #style"

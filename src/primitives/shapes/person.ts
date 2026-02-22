@@ -13,9 +13,8 @@ class PersonRenderer extends RichRenderer {
   protected buildStyle(): string {
     return `shape=mxgraph.c4.person2;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};whiteSpace=wrap;`;
   }
-  // Extra height accounts for the head circle above the label
-  protected get extraPadY(): number { return 38; }
-  protected get contentYOffset(): number { return 38; }
+  // Head circle height ~38px; label starts below the head
+  protected get topPadY(): number { return 38; }
   get isCluster(): boolean { return false; }
 }
 

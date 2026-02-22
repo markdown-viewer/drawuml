@@ -69,7 +69,7 @@ export function normalizeArrowMeta(meta, token) {
 }
 
 /** Head characters that can appear at the leading / trailing position of an arrow. */
-const HEAD_CHARS = /^([<>|*o#x{}+^]*)(-+|\.+|~+|=+|(?:-+[a-z]+-+))([<>|*o#x{}+^]*)$/i;
+const HEAD_CHARS = /^([<>|*o#x{}+^@/\\]*)(-+|\.+|~+|=+|(?:-+[a-z]+-+))([<>|*o#x{}+^@/\\]*)$/i;
 
 function parseRawArrowToken(token) {
   if (!token) return null;

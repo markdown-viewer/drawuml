@@ -57,6 +57,9 @@ const NON_SEQUENCE_TYPES = new Set([
   'declaration_statement|usecase',
   'declaration_statement|usecase_alias',
   'declaration_statement|usecase_actor',
+  // ArchiMate declarations
+  'declaration_statement|archimate',
+  'declaration_statement|junction',
 
   // Class diagram structure
   'block_statement|loose_block_start',
@@ -123,6 +126,17 @@ const SEQUENCE_COMPONENT_TYPES = new Set([
 
 function looksLikeSequenceFromParsed(parsed) {
   const statements = Array.isArray(parsed?.statements) ? parsed.statements : [];
+
+  // ArchiMate stdlib diagrams use `!include <archimate/Archimate>`.
+  // Their macros (Group, Boundary, etc.) collide with sequence-diagram keywords,
+  // so we bail out early — archimate diagrams are never sequence diagrams.
+  if (statements.some(st =>
+    st?.kind === 'preprocessor_statement' &&
+    /archimate\/Archimate/i.test(String(st.text || ''))
+  )) {
+    return false;
+  }
+
   let hasSequenceIndicator = false;
 
   for (const st of statements) {

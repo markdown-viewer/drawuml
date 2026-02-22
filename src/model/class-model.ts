@@ -33,6 +33,8 @@ export interface SemanticNode {
   isPort?: boolean;
   /** Port direction: 'portin' for input/bidirectional, 'portout' for output. */
   portType?: 'portin' | 'portout';
+  /** When true, the archimate icon overlay is horizontally centered (used by 'archimate' keyword nodes). */
+  centeredIcon?: boolean;
 }
 
 export interface SemanticEdge {

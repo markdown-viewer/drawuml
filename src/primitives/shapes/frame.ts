@@ -23,9 +23,8 @@ class FrameShapeRenderer extends RichRenderer {
     return `shape=umlFrame;whiteSpace=wrap;fontStyle=1;width=${tabWidth};height=20;fontSize=${DEFAULT_FONT_SIZE};align=left;verticalAlign=middle;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};collapsible=0;container=1;`;
   }
 
-  // Extra height for the frame tab (height=20)
-  protected get extraPadY(): number { return 20; }
-  protected get contentYOffset(): number { return 20; }
+  // Frame tab height (height=20); content starts below the tab
+  protected get topPadY(): number { return 20; }
 
   protected doMeasure() {
     if (this.isMainframe) return { width: 0, height: 0 };

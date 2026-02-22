@@ -66,6 +66,8 @@ export interface RenderDescriptor {
   activityShape?: string;
   /** Actor style variant ('awesome' | 'hollow'). */
   actorStyle?: string;
+  /** When true, the archimate icon overlay is horizontally centered instead of top-right. */
+  centeredIcon?: boolean;
 
   // ── Element-specific ────────────────────────────────────────────────
   /** Text alignment ('left' | 'center' | 'right'). */

@@ -912,6 +912,7 @@ function alignFieldNotes(
 // ---------------------------------------------------------------------------
 
 let vizInstance: any = null;
+let vizBackup: any = null;
 
 async function getViz() {
   if (!vizInstance) {
@@ -921,11 +922,30 @@ async function getViz() {
 }
 
 /**
+ * Swap in the backup viz.js instance after the primary becomes corrupt.
+ * Returns true if a backup was available.
+ */
+function swapToBackup(): boolean {
+  if (vizBackup) {
+    vizInstance = vizBackup;
+    vizBackup = null;
+    // Recreate another backup in the background for future recovery
+    instance().then(v => { vizBackup = v; });
+    return true;
+  }
+  return false;
+}
+
+/**
  * Pre-warm the viz.js WASM instance.
  * Must be called (and awaited) once before using `dotLayoutSync()`.
  */
 export async function initViz() {
   await getViz();
+  // Pre-create a backup instance for crash recovery
+  if (!vizBackup) {
+    vizBackup = await instance();
+  }
 }
 
 /** Layout output including stateful renderers for the generation phase. */
@@ -1082,7 +1102,18 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
 
   // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
   const viz = await getViz();
-  const vizJson = viz.renderJSON(dot);
+  let vizJson;
+  try {
+    vizJson = viz.renderJSON(dot);
+  } catch (e) {
+    // viz.js WASM instance may become corrupted after certain layouts;
+    // swap to backup instance and retry.
+    if (swapToBackup()) {
+      vizJson = vizInstance.renderJSON(dot);
+    } else {
+      throw e;
+    }
+  }
 
   // 5. Extract + transform coordinates
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
@@ -1130,7 +1161,18 @@ export function dotLayoutSync(model: SemanticModel): DotLayoutResult {
   const rootRenderers = buildRendererTree(model, renderers);
 
   const { dot, groupIds } = buildDot(model, renderers, rootRenderers);
-  const vizJson = vizInstance.renderJSON(dot);
+  let vizJson;
+  try {
+    vizJson = vizInstance.renderJSON(dot);
+  } catch (e) {
+    // viz.js WASM instance may become corrupted after certain layouts;
+    // swap to backup instance and retry.
+    if (swapToBackup()) {
+      vizJson = vizInstance.renderJSON(dot);
+    } else {
+      throw e;
+    }
+  }
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
 
   // Snap port nodes to their parent group boundary

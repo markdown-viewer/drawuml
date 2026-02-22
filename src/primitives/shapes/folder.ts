@@ -25,9 +25,8 @@ class FolderRenderer extends RichRenderer {
     return `shape=folder;fontStyle=1;tabWidth=${tabWidth};tabHeight=20;tabPosition=left;tabFill=1;fontSize=${DEFAULT_FONT_SIZE};align=left;spacingLeft=6;verticalAlign=top;spacingTop=-4;swimlaneHead=0;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};swimlaneBody=1;collapsible=0;container=1;`;
   }
 
-  // Extra height for the folder tab (tabHeight=20)
-  protected get extraPadY(): number { return 20; }
-  protected get contentYOffset(): number { return 20; }
+  // Folder tab height (tabHeight=20); content starts below the tab
+  protected get topPadY(): number { return 20; }
 
   // Package: label always in folder tab (frame value)
   protected getFrameValue(): string {

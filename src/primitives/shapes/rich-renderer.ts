@@ -94,8 +94,12 @@ export abstract class RichRenderer extends Renderer {
   /** Horizontal offset for content area within frame. */
   protected get contentXOffset(): number { return 0; }
 
-  /** Vertical offset for content area within frame (e.g. folder tab). */
-  protected get contentYOffset(): number { return 0; }
+  /**
+   * Top-only reserved height for shape decoration (e.g. folder tab, database cap, archimate icon).
+   * Frame height is automatically increased by this amount, and the content label starts at y=topPadY.
+   * Use this instead of pairing extraPadY+contentYOffset with identical values.
+   */
+  protected get topPadY(): number { return 0; }
 
   /** Width consumed by frame decoration (e.g. artifact icon on right). */
   protected get contentWidthReduction(): number { return 0; }
@@ -228,7 +232,7 @@ export abstract class RichRenderer extends Renderer {
     }
     return {
       width: Math.max(TITLE_MIN_WIDTH, size.width + TITLE_PAD_X + this.extraPadX),
-      height: size.height + TITLE_PAD_Y + this.extraPadY,
+      height: size.height + TITLE_PAD_Y + this.extraPadY + this.topPadY,
     };
   }
 
@@ -289,7 +293,7 @@ export abstract class RichRenderer extends Renderer {
           value: bodyHtml,
           style: stereoStyle,
           parent: this.id,
-          x: 0, y: this.contentYOffset,
+          x: 0, y: this.topPadY,
           width: fb.width, height: 20,
         }));
       }
@@ -301,7 +305,7 @@ export abstract class RichRenderer extends Renderer {
         this.id, bodyHtml,
         fb.width - this.contentWidthReduction, fb.height,
         labelStyle,
-        this.contentYOffset, this.contentXOffset,
+        this.topPadY, this.contentXOffset,
       ));
     }
 
@@ -323,7 +327,7 @@ export abstract class RichRenderer extends Renderer {
       shapeFragment.replace(/;$/, ''),
       `fillColor=${DEFAULT_FILL}`, `strokeColor=${COLOR_DARK}`, 'strokeWidth=0.5',
       'align=left', 'verticalAlign=top',
-      'spacingLeft=10', 'spacingRight=10', `spacingTop=${6 + this.contentYOffset}`, 'spacingBottom=6',
+      'spacingLeft=10', 'spacingRight=10', `spacingTop=${6 + this.topPadY}`, 'spacingBottom=6',
       'overflow=hidden',
     ];
     return base.join(';') + ';';
@@ -354,7 +358,7 @@ export abstract class RichRenderer extends Renderer {
         separatorStyle: this.getRichBodySepStyle(),
         fillColor,
         strokeColor,
-      }, this.contentYOffset));
+      }, this.topPadY));
     } else {
       cells.push(mxVertex({
         id: this.id, value: this.content.html, style: s,
