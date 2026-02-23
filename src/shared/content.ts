@@ -697,9 +697,9 @@ export class Content {
    * Create content from pre-processed HTML (labels, messages, etc.).
    */
   static text(html: string, opts?: { fontSize?: number }): Content {
-    return new Content([{ kind: 'rich', html }], {
-      bodyFontSize: opts?.fontSize,
-    });
+    const metrics: Partial<ContentMetrics> = {};
+    if (opts?.fontSize != null) metrics.bodyFontSize = opts.fontSize;
+    return new Content([{ kind: 'rich', html }], metrics);
   }
 
   // ─── Factories: from raw PlantUML text ─────────────────────────────────────
