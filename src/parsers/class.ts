@@ -1832,7 +1832,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         const id = normalizeId(aliasIsLabel ? resolvedName : (st.alias || resolvedName));
         const hasBrace = Boolean(st.block);
 
-        const nodeType = kind === 'interface' ? NodeType.Interface : kind === 'enum' ? NodeType.Enum
+        const nodeType = kind === 'interface' && !st.shortForm ? NodeType.Interface : kind === 'enum' ? NodeType.Enum
           : (st.implicit && hasUsecaseContext()) ? NodeType.UsecaseActor : NodeType.Class;
 
         const bodyLines: BodyLine[] = [];
@@ -1866,7 +1866,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           id,
           type: nodeType,
           label,
-          stereotype: isAbstract ? 'abstract' : declType === 'object' ? 'object' : (st.implicit && hasUsecaseContext()) ? 'actor' : kind === 'interface' ? (hasDeploymentContext() ? 'circle' : 'interface') : kind,
+          stereotype: isAbstract ? 'abstract' : declType === 'object' ? 'object' : (st.implicit && hasUsecaseContext()) ? 'actor' : kind === 'interface' ? ((st.shortForm || hasDeploymentContext()) ? 'circle' : 'interface') : kind,
           stereotypeLabel,
           bodyLines,
           style: st.style || null,
@@ -2028,7 +2028,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         const id = normalizeId(rawLabel);
         if (id) {
           if (!nodesById[id]) nodeOrder.push(id);
-          nodesById[id] = { id, type: NodeType.Class, label, stereotype: 'entity', stereotypeLabel: '', bodyLines: [] };
+          nodesById[id] = { id, type: NodeType.Class, label, stereotype: 'entity-class', stereotypeLabel: '', bodyLines: [] };
           registerNodeInGroup(id);
           lastDefinedClass = id;
         }

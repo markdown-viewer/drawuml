@@ -36,6 +36,7 @@ const SPOT_MAP: Record<string, { char: string; color: string }> = {
   interface:  { char: 'I', color: '#B4A7E5' },
   enum:       { char: 'E', color: '#EB937F' },
   entity:     { char: 'E', color: '#ADD1B2' },
+  'entity-class': { char: 'E', color: '#ADD1B2' },
   protocol:   { char: 'P', color: '#F1F1F1' },
   struct:     { char: 'S', color: '#F1F1F1' },
   exception:  { char: 'X', color: '#D94321' },
@@ -328,7 +329,7 @@ export function registerClassNodeRenderer(): void {
   const factory = (desc: RenderDescriptor) => new ClassNodeRenderer(desc as NodeDescriptor);
   registerRenderer('class', factory);
   // Class-like type aliases — all legitimately rendered by the swimlane renderer
-  for (const alias of ['abstract', 'annotation', 'enum', 'exception', 'metaclass', 'protocol', 'stereotype', 'struct', 'object', 'interface']) {
+  for (const alias of ['abstract', 'annotation', 'enum', 'exception', 'metaclass', 'protocol', 'stereotype', 'struct', 'object', 'interface', 'entity-class']) {
     registerRenderer(alias, factory);
   }
 }

@@ -1421,10 +1421,10 @@ function peg$parse(input: string, options?: ParseOptions) {
   const peg$c692 = function(n: any): any { return '[' + n + ']'; };
   const peg$c693 = function(n: any): any { return '()' + n; };
   const peg$c694 = function(n: any, sts: any, style: any): any {
-        return makeStatement('class_declaration', text(), location(), { type: 'interface', name: n, stereotypes: sts, style: style || null });
+        return makeStatement('class_declaration', text(), location(), { type: 'interface', shortForm: true, name: n, stereotypes: sts, style: style || null });
       };
   const peg$c695 = function(label: any, alias: any, sts: any): any {
-        return makeStatement('class_declaration', text(), location(), { type: 'interface', label, alias, stereotypes: sts });
+        return makeStatement('class_declaration', text(), location(), { type: 'interface', shortForm: true, label, alias, stereotypes: sts });
       };
   const peg$c696 = function(name: any, sts: any): any {
         return makeStatement('class_declaration', text(), location(), { type: 'object', name, stereotypes: sts, block: true });
