@@ -390,7 +390,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     'node', 'cloud', 'artifact', 'agent',
     'component', 'component1', 'component2',
     'frame', 'card', 'hexagon', 'storage',
-    'rectangle', 'rect', 'folder', 'package',
+    'rectangle', 'rect', 'folder',
     'file', 'stack', 'process', 'person', 'label',
     'port', 'portin', 'portout',
   ]);
