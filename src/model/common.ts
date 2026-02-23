@@ -85,6 +85,10 @@ export interface LayoutEdge {
   fromGroup?: string;
   /** When `to` is a group id, this records which group it refers to */
   toGroup?: string;
+  /** DrawIO-coordinate center of the taillabel (cardFrom), if laid out by Graphviz */
+  cardFromPos?: { x: number; y: number };
+  /** DrawIO-coordinate center of the headlabel (cardTo), if laid out by Graphviz */
+  cardToPos?: { x: number; y: number };
 }
 
 export interface LayoutGroup {

@@ -3,7 +3,9 @@ import { escapeXml, mxVertex, wrapMxfile } from '../shared/xml-utils.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { parseBracketEdgeStyle, parseEdgeInlineStyle } from '../shared/color-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
-import { NOTE_LINK_COLOR } from '../shared/theme.ts';
+import { Content } from '../shared/content.ts';
+import { NOTE_LINK_COLOR, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY } from '../shared/theme.ts';
+import { measureText } from '@markdown-viewer/text-measure';
 
 export function semanticToDrawioXml(model, layout, renderers: Map<string, Renderer>) {
   const diagramId = 'diagram-1';
@@ -147,6 +149,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       geometry = { waypoints: points };
     }
 
+    const layoutCardFromPos = layoutEdge?.cardFromPos;
+    const layoutCardToPos = layoutEdge?.cardToPos;
     cells.push(...buildEdgeCells({
       id: edge.id,
       label: edge.label,
@@ -154,9 +158,36 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       source: omitSource ? undefined : sourceId,
       target: omitTarget ? undefined : targetId,
       geometry,
-      cardFrom: edge.cardFrom,
-      cardTo: edge.cardTo,
+      // Only pass card labels to buildEdgeCells when no layout position is available;
+      // positioned labels are emitted as standalone absolute-position cells below.
+      cardFrom: layoutCardFromPos ? undefined : edge.cardFrom,
+      cardTo: layoutCardToPos ? undefined : edge.cardTo,
     }));
+    // Cardinality labels at Graphviz-computed taillabel/headlabel positions
+    if (edge.cardFrom && layoutCardFromPos) {
+      const cardHtml = escapeXml(Content.inline(edge.cardFrom).html);
+      const m = measureText(Content.inline(edge.cardFrom).html, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
+      const w = Math.ceil(m.width) + 4;
+      const h = Math.ceil(m.height) + 2;
+      cells.push(
+        `<mxCell id="${escapeXml(edge.id + '__cardFrom')}" value="${cardHtml}"`
+        + ` style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;resizable=0;" vertex="1" parent="1">`
+        + `<mxGeometry x="${layoutCardFromPos.x - Math.round(w / 2)}" y="${layoutCardFromPos.y - Math.round(h / 2)}" width="${w}" height="${h}" as="geometry"/>`
+        + `</mxCell>`
+      );
+    }
+    if (edge.cardTo && layoutCardToPos) {
+      const cardHtml = escapeXml(Content.inline(edge.cardTo).html);
+      const m = measureText(Content.inline(edge.cardTo).html, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
+      const w = Math.ceil(m.width) + 4;
+      const h = Math.ceil(m.height) + 2;
+      cells.push(
+        `<mxCell id="${escapeXml(edge.id + '__cardTo')}" value="${cardHtml}"`
+        + ` style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;resizable=0;" vertex="1" parent="1">`
+        + `<mxGeometry x="${layoutCardToPos.x - Math.round(w / 2)}" y="${layoutCardToPos.y - Math.round(h / 2)}" width="${w}" height="${h}" as="geometry"/>`
+        + `</mxCell>`
+      );
+    }
   }
 
   // Notes

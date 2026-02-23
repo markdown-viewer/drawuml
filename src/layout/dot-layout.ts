@@ -292,6 +292,14 @@ function buildDot(model: SemanticModel, renderers: Map<string, Renderer>, rootRe
       const dotLabel = unescapePlantUml(edge.label).replace(/"/g, '\\"');
       attrs += `,label="${dotLabel}"`;
     }
+    if (edge.cardFrom) {
+      const escaped = unescapePlantUml(edge.cardFrom).replace(/"/g, '\\"');
+      attrs += `,taillabel="${escaped}"`;
+    }
+    if (edge.cardTo) {
+      const escaped = unescapePlantUml(edge.cardTo).replace(/"/g, '\\"');
+      attrs += `,headlabel="${escaped}"`;
+    }
     // Emit minlen for all edges (PlantUML: minlen = length - 1).
     // Horizontal edges with explicit direction skip minlen since rank constraint handles placement.
     if (!isHorizontal) {
@@ -552,6 +560,21 @@ function extractLayout(
         waypoints.reverse();
       }
 
+      // Parse cardinality label positions (taillabel/headlabel centers from Graphviz).
+      // For inverted edges, DOT from/to are swapped so tail↔head maps to cardTo↔cardFrom.
+      let cardFromPos: { x: number; y: number } | undefined;
+      let cardToPos: { x: number; y: number } | undefined;
+      if (vizEdge.tail_lp && typeof vizEdge.tail_lp === 'string') {
+        const [tlx, tly] = (vizEdge.tail_lp as string).split(',').map(Number);
+        const pos = { x: Math.round(tlx + xShift), y: Math.round(allMaxY - tly) };
+        if (isInverted) cardToPos = pos; else cardFromPos = pos;
+      }
+      if (vizEdge.head_lp && typeof vizEdge.head_lp === 'string') {
+        const [hlx, hly] = (vizEdge.head_lp as string).split(',').map(Number);
+        const pos = { x: Math.round(hlx + xShift), y: Math.round(allMaxY - hly) };
+        if (isInverted) cardFromPos = pos; else cardToPos = pos;
+      }
+
       layoutEdges.push({
         id: edges[i]?.id || `e${i + 1}`,
         from: fromName,
@@ -559,6 +582,8 @@ function extractLayout(
         points: waypoints,
         fromGroup: groupIds.has(fromName) ? fromName : undefined,
         toGroup: groupIds.has(toName) ? toName : undefined,
+        cardFromPos,
+        cardToPos,
       });
     }
   }
