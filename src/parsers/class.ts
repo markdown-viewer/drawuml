@@ -1112,7 +1112,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
         // All other typed member declarations: "agent foo", "cloud bar", etc.
         // Parser is permissive — let the renderer detect unimplemented shapes.
-        {
+        // Only applies when dataType is non-empty (TypedMemberLine); colon-style
+        // "Owner : member()" has no dataType and must fall through to the owner handler.
+        if (dataType) {
           const rawName = String(st.name || '').trim();
           const id = normalizeId(rawName);
           const label = rawName;
@@ -1222,7 +1224,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             if (innerSt.kind !== 'entity_body_line') continue;
             const inner = String(innerSt.text || innerSt.raw || '').trim();
             if (!inner) continue;
-            bodyLines.push(inner);
+            const vis = innerSt.visibility || '';
+            bodyLines.push(vis ? vis + inner : inner);
           }
           if (!nodesById[id]) nodeOrder.push(id);
           nodesById[id] = {
@@ -1857,7 +1860,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               continue;
             }
 
-            bodyLines.push(inner);
+            // Prepend visibility character (-/+/#/~) when stored separately by PEG
+            const vis = innerSt.visibility || '';
+            bodyLines.push(vis ? vis + inner : inner);
           }
         }
 

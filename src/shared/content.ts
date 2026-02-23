@@ -419,6 +419,21 @@ function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean,
         return finalizeHtml(iconSlot(icon) + space + html);
       }
     }
+  } else {
+    // classAttributeIconSize 0: no icons, but keep the visibility char as literal text.
+    // We still must strip it from `raw` before creoleInline() to prevent Creole from
+    // treating `~` as an escape character (which would silently swallow it).
+    for (const rule of VIS_RULES) {
+      const m = raw.match(rule.re);
+      if (m) {
+        const visChar = raw[0];
+        const body = (m[1] || '').replace(/^\s+/, '');
+        let html = visChar + creoleInline(unescapePlantUml(body));
+        html = applyMemberModifierStyle(html, tag);
+        if (withIconSlot) return finalizeHtml(iconSlot('\u200b') + ' ' + html);
+        return finalizeHtml(html);
+      }
+    }
   }
 
   let textHtml = creoleInline(unescapePlantUml(raw));
