@@ -328,7 +328,7 @@ export function registerClassNodeRenderer(): void {
   const factory = (desc: RenderDescriptor) => new ClassNodeRenderer(desc as NodeDescriptor);
   registerRenderer('class', factory);
   // Class-like type aliases — all legitimately rendered by the swimlane renderer
-  for (const alias of ['abstract', 'annotation', 'enum', 'exception', 'metaclass', 'protocol', 'stereotype', 'struct', 'object']) {
+  for (const alias of ['abstract', 'annotation', 'enum', 'exception', 'metaclass', 'protocol', 'stereotype', 'struct', 'object', 'interface']) {
     registerRenderer(alias, factory);
   }
 }

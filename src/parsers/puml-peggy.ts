@@ -1416,10 +1416,10 @@ function peg$parse(input: string, options?: ParseOptions) {
   const peg$c689 = function(n: any): any { return '[' + n + ']'; };
   const peg$c690 = function(n: any): any { return '()' + n; };
   const peg$c691 = function(n: any, sts: any, style: any): any {
-        return makeStatement('class_declaration', text(), location(), { type: 'interface_old', name: n, stereotypes: sts, style: style || null });
+        return makeStatement('class_declaration', text(), location(), { type: 'interface', name: n, stereotypes: sts, style: style || null });
       };
   const peg$c692 = function(label: any, alias: any, sts: any): any {
-        return makeStatement('class_declaration', text(), location(), { type: 'interface_old', label, alias, stereotypes: sts });
+        return makeStatement('class_declaration', text(), location(), { type: 'interface', label, alias, stereotypes: sts });
       };
   const peg$c693 = function(name: any, sts: any): any {
         return makeStatement('class_declaration', text(), location(), { type: 'object', name, stereotypes: sts, block: true });

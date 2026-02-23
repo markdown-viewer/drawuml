@@ -34,8 +34,9 @@ function normalizeId(name) {
  */
 function detectUsecaseEndpointType(rawEndpoint: string) {
   const s = String(rawEndpoint || '').trim();
-  // Explicit syntax — always detected regardless of diagram context
-  if (s.startsWith('(') && s.endsWith(')')) {
+  // Explicit syntax — always detected regardless of diagram context.
+  // Exclude comma-separated (A, B) n-ary association diamond syntax.
+  if (s.startsWith('(') && s.endsWith(')') && !s.includes(',')) {
     return { type: NodeType.Usecase, label: s.slice(1, -1).trim(), stereotype: 'usecase' };
   }
   if (s.startsWith(':') && s.endsWith(':')) {
@@ -373,11 +374,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // slashy_relation misparse: "actor/ Woman3" / "usecase/ UC3"
       if (st.kind === 'generic_statement' && st.type === 'slashy_relation' && /^(actor|usecase)$/i.test(String(st.from || '')))
         return true;
-      // Relation endpoints with explicit (Name) → USECASE or :Name: → ACTOR syntax
+      // Relation endpoints with explicit (Name) → USECASE or :Name: → ACTOR syntax.
+      // Exclude comma-separated (A, B) n-ary association diamond syntax.
       const from = String(st.from || '').trim();
       const to = String(st.to || '').trim();
-      if (from && (/^\(.*\)$/.test(from) || /^:.*:$/.test(from))) return true;
-      if (to && (/^\(.*\)$/.test(to) || /^:.*:$/.test(to))) return true;
+      if (from && (/^\([^,]+\)$/.test(from) || /^:.*:$/.test(from))) return true;
+      if (to && (/^\([^,]+\)$/.test(to) || /^:.*:$/.test(to))) return true;
       return false;
     });
     return _hasUsecaseContext;
@@ -1757,7 +1759,6 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (isClassDeclToken) {
         const isAbstract = Boolean(st.abstract) || declType === 'abstract';
         const kind = (declType === 'object') ? 'class'
-          : (declType === 'interface_old') ? 'interface'
           : (declType === 'abstract') ? 'class'
           : declType;
         let rawToken = String(st.name || st.label || st.alias || '');
@@ -1829,7 +1830,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           id,
           type: nodeType,
           label,
-          stereotype: isAbstract ? 'abstract' : declType === 'interface_old' ? 'circle' : declType === 'object' ? 'object' : (st.implicit && hasUsecaseContext()) ? 'actor' : kind,
+          stereotype: isAbstract ? 'abstract' : declType === 'object' ? 'object' : (st.implicit && hasUsecaseContext()) ? 'actor' : kind === 'interface' ? (hasDeploymentContext() ? 'circle' : 'interface') : kind,
           stereotypeLabel,
           bodyLines,
           style: st.style || null,

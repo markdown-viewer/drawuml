@@ -84,7 +84,5 @@ class CircleNodeRenderer extends Renderer {
 export function registerCircleNodeRenderer(): void {
   const factory = (desc: RenderDescriptor) => new CircleNodeRenderer(desc as NodeDescriptor);
   registerRenderer('circle', factory);
-  // In class diagrams, interface nodes render as circles (lollipop notation)
-  registerRenderer('interface', factory);
 }
 
