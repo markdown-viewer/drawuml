@@ -72,6 +72,8 @@ export interface LayoutNode {
   y: number;
   width: number;
   height: number;
+  /** Center position of external xlabel label in DrawIO coordinates (from viz.js xlp). */
+  xlabelPos?: { x: number; y: number };
 }
 
 export interface LayoutEdge {

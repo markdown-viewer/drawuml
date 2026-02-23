@@ -32,7 +32,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (r.isPort) continue;   // ports rendered separately below with absolute coords
     const l = layout.nodes[id] || (layout.groups || {})[id];
     if (!l) continue;
-    cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height }));
+    cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height, xlabelPos: (l as any).xlabelPos }));
   }
 
   // Port nodes straddle group boundaries, so render them with absolute coordinates

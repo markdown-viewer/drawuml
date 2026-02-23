@@ -72,6 +72,8 @@ export interface ContentBox {
   y: number;
   width: number;
   height: number;
+  /** Center position of external xlabel label in DrawIO coordinates, if any. */
+  xlabelPos?: { x: number; y: number };
 }
 
 /** DrawIO rendering styles for child cells inside a container */

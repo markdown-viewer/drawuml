@@ -50,8 +50,8 @@ const FORK_STYLE = `line;html=1;strokeWidth=6;strokeColor=${COLOR_DARK};`
 const CHOICE_STYLE = 'rhombus;whiteSpace=wrap;html=1;'
   + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`;
 
-const CHOICE_LABEL_GAP = 2; // gap between label and diamond
-const CHOICE_LABEL_STYLE = `text;html=1;align=center;verticalAlign=bottom;`
+const CHOICE_LABEL_GAP = 4; // gap between label and diamond
+const CHOICE_LABEL_STYLE = `text;html=1;align=left;verticalAlign=top;`
   + `fontSize=${SMALL_FONT_SIZE};fontColor=${COLOR_DARK};`
   + `resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;`;
 
@@ -137,22 +137,50 @@ class StateChoiceRenderer extends Renderer {
   }
 
   protected doMeasure() {
-    // Label sits to the left of the diamond
-    const w = CHOICE_SIZE + (this.label ? this.labelWidth + 4 : 0);
-    const h = Math.max(CHOICE_SIZE, this.labelHeight);
-    return { width: w, height: h };
+    // Label is rendered as an overlay and does NOT participate in DOT layout.
+    // Only the diamond itself occupies layout space.
+    return { width: CHOICE_SIZE, height: CHOICE_SIZE };
+  }
+
+  graphicCenterOffset() {
+    // No offset — the diamond is always at the DOT node center.
+    return { dx: 0, dy: 0 };
+  }
+
+  buildDotBlock(ctx: DotContext, indent: string): string[] {
+    // Emit xlabel so Graphviz auto-positions the label without affecting node size.
+    const PX_PER_INCH = 72;
+    const sz = this.measure();
+    const wInch = (sz.width / PX_PER_INCH).toFixed(6);
+    const hInch = (sz.height / PX_PER_INCH).toFixed(6);
+    let attrs = 'shape=rect,fixedsize=true,width=' + wInch + ',height=' + hInch + ',label=""';
+    if (this.label) {
+      const escaped = this.label.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      attrs += ',xlabel="' + escaped + '"';
+    }
+    return [indent + '"' + this.id + '" [' + attrs + ']'];
   }
 
   render(box: ContentBox) {
     const d = CHOICE_SIZE;
     const cells: string[] = [];
 
+    // Diamond centered in box
+    const dx = box.x + Math.round((box.width - d) / 2);
+    const dy = box.y + Math.round((box.height - d) / 2);
+
     if (this.label) {
-      // Label to the left of diamond center line (avoid overlap with incoming edge)
-      const dx = box.x + Math.round((box.width - d) / 2);
-      const dy = box.y + Math.round((box.height - d) / 2);
-      const labelX = dx - this.labelWidth - 4;
-      const labelY = dy + Math.round((d - this.labelHeight) / 2);
+      let labelX: number;
+      let labelY: number;
+      if (box.xlabelPos) {
+        // Use Graphviz auto-positioned xlabel center to place the label cell.
+        labelX = Math.round(box.xlabelPos.x - this.labelWidth / 2);
+        labelY = Math.round(box.xlabelPos.y - this.labelHeight / 2);
+      } else {
+        // Fallback: label floats at the upper-left of the diamond.
+        labelX = dx - this.labelWidth - CHOICE_LABEL_GAP;
+        labelY = dy - this.labelHeight - CHOICE_LABEL_GAP;
+      }
       cells.push(mxVertex({
         id: `${this.node.id}__label`,
         value: this.label,
@@ -160,14 +188,9 @@ class StateChoiceRenderer extends Renderer {
         parent: this.parentId || '1',
         x: labelX, y: labelY, width: this.labelWidth, height: this.labelHeight,
       }));
-      // Diamond centered in box
-      cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
-    } else {
-      // No label — just diamond centered
-      const x = box.x + Math.round((box.width - d) / 2);
-      const y = box.y + Math.round((box.height - d) / 2);
-      cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, parent: this.parentId || '1', x, y, width: d, height: d }));
     }
+
+    cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
 
     return cells;
   }

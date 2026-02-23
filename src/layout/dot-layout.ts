@@ -457,6 +457,11 @@ function extractLayout(
       x: Math.round(cx - wPt / 2 + offset.dx),
       y: Math.round(cy - hPt / 2 + offset.dy),
     } as any;
+    // Store raw xlabel position (Graphviz coords) for conversion after Y-flip
+    if (obj.xlp && typeof obj.xlp === 'string') {
+      const [xlx, xly] = (obj.xlp as string).split(',').map(Number);
+      (nodes[name] as any).__rawXlp = { xlx, xly };
+    }
   }
 
   // Graphviz Y axis is bottom-up, DrawIO is top-down → flip Y
@@ -468,6 +473,12 @@ function extractLayout(
 
   for (const l of allNodes) {
     l.y = allMaxY - l.y - l.height;
+    // Convert xlabel center from Graphviz bottom-up Y to DrawIO top-down Y
+    const rawXlp = (l as any).__rawXlp;
+    if (rawXlp) {
+      l.xlabelPos = { x: rawXlp.xlx, y: allMaxY - rawXlp.xly };
+      delete (l as any).__rawXlp;
+    }
   }
 
   // Shift X so minimum is at 0
@@ -480,6 +491,7 @@ function extractLayout(
     xShift = -allMinX;
     for (const l of allNodes) {
       l.x += xShift;
+      if (l.xlabelPos) l.xlabelPos.x += xShift;
     }
   }
 
