@@ -22,6 +22,39 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     groupIdSet.add(g.id);
   }
 
+  // Count edges per normalised (A, B) pair to detect parallel multi-edges.
+  // Normalise by sorting so A→B and B→A count together.
+  const edgePairCount = new Map<string, number>();
+  for (const edge of model.edges) {
+    const key = [edge.from, edge.to].sort().join('\0');
+    edgePairCount.set(key, (edgePairCount.get(key) || 0) + 1);
+  }
+
+  // For each parallel edge group, determine which endpoint side has larger spread.
+  // The larger-spread side's viz.js endpoint is kept as a waypoint (not promoted to
+  // sourcePoint/targetPoint) so DrawIO computes distinct perimeter crossings for
+  // each parallel edge via its floating endpoint calculation.
+  const parallelSpreadSide = new Map<string, 'source' | 'target'>();
+  for (const [key, count] of edgePairCount) {
+    if (count < 2) continue;
+    const groupEdges = (layout.edges || []).filter((le) => {
+      const me = model.edges.find((e) => e.id === le.id);
+      return me && [me.from, me.to].sort().join('\0') === key;
+    });
+    if (groupEdges.length < 2) continue;
+    const maxSpread = (pts: Array<{ x: number; y: number } | undefined>) => {
+      const valid = pts.filter(Boolean) as Array<{ x: number; y: number }>;
+      let max = 0;
+      for (let i = 0; i < valid.length; i++)
+        for (let j = i + 1; j < valid.length; j++)
+          max = Math.max(max, Math.hypot(valid[i].x - valid[j].x, valid[i].y - valid[j].y));
+      return max;
+    };
+    const srcSpread = maxSpread(groupEdges.map((e) => e.points?.[0]));
+    const tgtSpread = maxSpread(groupEdges.map((e) => e.points && e.points[e.points.length - 1]));
+    parallelSpreadSide.set(key, tgtSpread >= srcSpread ? 'target' : 'source');
+  }
+
   // Set layout reference so group renderers can look up child coordinates
   for (const r of renderers.values()) {
     if (!r.parentId) r.setLayoutRef(layout);
@@ -126,24 +159,54 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       points = points.slice(startIdx, endIdx);
     }
 
+    // Detect parallel multi-edges (same normalised A↔B pair).
+    const pairKey = [edge.from, edge.to].sort().join('\0');
+    const isParallelEdge = !hasPort && !omitSource && !omitTarget
+      && (edgePairCount.get(pairKey) || 0) > 1;
+
     // Compute geometry — unified for all edge types.
     // sourcePoint/targetPoint are used when the endpoint has no cell binding
     // (group endpoints use omitSource/omitTarget; port edges with constraints
     // have already stripped the constrained endpoints above).
     let geometry: { sourcePoint?: { x: number; y: number }; targetPoint?: { x: number; y: number }; waypoints?: { x: number; y: number }[] } | undefined;
     if (points && points.length >= 2) {
-      const needSourcePt = omitSource || !hasPort;
-      const needTargetPt = omitTarget || !hasPort;
-      const sp = needSourcePt ? points[0] : undefined;
-      const tp = needTargetPt ? points[points.length - 1] : undefined;
-      const startIdx = sp ? 1 : 0;
-      const endIdx = tp ? points.length - 1 : points.length;
-      const midPts = points.slice(startIdx, endIdx);
-      geometry = {
-        sourcePoint: sp,
-        targetPoint: tp,
-        waypoints: midPts.length > 0 ? midPts : undefined,
-      };
+      if (isParallelEdge) {
+        // For parallel edges, keep the viz.js endpoint of the larger-spread side
+        // as a waypoint instead of promoting it to sourcePoint/targetPoint.
+        // DrawIO's floating endpoint calculation uses the nearest waypoint as the
+        // direction vector for perimeter projection — distinct endpoints on the
+        // larger-spread side give each parallel edge a unique exit/entry point.
+        const largerSide = parallelSpreadSide.get(pairKey) ?? 'target';
+        if (largerSide === 'target') {
+          // Source side: normal (sourcePoint = points[0], ignored by DrawIO when source cell set)
+          // Target side: keep endpoint in waypoints as direction hint, no targetPoint
+          geometry = {
+            sourcePoint: points[0],
+            waypoints: points.slice(1).length > 0 ? points.slice(1) : undefined,
+          };
+        } else {
+          // Source side: keep endpoint in waypoints as direction hint, no sourcePoint
+          // Target side: normal (targetPoint = points[last])
+          const sliced = points.slice(0, -1);
+          geometry = {
+            waypoints: sliced.length > 0 ? sliced : undefined,
+            targetPoint: points[points.length - 1],
+          };
+        }
+      } else {
+        const needSourcePt = omitSource || !hasPort;
+        const needTargetPt = omitTarget || !hasPort;
+        const sp = needSourcePt ? points[0] : undefined;
+        const tp = needTargetPt ? points[points.length - 1] : undefined;
+        const startIdx = sp ? 1 : 0;
+        const endIdx = tp ? points.length - 1 : points.length;
+        const midPts = points.slice(startIdx, endIdx);
+        geometry = {
+          sourcePoint: sp,
+          targetPoint: tp,
+          waypoints: midPts.length > 0 ? midPts : undefined,
+        };
+      }
     } else if (points && points.length > 0) {
       // Only waypoints remain (e.g. port edge with both endpoints constrained)
       geometry = { waypoints: points };
