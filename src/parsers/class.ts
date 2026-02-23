@@ -1,4 +1,6 @@
 import { DiagramType, NodeType, EdgeType } from '../model/index.ts';
+import type { DiagramContext } from '../detect-context.ts';
+import { DEPLOYMENT_COMPONENT_KEYWORDS } from '../detect-context.ts';
 import type { SemanticGroup, SemanticModel } from '../model/index.ts';
 import type { BodyLine, SemanticNode, SemanticEdge, ClassNote } from '../model/class-model.ts';
 import { arrowToEdgeType, edgeStyleForArrow, normalizeArrowMeta } from './arrow.ts';
@@ -15,12 +17,18 @@ import {
 interface ParseClassDiagramOptions {
   strict?: boolean;
   pragmas?: Record<string, string>;
+  /** Diagram sub-context determined by dispatcher. Controls implicit node shapes. */
+  diagramContext?: DiagramContext;
 }
 
 
 
 function normalizeId(name) {
   let s = String(name || '').trim();
+  // Strip leading () for interface-old syntax: "()HTTP" → "HTTP"
+  if (s.startsWith('()')) s = s.slice(2).trim();
+  // Strip surrounding brackets for component shorthand: "[Component]" → "Component"
+  if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1).trim();
   // Strip surrounding parentheses for use-case names: "(Use case)" → "Use case"
   if (s.startsWith('(') && s.endsWith(')')) s = s.slice(1, -1).trim();
   // Strip surrounding colons for actor names: ":Actor:" → "Actor"
@@ -42,6 +50,10 @@ function detectUsecaseEndpointType(rawEndpoint: string) {
   if (s.startsWith(':') && s.endsWith(':')) {
     return { type: NodeType.UsecaseActor, label: s.slice(1, -1).trim(), stereotype: 'actor' };
   }
+  // Bracket component shorthand: [Name] → component node
+  if (s.startsWith('[') && s.endsWith(']')) {
+    return { type: NodeType.Class, label: s.slice(1, -1).trim(), stereotype: 'component' };
+  }
   return null;
 }
 
@@ -62,6 +74,11 @@ function resolveNoteTarget(raw: string): { classId: string; memberTarget?: strin
 
 export function parseClassDiagram(statements: any[], options: ParseClassDiagramOptions = {}) {
   const strict = options.strict === true;
+  const diagramContext: DiagramContext = options.diagramContext || 'class';
+  const isStateDiagram = diagramContext === 'state';
+  const isUsecaseContext = diagramContext === 'usecase';
+  const isDeploymentContext = diagramContext === 'deployment';
+  const isDescriptionContext = diagramContext === 'description';
 
   const nodesById = Object.create(null);
   const nodeOrder = [];
@@ -339,82 +356,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     }
   }
 
-  // Detect state diagram: if any statement has [*] endpoints or state declarations
-  const isStateDiagram = statements.some(st =>
-    st && typeof st === 'object' && (
-      (st.kind === 'declaration_statement' && st.type === 'state') ||
-      st.kind === 'state_body_line' ||
-      (st.kind === 'block_statement' && st.type === 'state_block_end') ||
-      (typeof st.from === 'string' && st.from === '[*]') ||
-      (typeof st.to === 'string' && st.to === '[*]')
-    ));
-
-  // Lazy use-case context detection (replicates PlantUML's DescriptionDiagram.isUsecase()).
-  // Returns true when any statement creates a USECASE or ACTOR entity — i.e. an entity
-  // with LeafType.USECASE or with the actor USymbol.  Bare names do NOT trigger this;
-  // only explicit syntax ((Name), :Name:, or actor/usecase keyword) counts.
-  let _hasUsecaseContext: boolean | null = null;
-  function hasUsecaseContext(): boolean {
-    if (_hasUsecaseContext !== null) return _hasUsecaseContext;
-    _hasUsecaseContext = statements.some(st => {
-      if (!st || typeof st !== 'object') return false;
-      // Explicit usecase/actor declarations
-      if (st.kind === 'declaration_statement') {
-        const t = st.type;
-        if (t === 'usecase' || t === 'usecase_actor' || t === 'usecase_alias') return true;
-        // TypedMemberLine: "actor foo" / "usecase UC3"
-        if (t === 'member' && /^(actor|usecase)$/i.test(String(st.dataType || ''))) return true;
-      }
-      // component_statement with actor/usecase keyword: "actor Guest as g"
-      if (st.kind === 'component_statement' && /^(actor|usecase)/i.test(String(st.componentType || '')))
-        return true;
-      // TwoColumnLine: "actor  用户" / "usecase  用例"
-      if (st.kind === 'generic_statement' && st.type === 'two_column' && /^(actor|usecase)$/i.test(String(st.left || '')))
-        return true;
-      // slashy_relation misparse: "actor/ Woman3" / "usecase/ UC3"
-      if (st.kind === 'generic_statement' && st.type === 'slashy_relation' && /^(actor|usecase)$/i.test(String(st.from || '')))
-        return true;
-      // Relation endpoints with explicit (Name) → USECASE or :Name: → ACTOR syntax.
-      // Exclude comma-separated (A, B) n-ary association diamond syntax.
-      const from = String(st.from || '').trim();
-      const to = String(st.to || '').trim();
-      if (from && (/^\([^,]+\)$/.test(from) || /^:.*:$/.test(from))) return true;
-      if (to && (/^\([^,]+\)$/.test(to) || /^:.*:$/.test(to))) return true;
-      return false;
-    });
-    return _hasUsecaseContext;
-  }
-
-  // Deployment-specific component keywords — distinct from sequence/usecase stereotypes.
-  const DEPLOYMENT_COMPONENT_KEYWORDS = new Set([
-    'node', 'cloud', 'artifact', 'agent',
-    'component', 'component1', 'component2',
-    'frame', 'card', 'hexagon', 'storage',
-    'rectangle', 'rect', 'folder',
-    'file', 'stack', 'process', 'person', 'label',
-    'port', 'portin', 'portout',
-  ]);
-
-  // Lazy deployment context detection: true when there is at least one explicit
-  // deployment-type keyword declaration (node, cloud, artifact, etc.).
-  let _hasDeploymentContext: boolean | null = null;
-  function hasDeploymentContext(): boolean {
-    if (_hasDeploymentContext !== null) return _hasDeploymentContext;
-    _hasDeploymentContext = statements.some(st => {
-      if (!st || typeof st !== 'object') return false;
-      if (st.kind === 'component_statement') {
-        const ct = String(st.componentType || '').toLowerCase();
-        if (DEPLOYMENT_COMPONENT_KEYWORDS.has(ct)) return true;
-      }
-      // two_column misparse of "keyword  name" (2+ spaces) — e.g. "node  foo"
-      if (st.kind === 'generic_statement' && st.type === 'two_column') {
-        const left = String(st.left || '').toLowerCase();
-        if (DEPLOYMENT_COMPONENT_KEYWORDS.has(left)) return true;
-      }
-      return false;
-    });
-    return _hasDeploymentContext;
-  }
+  // Diagram context is now determined externally by dispatcher.detectDiagramContext()
+  // and passed in via options.diagramContext. No more internal global scanning.
 
   const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
 
@@ -672,12 +615,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         const isUsecase = rawAlias.startsWith('(') && rawAlias.endsWith(')');
         const isColonActor = rawAlias.startsWith(':') && rawAlias.endsWith(':');
         // In use-case context, bare alias (no parens) is an actor
-        const isActor = isColonActor || (!isUsecase && hasUsecaseContext());
+        const isActor = isColonActor || (!isUsecase && isUsecaseContext);
         const aliasInner = isUsecase ? rawAlias.slice(1, -1) : rawAlias;
         const actorInner = isColonActor ? rawAlias.slice(1, -1) : rawAlias;
         const id = normalizeId(isActor ? actorInner : aliasInner);
         const label = rawLabel;
-        const nodeType = isActor ? NodeType.UsecaseActor : (hasUsecaseContext() ? NodeType.Usecase : NodeType.Class);
+        const nodeType = isActor ? NodeType.UsecaseActor : (isUsecaseContext ? NodeType.Usecase : NodeType.Class);
         if (id) {
           if (!nodesById[id]) nodeOrder.push(id);
           nodesById[id] = {
@@ -1008,6 +951,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             stereotypeLabel = st.displayName;
           } else {
             label = String(st.displayName || rawName || '').trim();
+            // Strip brackets from component_ref labels: "[Name]" → "Name"
+            if (label.startsWith('[') && label.endsWith(']')) label = label.slice(1, -1).trim();
             stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
           }
           if (id) {
@@ -1025,16 +970,22 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
                 style: st.style || null,
                 isPort: true,
                 portType,
+                tags: Array.isArray(st.tags) && st.tags.length ? st.tags : (st.tag ? [st.tag] : undefined),
               };
             } else {
+              // Map component_ref → component; interface → circle in deployment context
+              let mappedStereotype = ctype;
+              if (ctype === 'component_ref') mappedStereotype = 'component';
+              else if (ctype === 'interface' && isDeploymentContext) mappedStereotype = 'circle';
               nodesById[id] = {
                 id,
                 type: NodeType.Class,
                 label,
-                stereotype: ctype,
+                stereotype: mappedStereotype,
                 stereotypeLabel: stereotypeLabel || '',
                 bodyLines: [],
                 style: st.style || null,
+                tags: Array.isArray(st.tags) && st.tags.length ? st.tags : (st.tag ? [st.tag] : undefined),
               };
             }
             registerNodeInGroup(id);
@@ -1232,7 +1183,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             id,
             type: NodeType.Class,
             label,
-            stereotype: 'entity',
+            // In class context, entity block renders as class-like node (not deployment icon)
+            stereotype: isDeploymentContext ? 'entity' : null,
             stereotypeLabel: '',
             bodyLines,
             style: st.style || null,
@@ -1721,11 +1673,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             const ucType = detectUsecaseEndpointType(rawFrom);
             if (ucType) {
               nodesById[from] = { id: from, type: ucType.type, label: ucType.label, stereotype: ucType.stereotype, stereotypeLabel: '', bodyLines: [] };
-            } else if (!lollipopFrom && hasUsecaseContext()) {
+            } else if (!lollipopFrom && isUsecaseContext) {
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
-            } else if (!lollipopFrom && hasDeploymentContext()) {
-              // Bare name in deployment context → circle node (PlantUML default)
+            } else if (!lollipopFrom && isDescriptionContext) {
+              // Bare name in description context → actor (PlantUML default for DescriptionDiagram)
+              nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
+            } else if (!lollipopFrom && isDeploymentContext) {
+              // Bare name in deployment context → interface circle (PlantUML DescriptionDiagram default)
               nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: 'circle', stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
@@ -1746,11 +1701,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             const ucType = detectUsecaseEndpointType(rawTo);
             if (ucType) {
               nodesById[to] = { id: to, type: ucType.type, label: ucType.label, stereotype: ucType.stereotype, stereotypeLabel: '', bodyLines: [] };
-            } else if (!lollipopTo && hasUsecaseContext()) {
+            } else if (!lollipopTo && isUsecaseContext) {
               // Bare name in use-case context → actor (PlantUML default)
               nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
-            } else if (!lollipopTo && hasDeploymentContext()) {
-              // Bare name in deployment context → circle node (PlantUML default)
+            } else if (!lollipopTo && isDescriptionContext) {
+              // Bare name in description context → actor (PlantUML default for DescriptionDiagram)
+              nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
+            } else if (!lollipopTo && isDeploymentContext) {
+              // Bare name in deployment context → interface circle (PlantUML DescriptionDiagram default)
               nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: 'circle', stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
@@ -1836,7 +1794,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         const hasBrace = Boolean(st.block);
 
         const nodeType = kind === 'interface' && !st.shortForm ? NodeType.Interface : kind === 'enum' ? NodeType.Enum
-          : (st.implicit && hasUsecaseContext()) ? NodeType.UsecaseActor : NodeType.Class;
+          : (st.implicit && (isUsecaseContext || isDescriptionContext)) ? NodeType.UsecaseActor : NodeType.Class;
 
         const bodyLines: BodyLine[] = [];
 
@@ -1871,7 +1829,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           id,
           type: nodeType,
           label,
-          stereotype: isAbstract ? 'abstract' : declType === 'object' ? 'object' : (st.implicit && hasUsecaseContext()) ? 'actor' : kind === 'interface' ? ((st.shortForm || hasDeploymentContext()) ? 'circle' : 'interface') : kind,
+          stereotype: isAbstract ? 'abstract' : declType === 'object' ? 'object' : (st.implicit && (isUsecaseContext || isDescriptionContext)) ? 'actor' : kind === 'interface' ? ((st.shortForm || isDeploymentContext) ? 'circle' : 'interface') : kind,
           stereotypeLabel,
           bodyLines,
           style: st.style || null,

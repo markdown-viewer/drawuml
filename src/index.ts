@@ -22,7 +22,7 @@ export function textToDrawioXml(dsl) {
   // Clear warnings from previous render pass
   clearRenderWarnings();
 
-  const { diagramType, body, parsed } = dispatch(dsl);
+  const { diagramType, body, parsed, diagramContext } = dispatch(dsl);
   const { source, pragmas } = preprocess(body);
 
   if (diagramType === DiagramType.Sequence) {
@@ -31,7 +31,7 @@ export function textToDrawioXml(dsl) {
     return sequenceToDrawioXml(model, layout, renderers);
   }
 
-  const model = parseClassDiagram(parsed.statements, { pragmas });
+  const model = parseClassDiagram(parsed.statements, { pragmas, diagramContext });
   model.diagramType = diagramType;
 
   const { layout, renderers } = dotLayoutSync(model);
@@ -43,6 +43,7 @@ export function parsePumlToJson(dsl) {
 }
 
 export { dispatch } from './dispatcher.ts';
+export type { DiagramContext } from './detect-context.ts';
 export * from './model/index.ts';
 export { parsePlantUml } from './parsers/puml.ts';
 export { parseSequenceDiagram } from './parsers/sequence.ts';

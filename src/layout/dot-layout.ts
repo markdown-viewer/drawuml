@@ -1158,6 +1158,7 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
   const visIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   const activityShape = model.skinparams?.activityShape;
   const actorStyle = model.skinparams?.actorStyle;
+  const componentStyle = model.skinparams?.componentStyle;
 
   // 1. Create renderers for each node (renderers self-measure in buildDotAttributes)
   const renderers = new Map<string, Renderer>();
@@ -1166,6 +1167,10 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
     if (!visIcons) desc.visibilityIcons = false;
     if (activityShape) desc.activityShape = activityShape;
     if (actorStyle) desc.actorStyle = actorStyle;
+    // skinparam componentStyle rectangle: render components as plain rectangles
+    if (componentStyle === 'rectangle' && (desc.stereotype === 'component' || desc.stereotype === 'component1' || desc.stereotype === 'component2')) {
+      desc.stereotype = 'rectangle';
+    }
     renderers.set(node.id, createNodeRenderer(desc));
   }
   for (const note of model.notes || []) {
@@ -1223,6 +1228,7 @@ export function dotLayoutSync(model: SemanticModel): DotLayoutResult {
   const visIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   const activityShape = model.skinparams?.activityShape;
   const actorStyle = model.skinparams?.actorStyle;
+  const componentStyle = model.skinparams?.componentStyle;
 
   const renderers = new Map<string, Renderer>();
   for (const node of model.nodes) {
@@ -1230,6 +1236,10 @@ export function dotLayoutSync(model: SemanticModel): DotLayoutResult {
     if (!visIcons) desc.visibilityIcons = false;
     if (activityShape) desc.activityShape = activityShape;
     if (actorStyle) desc.actorStyle = actorStyle;
+    // skinparam componentStyle rectangle: render components as plain rectangles
+    if (componentStyle === 'rectangle' && (desc.stereotype === 'component' || desc.stereotype === 'component1' || desc.stereotype === 'component2')) {
+      desc.stereotype = 'rectangle';
+    }
     renderers.set(node.id, createNodeRenderer(desc));
   }
   for (const note of model.notes || []) {
