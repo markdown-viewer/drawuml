@@ -788,15 +788,70 @@ function snapPortNodes(
       const portNode = layout.nodes[childId];
       if (!portNode) continue;
 
-      // Snap port center to group boundary
-      if (r.portKind === 'portout') {
-        portNode.y = groupBox.y + groupBox.height - PORT_HALF;
-      } else {
-        portNode.y = groupBox.y - PORT_HALF;
+      // --- Pass 1: External edges ---
+      // For each external edge connected to this port:
+      //   1. Clip the edge path at the parent group boundary.
+      //   2. Use the resulting boundary crossing point to reposition the port
+      //      so its center sits exactly on the group boundary where the edge
+      //      enters/exits.  This guarantees that drawio2svg's perimeter
+      //      projection (center → nearest waypoint) lands precisely on the
+      //      port's rendered border without any distortion.
+      let intersectionSet = false;
+      for (const edge of layout.edges || []) {
+        if (!edge.points || edge.points.length < 2) continue;
+
+        if (edge.to === childId) {
+          const otherGroupId = nodeGroupMap.get(edge.from);
+          if (otherGroupId !== group.id) {
+            // External → port: find precise boundary crossing via segmentRectIntersection
+            const pts = edge.points;
+            const lastPt = pts[pts.length - 1];
+            const prevPt = pts[pts.length - 2];
+            const cross = segmentRectIntersection(prevPt, lastPt, groupBox) || lastPt;
+            // Reposition port center to crossing point (first external edge wins;
+            // subsequent external edges to the same port should agree closely)
+            if (!intersectionSet) {
+              portNode.x = Math.round(cross.x) - PORT_HALF;
+              portNode.y = Math.round(cross.y) - PORT_HALF;
+              portNode.width = PORT_SIZE;
+              portNode.height = PORT_SIZE;
+              intersectionSet = true;
+            }
+            // Clip edge to the boundary crossing point
+            edge.points = clipPathAtGroupBoundary(pts, groupBox, 'end');
+          }
+        } else if (edge.from === childId) {
+          const otherGroupId = nodeGroupMap.get(edge.to);
+          if (otherGroupId !== group.id) {
+            // Port → external: find precise boundary crossing
+            const pts = edge.points;
+            const firstPt = pts[0];
+            const nextPt = pts[1];
+            const cross = segmentRectIntersection(nextPt, firstPt, groupBox) || firstPt;
+            if (!intersectionSet) {
+              portNode.x = Math.round(cross.x) - PORT_HALF;
+              portNode.y = Math.round(cross.y) - PORT_HALF;
+              portNode.width = PORT_SIZE;
+              portNode.height = PORT_SIZE;
+              intersectionSet = true;
+            }
+            edge.points = clipPathAtGroupBoundary(pts, groupBox, 'start');
+          }
+        }
       }
 
-      // Port bounding box after snap (used to forward-clip internal edges only;
-      // external edges are clipped at the PARENT GROUP boundary, see below).
+      // Fallback: if no external edge found, snap to group boundary by portKind
+      if (!intersectionSet) {
+        if (r.portKind === 'portout') {
+          portNode.y = groupBox.y + groupBox.height - PORT_HALF;
+        } else {
+          portNode.y = groupBox.y - PORT_HALF;
+        }
+      }
+
+      // --- Pass 2: Internal edges ---
+      // Now that the port position is finalised, clip internal edges at the
+      // port's own bounding box so they start/end at the port square.
       const portBox: LayoutGroup = {
         id: childId,
         x: portNode.x,
@@ -804,30 +859,18 @@ function snapPortNodes(
         width: PORT_SIZE,
         height: PORT_SIZE,
       };
-
-      // Clip edges that cross the group boundary to reach/from this port.
-      // - External edges (other end is outside the group): clip at GROUP boundary so they
-      //   terminate exactly at the boundary where the port is rendered.
-      // - Internal edges (other end is inside the same group): clip at the port's own
-      //   small box so they start/end at the port square and don't extend outward.
       for (const edge of layout.edges || []) {
         if (!edge.points || edge.points.length < 2) continue;
 
         if (edge.to === childId) {
           const otherGroupId = nodeGroupMap.get(edge.from);
-          if (otherGroupId !== group.id) {
-            // External → port: clip at group boundary (same as edges to a group)
-            edge.points = clipPathAtGroupBoundary(edge.points, groupBox, 'end');
-          } else {
-            // Internal → port: clip at port box to stop at the port square
+          if (otherGroupId === group.id) {
+            // Internal → port: clip at port box
             edge.points = clipPathAtGroupBoundary(edge.points, portBox, 'end');
           }
         } else if (edge.from === childId) {
           const otherGroupId = nodeGroupMap.get(edge.to);
-          if (otherGroupId !== group.id) {
-            // Port → external: clip at group boundary
-            edge.points = clipPathAtGroupBoundary(edge.points, groupBox, 'start');
-          } else {
+          if (otherGroupId === group.id) {
             // Port → internal: clip at port box
             edge.points = clipPathAtGroupBoundary(edge.points, portBox, 'start');
           }
