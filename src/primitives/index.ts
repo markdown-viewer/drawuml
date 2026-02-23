@@ -52,6 +52,7 @@ import { registerLegendRenderer } from './shapes/legend.ts';
 import { registerTitleRenderer } from './title.ts';
 import { registerBoxRenderer } from './box.ts';
 import { registerPortNodeRenderer } from './port-node.ts';
+import { MxgraphIconRenderer, registerMxgraphIconRenderer } from './shapes/mxgraph-icon.ts';
 import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
@@ -92,6 +93,7 @@ registerLegendRenderer();
 registerTitleRenderer();
 registerBoxRenderer();
 registerPortNodeRenderer();
+registerMxgraphIconRenderer();
 
 // ── Unified node factory (dispatches via registry) ───────────────────────────
 import { createRenderer, hasRenderer } from './registry.ts';
@@ -134,6 +136,11 @@ export function createNodeRenderer(desc: RenderDescriptor): RendererType {
   // Stereotype takes priority (specific shape > generic type)
   if (stype && hasRenderer(stype)) {
     return createRenderer(stype, desc);
+  }
+
+  // mxgraph icon wildcard: any stereotype starting with 'mxgraph.' routes to MxgraphIconRenderer
+  if (stype && stype.startsWith('mxgraph.')) {
+    return new MxgraphIconRenderer(desc);
   }
 
   // Then try by node type

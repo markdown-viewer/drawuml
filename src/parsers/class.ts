@@ -773,6 +773,31 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         // No archimate stereotype found — fall through to later handlers
       }
 
+      // mxgraph icon declaration: "mxgraph.aws4.compute.awsLambda "Label" as alias #color"
+      if (st.kind === 'generic_statement' && st.type === 'mxgraph_icon') {
+        const shapeKey = String(st.shapeKey || '').trim();
+        const rawLabel = String(st.label || '').trim();
+        const rawAlias = String(st.alias || '').trim();
+        const rawColor = String(st.color || '').trim() || null;
+        const id = normalizeId(rawAlias || rawLabel);
+        const label = rawLabel;
+        if (id && shapeKey) {
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label,
+            stereotype: shapeKey,
+            stereotypeLabel: '',
+            bodyLines: [],
+            style: rawColor || null,
+          };
+          ensureNodeInCorrectGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
       // ArchiMate stdlib element macros: "Business_Service(svc, "Label")"
       if (st.kind === 'generic_statement' && st.type === 'generic_call') {
         const macroInfo = lookupArchimateElementMacro(st.name);
