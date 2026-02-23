@@ -2038,6 +2038,10 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       for (const e of edges) {
         if (e.to === '(*)') e.to = endId;
       }
+      // Rewrite note targets: notes targeting (*) should point to end node
+      for (const n of notes) {
+        if (n.target === '(*)') n.target = endId;
+      }
     } else if (starAsTargetCount > 0) {
       nodesById['(*)'].type = NodeType.StateEnd as any;
     } else {
