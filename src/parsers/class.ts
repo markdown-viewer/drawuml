@@ -433,6 +433,18 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     }
   }
 
+  // Pre-scan: collect !define macros that expand to "circle #color"
+  // e.g. "!define Junction_Or circle #black" → { 'Junction_Or': '#black' }
+  // PEG now emits { cmd:'define', name, body } via DefineLine rule.
+  const junctionColorMap: Record<string, string> = {};
+  for (const st0 of statements) {
+    if (!st0 || typeof st0 !== 'object') continue;
+    if (st0.kind === 'preprocessor_statement' && st0.cmd === 'define' && st0.name) {
+      const m = String(st0.body || '').match(/^circle\s+(#\S+)/i);
+      if (m) junctionColorMap[String(st0.name)] = m[1];
+    }
+  }
+
   for (let i = 0; i < statements.length; i++) {
     const st = statements[i];
     if (!st || typeof st !== 'object') continue;
@@ -580,6 +592,30 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // ── Use-case diagram declarations ────────────────────────────────────
 
       const declType = String(st?.type || '').toLowerCase();
+
+      // Junction node (from "!define Junction_Or circle #black" + "Junction_Or Foo")
+      // PEG emits: { kind: 'Junction_And'|'Junction_Or', type: 'junction', name }
+      if (declType === 'junction') {
+        const macroName = String(st.kind || '');
+        const name = String(st.name || '').trim();
+        if (name) {
+          const id = normalizeId(name);
+          const fillColor = junctionColorMap[macroName] || null;
+          if (!nodesById[id]) nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Class,
+            label: name,
+            stereotype: 'circle',
+            stereotypeLabel: '',
+            bodyLines: [],
+            style: fillColor,
+          };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
 
       // Usecase declaration: "(First usecase)" or "(Another usecase) as (UC2)"
       // or "usecase UC as Label" or "usecase (text) as alias"
