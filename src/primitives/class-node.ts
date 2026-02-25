@@ -18,6 +18,7 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
+import type { LayoutGraphNode, LayoutPort } from '../layout/layout-graph.ts';
 
 // Re-export layout constants for consumers (e.g. DOT port-label building)
 export { CLASS_ROW_HEIGHT as ROW_HEIGHT, CLASS_SEPARATOR_HEIGHT as SEPARATOR_HEIGHT } from '../shared/content.ts';
@@ -260,67 +261,45 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   }
 
   /**
-   * Build an HTML-label for DOT with PORT attributes on each member row.
-   * Enables viz.js to route edges directly to specific fields.
+   * Build layout graph node with ports derived from body rows.
    */
-  buildPortLabel(widthPx: number): string {
+  override buildLayoutGraph(): LayoutGraphNode {
+    const node = super.buildLayoutGraph();
     const blocks = this.content.blocks;
     const measured = this.content.measure();
-    const ROW_HEIGHT = CLASS_ROW_HEIGHT;
-    const SEPARATOR_HEIGHT = CLASS_SEPARATOR_HEIGHT;
-    const BODY_PAD = CLASS_BODY_PADDING_Y;
-
-    const rows: string[] = [];
-    let totalH = 0;
+    const ports: LayoutPort[] = [];
+    let y = 0;
     let bodyStarted = false;
 
     for (const b of blocks) {
       if (b.kind === 'title') {
-        const h = measured.titleHeight;
-        rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${h}" WIDTH="${widthPx}"> </TD></TR>`);
-        totalH += h;
+        y += measured.titleHeight!;
       } else {
-        // Insert body top-padding row before the first non-title block
-        if (!bodyStarted && BODY_PAD > 0) {
-          rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${BODY_PAD}" WIDTH="${widthPx}"> </TD></TR>`);
-          totalH += BODY_PAD;
+        if (!bodyStarted && CLASS_BODY_PADDING_Y > 0) {
+          y += CLASS_BODY_PADDING_Y;
           bodyStarted = true;
         }
-
         if (b.kind === 'separator') {
-          const sepH = b.title ? TITLED_SEPARATOR_HEIGHT : SEPARATOR_HEIGHT;
-          rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${sepH}" WIDTH="${widthPx}"> </TD></TR>`);
-          totalH += sepH;
+          y += b.title ? TITLED_SEPARATOR_HEIGHT : CLASS_SEPARATOR_HEIGHT;
         } else if (b.kind === 'row') {
           const rowContent = Content.text(b.html);
           const rowSize = rowContent.measure();
-          const h = (rowSize.height || ROW_HEIGHT) + BODY_PAD;
+          const h = (rowSize.height || CLASS_ROW_HEIGHT) + CLASS_BODY_PADDING_Y;
           const portName = b.id ? b.id.split('::').slice(1).join('::') : '';
-          // Escape special HTML chars in port name for DOT HTML labels
-          const safePort = portName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-          if (safePort) {
-            rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${h}" WIDTH="${widthPx}" PORT="${safePort}"> </TD></TR>`);
-          } else {
-            rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${h}" WIDTH="${widthPx}"> </TD></TR>`);
+          if (portName) {
+            ports.push({ id: `${this.id}::${portName}`, width: node.width, height: h, y });
           }
-          totalH += h;
+          y += h;
         } else if (b.kind === 'rich') {
           const richContent = Content.text(b.html);
           const richSize = richContent.measure();
-          const h = richSize.height || ROW_HEIGHT;
-          rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${h}" WIDTH="${widthPx}"> </TD></TR>`);
-          totalH += h;
+          y += richSize.height || CLASS_ROW_HEIGHT;
         }
       }
     }
 
-    // Body bottom-padding row
-    if (bodyStarted && BODY_PAD > 0) {
-      rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${BODY_PAD}" WIDTH="${widthPx}"> </TD></TR>`);
-      totalH += BODY_PAD;
-    }
-
-    return `<\n<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0" FIXEDSIZE="TRUE" WIDTH="${widthPx}" HEIGHT="${totalH}">\n${rows.join('\n')}\n</TABLE>\n>`;
+    if (ports.length > 0) node.ports = ports;
+    return node;
   }
 }
 

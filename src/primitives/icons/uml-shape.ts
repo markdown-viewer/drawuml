@@ -1,60 +1,54 @@
 /**
- * Entity shape renderer — standalone deployment node.
+ * UML shape icon renderer — handles boundary, control, and entity shapes.
  *
- * Renders using DrawIO `umlEntity` shape (circle with underline) with label
- * below the icon, same pattern as actor/boundary/control.
+ * These three UML shapes share an identical layout: a shape icon on top with
+ * a text label below. Only the DrawIO shape name and icon dimensions differ,
+ * so they are unified into one data-driven renderer class.
  */
 
+import { IconRenderer } from './icon-renderer.ts';
+import { Renderer } from '../renderer.ts';
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
-import { Renderer } from '../renderer.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
-import type { DotContext } from '../renderer.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 // ---------------------------------------------------------------------------
-// Constants
+// Shape configuration
 // ---------------------------------------------------------------------------
 
-const ICON_WIDTH = 30;
-const ICON_HEIGHT = 30;
-const PADDING_X = 20;
+interface UmlShapeConfig {
+  shape: string;
+  iconWidth: number;
+  iconHeight: number;
+}
+
+const UML_SHAPES: Record<string, UmlShapeConfig> = {
+  boundary: { shape: 'umlBoundary', iconWidth: 36, iconHeight: 30 },
+  control:  { shape: 'umlControl',  iconWidth: 30, iconHeight: 35 },
+  entity:   { shape: 'umlEntity',   iconWidth: 30, iconHeight: 30 },
+};
 
 // ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
 
-class EntityRenderer extends Renderer {
-  private desc: RenderDescriptor;
+class UmlShapeRenderer extends IconRenderer {
+  private config: UmlShapeConfig;
 
-  constructor(desc: RenderDescriptor) {
-    super(desc.id);
-    this.desc = desc;
+  constructor(desc: RenderDescriptor, config: UmlShapeConfig) {
+    super(desc);
+    this.config = config;
   }
 
-  private get label(): string { return this.desc.label ?? ''; }
+  protected get iconWidth(): number { return this.config.iconWidth; }
+  protected get iconHeight(): number { return this.config.iconHeight; }
+
   private get color(): string | undefined { return this.desc.color; }
-
-  get isCluster(): boolean { return false; }
-
-  protected doMeasure() {
-    const size = Content.inline(this.label).measure();
-    const labelWidth = size.width + PADDING_X;
-    return { width: Math.max(ICON_WIDTH, labelWidth), height: ICON_HEIGHT + 4 + 18 };
-  }
-
-  graphicCenterOffset() {
-    const h = this.measure().height;
-    return { dx: 0, dy: ICON_HEIGHT / 2 - h / 2 };
-  }
-
-  buildDotBlock(ctx: DotContext, indent: string): string[] {
-    return [`${indent}"${this.id}" [${this.buildDotAttributes(false)}]`];
-  }
 
   render(box: ContentBox): string[] {
     const labelHtml = Content.inline(this.label).html;
@@ -62,8 +56,8 @@ class EntityRenderer extends Renderer {
       label: labelHtml,
       stereotypeLabel: this.desc.stereotypeLabel || undefined,
     });
-    const cx = box.x + Math.round((box.width - ICON_WIDTH) / 2);
-    let s = `shape=umlEntity;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
+    const cx = box.x + Math.round((box.width - this.iconWidth) / 2);
+    let s = `shape=${this.config.shape};verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
       + `fillColor=none;strokeColor=${COLOR_DARK};strokeWidth=0.5;`
       + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;`;
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
@@ -73,7 +67,7 @@ class EntityRenderer extends Renderer {
     return [mxVertex({
       id: this.id, value, style: s,
       parent: this.parentId || '1',
-      x: cx, y: box.y, width: ICON_WIDTH, height: ICON_HEIGHT,
+      x: cx, y: box.y, width: this.iconWidth, height: this.iconHeight,
     })];
   }
 }
@@ -82,6 +76,8 @@ class EntityRenderer extends Renderer {
 // Registration
 // ---------------------------------------------------------------------------
 
-export function registerEntityShape(): void {
-  registerRenderer('entity', (desc: RenderDescriptor) => new EntityRenderer(desc));
+export function registerUmlShapes(): void {
+  for (const [type, config] of Object.entries(UML_SHAPES)) {
+    registerRenderer(type, (desc: RenderDescriptor) => new UmlShapeRenderer(desc, config));
+  }
 }

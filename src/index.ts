@@ -3,7 +3,8 @@ import { parseClassDiagram } from './parsers/class.ts';
 import { parseSequenceDiagram } from './parsers/sequence.ts';
 import { parsePlantUml } from './parsers/puml.ts';
 import { preprocess } from './shared/preprocessor.ts';
-import { dotLayoutSync } from './layout/dot-layout.ts';
+import { dotLayout } from './layout/dot-layout.ts';
+import { elkLayout } from './layout/elk/elk-engine.ts';
 import { sequenceTableLayout } from './layout/table-layout.ts';
 import { semanticToDrawioXml } from './generator/drawio-gen.ts';
 import { sequenceToDrawioXml } from './generator/sequence-gen.ts';
@@ -14,14 +15,28 @@ import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
 export { dotLayout, initViz } from './layout/dot-layout.ts';
 export type { DotLayoutResult } from './layout/dot-layout.ts';
 
+// Re-export ELK layout
+export { elkLayout } from './layout/elk/elk-engine.ts';
+export type { ElkLayoutResult } from './layout/elk/elk-engine.ts';
+
 // Re-export render warning API for external consumers
 export { getRenderWarnings, clearRenderWarnings } from './primitives/index.ts';
 export type { RenderWarning } from './primitives/index.ts';
 
-export function textToDrawioXml(dsl) {
+/** Layout engine name. */
+export type LayoutEngine = 'dot' | 'elk';
+
+/** Options for textToDrawioXml. */
+export interface ConvertOptions {
+  /** Layout engine to use. Default: 'dot'. */
+  engine?: LayoutEngine;
+}
+
+export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Promise<string> {
   // Clear warnings from previous render pass
   clearRenderWarnings();
 
+  const engine = options?.engine ?? 'dot';
   const { diagramType, body, parsed, diagramContext } = dispatch(dsl);
   const { source, pragmas } = preprocess(body);
 
@@ -34,8 +49,11 @@ export function textToDrawioXml(dsl) {
   const model = parseClassDiagram(parsed.statements, { pragmas, diagramContext });
   model.diagramType = diagramType;
 
-  const { layout, renderers } = dotLayoutSync(model);
-  return semanticToDrawioXml(model, layout, renderers);
+  const { layout, renderers } = engine === 'elk'
+    ? await elkLayout(model)
+    : await dotLayout(model);
+
+  return semanticToDrawioXml(model, layout, renderers, { engine });
 }
 
 export function parsePumlToJson(dsl) {

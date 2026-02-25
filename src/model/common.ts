@@ -85,6 +85,10 @@ export interface LayoutEdge {
   fromGroup?: string;
   /** When `to` is a group id, this records which group it refers to */
   toGroup?: string;
+  /** Absolute position of the edge center label, if laid out by ELK or Graphviz */
+  labelPos?: { x: number; y: number };
+  /** Size of the edge center label */
+  labelSize?: { width: number; height: number };
   /** DrawIO-coordinate center of the taillabel (cardFrom), if laid out by Graphviz */
   cardFromPos?: { x: number; y: number };
   /** DrawIO-coordinate center of the headlabel (cardTo), if laid out by Graphviz */

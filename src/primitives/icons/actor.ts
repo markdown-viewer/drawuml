@@ -1,18 +1,20 @@
 /**
- * Actor node primitive — sizing and rendering for use-case actor (stick figure) nodes.
- * PlantUML renders actors as stick figures with a text label below.
+ * Actor node renderer — stick figure with text label below.
+ *
+ * Extends IconRenderer with actor-specific style handling (parseNodeStyle for
+ * fill/stroke/line styling, business actor variant, actorStyle attribute).
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
-import { mxVertex } from '../shared/xml-utils.ts';
-import { Renderer } from './renderer.ts';
-import { Content } from '../shared/content.ts';
-import { buildLabelHtml } from './label.ts';
-import { parseNodeStyle } from '../shared/color-utils.ts';
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '../shared/theme.ts';
-import { registerRenderer } from './registry.ts';
-import type { RenderDescriptor } from './registry.ts';
-import type { ContentBox } from '../shared/content.ts';
+import { IconRenderer } from './icon-renderer.ts';
+import { Renderer } from '../renderer.ts';
+import { Content } from '../../shared/content.ts';
+import { mxVertex } from '../../shared/xml-utils.ts';
+import { buildLabelHtml } from '../label.ts';
+import { parseNodeStyle } from '../../shared/color-utils.ts';
+import { DEFAULT_FONT_SIZE, DEFAULT_FILL, COLOR_DARK } from '../../shared/theme.ts';
+import { registerRenderer } from '../registry.ts';
+import type { RenderDescriptor } from '../registry.ts';
+import type { ContentBox } from '../../shared/content.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -20,36 +22,29 @@ import type { ContentBox } from '../shared/content.ts';
 
 const ACTOR_WIDTH = 30;   // stick figure width
 const ACTOR_HEIGHT = 40;  // stick figure height (head + body + legs)
-const TEXT_GAP = 4;       // gap between figure and text
-const TEXT_HEIGHT = 18;   // text area height
-const PADDING_X = 20;     // horizontal padding for label
-
-import { DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
-// Renderer class
+// Renderer
 // ---------------------------------------------------------------------------
 
-class ActorNodeRenderer extends Renderer {
-  private node: RenderDescriptor;
+class ActorRenderer extends IconRenderer {
   private labelHtml: string;
   private fillColor: string;
   private strokeColor: string;
   private lineStyle: string;
   private textColor: string;
 
-  constructor(node: RenderDescriptor) {
-    super(node.id);
-    this.node = node;
-    this.labelHtml = Content.inline(node.label ?? '').html;
+  constructor(desc: RenderDescriptor) {
+    super(desc);
+    this.labelHtml = Content.inline(this.label).html;
 
     // Parse inline style if present
     let fill = DEFAULT_FILL;
     let stroke = COLOR_DARK;
     let lineStyle = '';
     let textColor = COLOR_DARK;
-    if (node.style) {
-      const parsed = parseNodeStyle(node.style);
+    if (desc.style) {
+      const parsed = parseNodeStyle(desc.style);
       if (parsed.fillColor) fill = parsed.fillColor;
       if (parsed.strokeColor) stroke = parsed.strokeColor;
       if (parsed.lineStyle) lineStyle = parsed.lineStyle;
@@ -61,19 +56,8 @@ class ActorNodeRenderer extends Renderer {
     this.textColor = textColor;
   }
 
-  protected doMeasure() {
-    const meas = measureText(this.labelHtml, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
-    const labelWidth = Math.ceil(meas.width) + PADDING_X;
-    const width = Math.max(ACTOR_WIDTH, labelWidth);
-    const height = ACTOR_HEIGHT + TEXT_GAP + TEXT_HEIGHT;
-    return { width, height };
-  }
-
-  graphicCenterOffset() {
-    // Graphic center is at ACTOR_HEIGHT/2 from top; geometric center is at height/2
-    const h = this.measure().height;
-    return { dx: 0, dy: ACTOR_HEIGHT / 2 - h / 2 };
-  }
+  protected get iconWidth(): number { return ACTOR_WIDTH; }
+  protected get iconHeight(): number { return ACTOR_HEIGHT; }
 
   render(box: ContentBox) {
     // Build line style modifiers
@@ -83,8 +67,8 @@ class ActorNodeRenderer extends Renderer {
     else if (this.lineStyle === 'dotted') lineStyleStr = 'dashed=1;dashPattern=1 2;';
     else if (this.lineStyle === 'bold') strokeWidth = '2';
 
-    const isBusiness = this.node.stereotype === 'actor/';
-    const actorStyleAttr = this.node.actorStyle ? `actorStyle=${this.node.actorStyle};` : '';
+    const isBusiness = this.desc.stereotype === 'actor/';
+    const actorStyleAttr = this.desc.actorStyle ? `actorStyle=${this.desc.actorStyle};` : '';
     const style = `shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
       + `fillColor=${this.fillColor};strokeColor=${this.strokeColor};strokeWidth=${strokeWidth};`
       + `${lineStyleStr}`
@@ -97,10 +81,10 @@ class ActorNodeRenderer extends Renderer {
     const cy = box.y;
 
     return [mxVertex({
-      id: this.node.id,
+      id: this.desc.id,
       value: buildLabelHtml({
         label: this.labelHtml,
-        stereotypeLabel: this.node.stereotypeLabel || undefined,
+        stereotypeLabel: this.desc.stereotypeLabel || undefined,
       }),
       style,
       parent: this.parentId || '1',
@@ -112,11 +96,13 @@ class ActorNodeRenderer extends Renderer {
   }
 }
 
-/** Register actor-node renderer into global registry. */
-export function registerActorNodeRenderer(): void {
-  const factory = (desc: RenderDescriptor) => new ActorNodeRenderer(desc);
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+export function registerActorRenderer(): void {
+  const factory = (desc: RenderDescriptor) => new ActorRenderer(desc);
   registerRenderer('usecase_actor', factory);
-  // Stereotype aliases so registry dispatch works directly
   registerRenderer('actor', factory);
   registerRenderer('actor/', factory);
 }

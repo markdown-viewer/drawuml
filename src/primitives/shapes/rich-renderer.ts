@@ -19,11 +19,9 @@
 import { Content, richTextStyle } from '../../shared/content.ts';
 import { mxVertex, mxContentLabel, escapeXml } from '../../shared/xml-utils.ts';
 import { Renderer } from '../renderer.ts';
-import { buildClusterDotBlock } from '../group.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { COLOR_DARK, DEFAULT_FILL, DEFAULT_FONT_SIZE, TITLE_MIN_WIDTH, TITLE_PAD_X, TITLE_PAD_Y } from '../../shared/theme.ts';
-import type { DotContext } from '../renderer.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -236,10 +234,7 @@ export abstract class RichRenderer extends Renderer {
     };
   }
 
-  buildDotBlock(ctx: DotContext, indent: string): string[] {
-    if (this.isCluster) return buildClusterDotBlock(this.id, this.label, this.children, ctx, indent);
-    return [`${indent}"${this.id}" [${this.buildDotAttributes(false)}]`];
-  }
+  get clusterLabel(): string { return this.label; }
 
   render(box: ContentBox): string[] {
     // Rich body mode: shape frame + rich body content with separators

@@ -7,7 +7,13 @@ import { Content } from '../shared/content.ts';
 import { NOTE_LINK_COLOR, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY } from '../shared/theme.ts';
 import { measureText } from '@markdown-viewer/text-measure';
 
-export function semanticToDrawioXml(model, layout, renderers: Map<string, Renderer>) {
+export interface DrawioGenOptions {
+  /** Layout engine used. Affects edge style (curved vs orthogonal). */
+  engine?: 'dot' | 'elk';
+}
+
+export function semanticToDrawioXml(model, layout, renderers: Map<string, Renderer>, options?: DrawioGenOptions) {
+  const engine = options?.engine ?? 'dot';
   const diagramId = 'diagram-1';
   const diagramName = 'Diagram';
 
@@ -89,11 +95,16 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       style = edgeStyleForType(edge.type);
     }
 
-    // All edges use curved=1 for smooth rendering.
-    // Port edges also use DOT waypoints (with obstacle avoidance);
-    // exit/entry constraints pin connections to the field cell's left/right border.
+    // DOT edges use curved=1 for smooth B-spline rendering.
+    // ELK edges use orthogonalEdgeStyle; routing direction is controlled
+    // by waypoints placed in the gap between nodes.
     const hasPort = !!(edge.fromPort || edge.toPort);
-    style += 'curved=1;';
+    const le = layout.edges.find(e => e.id === edge.id);
+    if (engine !== 'elk') {
+      style += 'curved=1;';
+    } else {
+      style += 'edgeStyle=orthogonalEdgeStyle;rounded=0;';
+    }
 
     // Merge bracket style from arrowMeta.color or bodyToken bracket content
     const meta = edge.arrowMeta;
@@ -142,9 +153,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     const layoutEdge = layout.edges?.find((le) => le.id === edge.id);
     let points = layoutEdge?.points || null;
 
-    // For port edges (field-level connections), derive exit/entry side from DOT
-    // endpoints and add constraints so drawio2svg pins the connection to the
-    // field cell's left/right border.
+    // For port edges (field-level connections), derive exit/entry side from
+    // layout endpoints and add constraints so drawio2svg pins the connection
+    // to the field cell's left/right border.
     if (hasPort && points && points.length >= 2) {
       const sides = computePortEdgeSides(points, edge, layout);
       if (sides.exitX != null) {
@@ -161,6 +172,19 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
 
     // Detect parallel multi-edges (same normalised A↔B pair).
     const pairKey = [edge.from, edge.to].sort().join('\0');
+
+    // For ELK parallel edges, omit cell binding to preserve ELK's
+    // calculated edge separation. Cell binding causes SegmentConnector
+    // to recalculate connection points via perimeter projection,
+    // merging parallel edges to the same routing center.
+    // Must run BEFORE isParallelEdge check so those edges take the
+    // normal sourcePoint/targetPoint path instead of DOT's single-side approach.
+    if (engine === 'elk' && !hasPort && !omitSource && !omitTarget
+        && (edgePairCount.get(pairKey) || 0) > 1) {
+      omitSource = true;
+      omitTarget = true;
+    }
+
     const isParallelEdge = !hasPort && !omitSource && !omitTarget
       && (edgePairCount.get(pairKey) || 0) > 1;
 
@@ -194,6 +218,34 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
           };
         }
       } else {
+        // For ELK engine with cell-bound source+target (not groups/ports):
+        // - 2 points (straight after simplification): pin both exit and entry
+        //   constraints so drawio2svg doesn't re-route via perimeter projection.
+        //   exitPerimeter=0 / entryPerimeter=0 prevents perimeter point recalc.
+        // - 3+ points (polyline): pass all points as waypoints, no constraints,
+        //   let DrawIO's orthogonal algorithm handle both endpoints.
+        const cellBound = engine === 'elk' && !omitSource && !omitTarget && !hasPort;
+        if (cellBound) {
+          if (points.length === 2) {
+            // Straight line: place 2 waypoints in the gap between source and
+            // target nodes to guide SegmentConnector's routing direction.
+            // Waypoints must be outside both node bounds to survive the
+            // contains() filter in SegmentConnector. Using the midpoint
+            // between endpoints (guaranteed in the gap) with a ±1 offset.
+            const p0 = points[0], p1 = points[1];
+            const midX = (p0.x + p1.x) / 2;
+            const midY = (p0.y + p1.y) / 2;
+            const isVertical = Math.abs(p0.x - p1.x) <= Math.abs(p0.y - p1.y);
+            if (isVertical) {
+              geometry = { waypoints: [{ x: midX, y: midY - 1 }, { x: midX, y: midY + 1 }] };
+            } else {
+              geometry = { waypoints: [{ x: midX - 1, y: midY }, { x: midX + 1, y: midY }] };
+            }
+          } else {
+            // Polyline: pass all points as waypoints, no exit/entry constraints
+            geometry = { waypoints: points };
+          }
+        } else {
         const needSourcePt = omitSource || !hasPort;
         const needTargetPt = omitTarget || !hasPort;
         const sp = needSourcePt ? points[0] : undefined;
@@ -206,6 +258,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
           targetPoint: tp,
           waypoints: midPts.length > 0 ? midPts : undefined,
         };
+        }
       }
     } else if (points && points.length > 0) {
       // Only waypoints remain (e.g. port edge with both endpoints constrained)
@@ -214,9 +267,13 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
 
     const layoutCardFromPos = layoutEdge?.cardFromPos;
     const layoutCardToPos = layoutEdge?.cardToPos;
+    const layoutLabelPos = layoutEdge?.labelPos;
+    const layoutLabelSize = layoutEdge?.labelSize;
     cells.push(...buildEdgeCells({
       id: edge.id,
-      label: edge.label,
+      // Only pass label to buildEdgeCells when no ELK layout position is available;
+      // positioned labels are emitted as standalone absolute-position cells below.
+      label: layoutLabelPos ? undefined : edge.label,
       style,
       source: omitSource ? undefined : sourceId,
       target: omitTarget ? undefined : targetId,
@@ -226,6 +283,18 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       cardFrom: layoutCardFromPos ? undefined : edge.cardFrom,
       cardTo: layoutCardToPos ? undefined : edge.cardTo,
     }));
+    // Edge center label at ELK-computed absolute position
+    if (edge.label && layoutLabelPos) {
+      const labelHtml = escapeXml(Content.inline(edge.label).html);
+      const w = (layoutLabelSize?.width || 40) + 4;
+      const h = (layoutLabelSize?.height || 14) + 2;
+      cells.push(
+        `<mxCell id="${escapeXml(edge.id + '__label')}" value="${labelHtml}"`
+        + ` style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;resizable=0;" vertex="1" parent="1">`
+        + `<mxGeometry x="${layoutLabelPos.x - Math.round(w / 2)}" y="${layoutLabelPos.y - Math.round(h / 2)}" width="${w}" height="${h}" as="geometry"/>`
+        + `</mxCell>`
+      );
+    }
     // Cardinality labels at Graphviz-computed taillabel/headlabel positions
     if (edge.cardFrom && layoutCardFromPos) {
       const cardHtml = escapeXml(Content.inline(edge.cardFrom).html);
@@ -333,6 +402,11 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
  * of the node's left or right border; otherwise return null (no constraint).
  */
 const EDGE_SNAP_PX = 10;
+
+/** Clamp a value to [0, 1] and round to 4 decimal places for exit/entry constraints. */
+function clamp01(v: number): number {
+  return Math.round(Math.max(0, Math.min(1, v)) * 10000) / 10000;
+}
 
 function computePortEdgeSides(
   points: { x: number; y: number }[],

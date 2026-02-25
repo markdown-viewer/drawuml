@@ -8,20 +8,20 @@
 
 // ── Renderer base class + options types ──────────────────────────────────────
 export { Renderer, SwimlaneRenderer } from './renderer.ts';
-export type { NodeRenderer, ClassNodeRendererOpts, DotContext } from './renderer.ts';
+export type { NodeRenderer, ClassNodeRendererOpts } from './renderer.ts';
 
 // ── Global registry API re-exports ───────────────────────────────────────────
 export { createRenderer } from './registry.ts';
 export type { RenderDescriptor, NodeDescriptor, ElementDescriptor } from './registry.ts';
 
 // ── Registration calls — import each module to trigger registration ──────────
-import { registerCircleNodeRenderer } from './circle-node.ts';
+import { registerCircleRenderer } from './icons/circle.ts';
 import { registerDiamondNodeRenderer } from './diamond-node.ts';
 import { registerClassNodeRenderer } from './class-node.ts';
 import { registerMapNodeRenderer } from './map-node.ts';
 import { registerStateNodeRenderers } from './state-node.ts';
 import { registerUsecaseShape } from './shapes/usecase.ts';
-import { registerActorNodeRenderer } from './actor-node.ts';
+import { registerActorRenderer } from './icons/actor.ts';
 import { registerActivityNodeRenderer } from './shapes/activity.ts';
 import { registerFolderShape } from './shapes/folder.ts';
 import { registerRectangleShape } from './shapes/rectangle.ts';
@@ -34,8 +34,7 @@ import { registerStorageShape } from './shapes/storage.ts';
 import { registerComponentShape } from './shapes/component.ts';
 import { registerArtifactShape } from './shapes/artifact.ts';
 import { registerCardShape } from './shapes/card.ts';
-import { registerBoundaryShape } from './shapes/boundary.ts';
-import { registerControlShape } from './shapes/control.ts';
+import { registerUmlShapes } from './icons/uml-shape.ts';
 import { registerFileShape } from './shapes/file.ts';
 import { registerHexagonShape } from './shapes/hexagon.ts';
 import { registerLabelShape } from './shapes/label.ts';
@@ -45,24 +44,24 @@ import { registerActionShape } from './shapes/action.ts';
 import { registerQueueShape } from './shapes/queue.ts';
 import { registerStackShape } from './shapes/stack.ts';
 import { registerCollectionsShape } from './shapes/collections.ts';
-import { registerEntityShape } from './shapes/entity.ts';
+// entity shape now registered via registerUmlShapes()
 import { registerArchimateShapes } from './shapes/archimate.ts';
 import { registerNoteRenderer } from './shapes/note.ts';
 import { registerLegendRenderer } from './shapes/legend.ts';
 import { registerTitleRenderer } from './title.ts';
 import { registerBoxRenderer } from './box.ts';
 import { registerPortNodeRenderer } from './port-node.ts';
-import { MxgraphIconRenderer, registerMxgraphIconRenderer } from './shapes/mxgraph-icon.ts';
+import { MxgraphIconRenderer, registerMxgraphIconRenderer } from './icons/mxgraph-icon.ts';
 import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
-registerCircleNodeRenderer();
+registerCircleRenderer();
 registerDiamondNodeRenderer();
 registerClassNodeRenderer();
 registerMapNodeRenderer();
 registerStateNodeRenderers();
 registerUsecaseShape();
-registerActorNodeRenderer();
+registerActorRenderer();
 registerActivityNodeRenderer();
 registerFolderShape();
 registerRectangleShape();
@@ -75,8 +74,7 @@ registerStorageShape();
 registerComponentShape();
 registerArtifactShape();
 registerCardShape();
-registerBoundaryShape();
-registerControlShape();
+registerUmlShapes();
 registerFileShape();
 registerHexagonShape();
 registerLabelShape();
@@ -86,7 +84,7 @@ registerActionShape();
 registerQueueShape();
 registerStackShape();
 registerCollectionsShape();
-registerEntityShape();
+// entity registered via registerUmlShapes()
 registerArchimateShapes();
 registerNoteRenderer();
 registerLegendRenderer();
@@ -162,9 +160,6 @@ export function createNodeRenderer(desc: RenderDescriptor): RendererType {
   // Fallback to class renderer
   return createRenderer('class', desc);
 }
-
-// ── Legacy group exports (still needed by some consumers) ────────────────────
-export { buildClusterDotBlock } from './group.ts';
 
 // Shared label builder
 export { buildLabelHtml } from './label.ts';

@@ -11,7 +11,6 @@
  */
 
 import { Renderer } from './renderer.ts';
-import type { DotContext } from './renderer.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
@@ -46,13 +45,6 @@ export class PortNodeRenderer extends Renderer {
   protected doMeasure(): { width: number; height: number } {
     // DOT sees only the square (12×12); label is rendered outside the bounding box.
     return { width: PORT_SIZE, height: PORT_SIZE };
-  }
-
-  buildDotBlock(_ctx: DotContext, indent: string): string[] {
-    const inch = (PORT_SIZE / 72).toFixed(6);
-    // Use a tiny fixed-size square node; rank=source/sink in parent cluster
-    // positions it at the cluster edge.
-    return [`${indent}"${this.id}" [shape=rect,fixedsize=true,width=${inch},height=${inch},label=""]`];
   }
 
   render(box: ContentBox): string[] {

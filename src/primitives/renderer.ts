@@ -2,10 +2,10 @@
  * Renderer — abstract base class for all visual element renderers.
  *
  * A renderer is stateful: constructed once with semantic data,
- * then reused for both layout (measure) and generation (render).
+ * then reused for both layout (measure / buildLayoutGraph) and generation (render).
  *
  * Subclasses implement doMeasure() and render(). The base class
- * provides cached measure() and a default buildPortLabel() hook.
+ * provides cached measure() and a default buildLayoutGraph() hook.
  *
  * One intermediate base class extracts common patterns:
  *   - SwimlaneRenderer  — for titled swimlane containers (Class, State)
@@ -13,6 +13,7 @@
  * Usage:
  *   const r = createNodeRenderer(node, opts);
  *   const size = r.measure();        // for layout (cached)
+ *   const graph = r.buildLayoutGraph(); // for layout engine IR
  *   const cells = r.render(box);     // after layout
  */
 
@@ -22,27 +23,9 @@ import type { LayoutResult } from '../model/index.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import type { ContentBox, FinalizeBodyCtx, ContentBlock } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
+import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 
 // ─── Base class ──────────────────────────────────────────────────────────────
-
-/** Context passed to buildDotBlock() for shared global state. */
-export interface DotContext {
-  /** Whether a node has edges connected to specific ports. */
-  hasPortEdges(nodeId: string): boolean;
-  /** Whether a group needs an invisible proxy node for compound edges. */
-  needsProxy(groupId: string): boolean;
-  /** Whether a node participates in any edge (for row-packing orphan detection). */
-  isConnected(nodeId: string): boolean;
-  /** Get a renderer by id. */
-  getRenderer(id: string): Renderer | undefined;
-  /** Pack orphan node IDs into rows, returning DOT rank constraints + invis edges. */
-  buildRowPacking(nodeIds: string[], indent: string, maxRowWidth?: number, maxPerRow?: number): string[];
-  /**
-   * Whether a group has edges connecting it (or its children) to an external sibling node.
-   * Used to expand cluster margin so the group has enough space for external routing.
-   */
-  hasExternalEdge(groupId: string): boolean;
-}
 
 export abstract class Renderer {
   readonly id: string;
@@ -114,6 +97,12 @@ export abstract class Renderer {
   /** Whether this renderer is a DOT subgraph cluster (container). */
   get isCluster(): boolean { return this.children.length > 0; }
 
+  /** Cluster label text for DOT / ELK layout. Subclasses override. */
+  get clusterLabel(): string { return ''; }
+
+  /** Node label text for external label placement. Subclasses override. */
+  get nodeLabel(): string { return ''; }
+
   /** Whether this renderer is a port node (port/portin/portout). */
   get isPort(): boolean { return false; }
 
@@ -131,42 +120,25 @@ export abstract class Renderer {
   graphicCenterOffset(): { dx: number; dy: number } { return { dx: 0, dy: 0 }; }
 
   /**
-   * Build a DOT HTML-label with PORT rows for edge routing.
-   * Subclasses with field-level ports override this to return an
-   * HTML-label string; base returns null (no ports).
+   * Build an engine-agnostic layout graph node for this renderer.
+   *
+   * The base implementation handles leaf nodes (fixed-size rectangle)
+   * and container nodes (children + padding).  Subclasses override to
+   * add ports, external labels, or custom padding.
    */
-  buildPortLabel(_widthPx: number): string | null {
-    return null;
-  }
-
-  /**
-   * Build DOT node attribute string for this node.
-   * When hasPortEdges is true and buildPortLabel() returns a label,
-   * uses shape=none with the HTML port label for field-level routing.
-   * Otherwise: `shape=rect,fixedsize=true,width=W,height=H,label=""`.
-   */
-  buildDotAttributes(hasPortEdges: boolean): string {
-    const PX_PER_INCH = 72;
+  buildLayoutGraph(): LayoutGraphNode {
     const sz = this.measure();
-    const wInch = (sz.width / PX_PER_INCH).toFixed(6);
-    const hInch = (sz.height / PX_PER_INCH).toFixed(6);
-    if (hasPortEdges) {
-      const htmlLabel = this.buildPortLabel(sz.width);
-      if (htmlLabel) {
-        return `shape=none,fixedsize=true,width=${wInch},height=${hInch},label=${htmlLabel}`;
-      }
+    const node: LayoutGraphNode = {
+      id: this.id,
+      width: sz.width,
+      height: sz.height,
+    };
+    if (this.isCluster) {
+      node.label = this.clusterLabel;
+      node.children = this.children.map(c => c.buildLayoutGraph());
+      node.padding = { top: 30, right: 20, bottom: 20, left: 20 };
     }
-    return `shape=rect,fixedsize=true,width=${wInch},height=${hInch},label=""`;
-  }
-
-  /**
-   * Build DOT block lines for this renderer.
-   * Leaf nodes produce a single node declaration;
-   * container renderers (groups) override to produce subgraph clusters.
-   */
-  buildDotBlock(ctx: DotContext, indent: string): string[] {
-    const attrs = this.buildDotAttributes(ctx.hasPortEdges(this.id));
-    return [`${indent}"${this.id}" [${attrs}]`];
+    return node;
   }
 
   /**

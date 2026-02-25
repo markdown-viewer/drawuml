@@ -21,7 +21,7 @@ import type { ContentBox } from '../../shared/content.ts';
 // Junction geometry constants (same pattern as actor / boundary)
 const JUNCTION_SIZE     = 16;  // circle diameter
 const JUNCTION_TEXT_GAP = 4;   // gap between circle and label
-const JUNCTION_TEXT_H   = 18;  // label area height
+const MIN_JUNCTION_TEXT_H = 18;  // minimum label area height (single-line floor)
 const JUNCTION_PAD_X    = 20;  // horizontal padding for label
 
 // ---------------------------------------------------------------------------
@@ -368,12 +368,15 @@ class JunctionRenderer extends ArchimateRenderer {
 
   protected override doMeasure() {
     // Full bounding box = circle + gap + label, so DOT allocates correct spacing.
-    const labelW = Content.inline(this.desc.label ?? '').measure().width;
+    const labelSize = Content.inline(this.desc.label ?? '').measure();
+    const labelH = Math.max(Math.ceil(labelSize.height), MIN_JUNCTION_TEXT_H);
     return {
-      width:  Math.max(JUNCTION_SIZE, labelW + JUNCTION_PAD_X),
-      height: JUNCTION_SIZE + JUNCTION_TEXT_GAP + JUNCTION_TEXT_H,
+      width:  Math.max(JUNCTION_SIZE, labelSize.width + JUNCTION_PAD_X),
+      height: JUNCTION_SIZE + JUNCTION_TEXT_GAP + labelH,
     };
   }
+
+  override get nodeLabel(): string { return this.desc.label ?? ''; }
 
   override graphicCenterOffset() {
     // Circle center is at JUNCTION_SIZE/2 from top; geometric center is height/2.

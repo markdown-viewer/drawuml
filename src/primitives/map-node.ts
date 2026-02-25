@@ -15,6 +15,7 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '../shared/theme.ts';
 import type { ContentBox } from '../shared/content.ts';
+import type { LayoutGraphNode, LayoutPort } from '../layout/layout-graph.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -199,31 +200,26 @@ class MapNodeRenderer extends Renderer {
   }
 
   /**
-   * Build DOT HTML-label with PORT rows for edge routing.
+   * Build layout graph node with ports derived from map entry rows.
    */
-  buildPortLabel(widthPx: number): string | null {
-    const rows: string[] = [];
-    let totalH = 0;
+  override buildLayoutGraph(): LayoutGraphNode {
+    const node = super.buildLayoutGraph();
+    const titleH = this._titleH || (this.measure() && this._titleH);
+    const ports: LayoutPort[] = [];
+    let y = titleH + BODY_TOP_PAD;
 
-    // Title row
-    const titleH = this._titleH || this.measure() && this._titleH;
-    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${titleH}" WIDTH="${widthPx}"> </TD></TR>`);
-    totalH += titleH;
-
-    // Map entry rows with PORT attributes on the key
     for (const entry of this.entries) {
-      const safePort = entry.key
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-      rows.push(
-        `<TR><TD FIXEDSIZE="TRUE" HEIGHT="${MAP_ROW_HEIGHT}" WIDTH="${widthPx}" PORT="${safePort}"> </TD></TR>`
-      );
-      totalH += MAP_ROW_HEIGHT;
+      ports.push({
+        id: `${this.id}::${entry.key}`,
+        width: node.width,
+        height: MAP_ROW_HEIGHT,
+        y,
+      });
+      y += MAP_ROW_HEIGHT;
     }
 
-    return `<\n<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0" FIXEDSIZE="TRUE" WIDTH="${widthPx}" HEIGHT="${totalH}">\n${rows.join('\n')}\n</TABLE>\n>`;
+    if (ports.length > 0) node.ports = ports;
+    return node;
   }
 }
 

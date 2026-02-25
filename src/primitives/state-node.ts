@@ -13,14 +13,13 @@ import { Content } from '../shared/content.ts';
 import { escapeXml, mxVertex } from '../shared/xml-utils.ts';
 import { measureText } from '@markdown-viewer/text-measure';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
-import { buildClusterDotBlock } from './group.ts';
-import type { DotContext } from './renderer.ts';
 import { textRowStyle, separatorStyle } from './class-node.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import { DEFAULT_FONT_FAMILY, SMALL_FONT_SIZE, DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
+import type { LayoutGraphNode, LayoutLabel } from '../layout/layout-graph.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -147,18 +146,21 @@ class StateChoiceRenderer extends Renderer {
     return { dx: 0, dy: 0 };
   }
 
-  buildDotBlock(ctx: DotContext, indent: string): string[] {
-    // Emit xlabel so Graphviz auto-positions the label without affecting node size.
-    const PX_PER_INCH = 72;
-    const sz = this.measure();
-    const wInch = (sz.width / PX_PER_INCH).toFixed(6);
-    const hInch = (sz.height / PX_PER_INCH).toFixed(6);
-    let attrs = 'shape=rect,fixedsize=true,width=' + wInch + ',height=' + hInch + ',label=""';
+  /**
+   * Build layout graph node with optional external label.
+   */
+  override buildLayoutGraph(): LayoutGraphNode {
+    const node = super.buildLayoutGraph();
     if (this.label) {
-      const escaped = this.label.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      attrs += ',xlabel="' + escaped + '"';
+      const labels: LayoutLabel[] = [{
+        text: this.label,
+        width: this.labelWidth,
+        height: this.labelHeight,
+        placement: 'OUTSIDE H_RIGHT V_TOP H_PRIORITY',
+      }];
+      node.labels = labels;
     }
-    return [indent + '"' + this.id + '" [' + attrs + ']'];
+    return node;
   }
 
   render(box: ContentBox) {
@@ -253,15 +255,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   protected getRowStyle() { return textRowStyle(); }
   protected getSeparatorStyle() { return separatorStyle(); }
 
-  /**
-   * DOT block: composite state with children → cluster; leaf → node.
-   */
-  buildDotBlock(ctx: DotContext, indent: string): string[] {
-    if (this.children.length > 0) {
-      return buildClusterDotBlock(this.id, this.nodeLabel, this.children, ctx, indent);
-    }
-    return super.buildDotBlock(ctx, indent);
-  }
+  get clusterLabel(): string { return this.nodeLabel; }
 
   /**
    * Render: composite state → group container; leaf → swimlane.
