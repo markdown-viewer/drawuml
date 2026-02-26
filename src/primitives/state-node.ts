@@ -257,6 +257,10 @@ class StateNodeRenderer extends SwimlaneRenderer {
 
   get clusterLabel(): string { return this.nodeLabel; }
 
+  // State title bar (startSize=26) is a fixed title area
+  // +2 compensates for visual gap difference vs non-fixed shapes
+  override get groupTopPadding(): number { return Renderer.GROUP_BASE_PAD + 26 + 2; }
+
   /**
    * Render: composite state → group container; leaf → swimlane.
    */

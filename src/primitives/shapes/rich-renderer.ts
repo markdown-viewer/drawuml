@@ -102,6 +102,13 @@ export abstract class RichRenderer extends Renderer {
   /** Width consumed by frame decoration (e.g. artifact icon on right). */
   protected get contentWidthReduction(): number { return 0; }
 
+  // ELK group top padding: shapes without fixed title area —
+  // add title height only when label is non-empty.
+  override get groupTopPadding(): number {
+    const base = Renderer.GROUP_BASE_PAD;
+    return base + (this.label ? Renderer.GROUP_TITLE_HEIGHT : 0);
+  }
+
   // ── Content construction ──────────────────────────────────────────────────
 
   /**

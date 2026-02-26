@@ -6,6 +6,7 @@
 
 import { Content } from '../../shared/content.ts';
 import { RichRenderer } from './rich-renderer.ts';
+import { Renderer } from '../renderer.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE, CLASS_FILL, RECT_ARC_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
@@ -25,6 +26,10 @@ class FrameShapeRenderer extends RichRenderer {
 
   // Frame tab height (height=20); content starts below the tab
   protected get topPadY(): number { return 20; }
+
+  // Fixed title area: always add tab height (label sits inside the tab)
+  // +2 compensates for visual gap difference vs non-fixed shapes (text ~18px < GROUP_TITLE_HEIGHT 20px)
+  override get groupTopPadding(): number { return Renderer.GROUP_BASE_PAD + this.topPadY + 2; }
 
   protected doMeasure() {
     if (this.isMainframe) return { width: 0, height: 0 };

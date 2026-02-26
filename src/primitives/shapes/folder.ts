@@ -8,6 +8,7 @@
 import { Content } from '../../shared/content.ts';
 import { escapeXml } from '../../shared/xml-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
+import { Renderer } from '../renderer.ts';
 import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
@@ -27,6 +28,10 @@ class FolderRenderer extends RichRenderer {
 
   // Folder tab height (tabHeight=20); content starts below the tab
   protected get topPadY(): number { return 20; }
+
+  // Fixed title area: always add tab height (label sits inside the tab)
+  // +2 compensates for visual gap difference vs non-fixed shapes (text ~18px < GROUP_TITLE_HEIGHT 20px)
+  override get groupTopPadding(): number { return Renderer.GROUP_BASE_PAD + this.topPadY + 2; }
 
   // Package: label always in folder tab (frame value)
   protected getFrameValue(): string {

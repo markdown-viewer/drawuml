@@ -311,6 +311,8 @@ class ArchimateRenderer extends RichRenderer {
   // Top-right icon area height ~20px; content (label) starts below the icon
   protected get topPadY(): number { return 20; }
 
+  // No fixed title area — use RichRenderer default (label-based detection)
+
   render(box: ContentBox): string[] {
     const cells = super.render(box);
     if (this.icon) {

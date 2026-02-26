@@ -119,6 +119,25 @@ export abstract class Renderer {
    */
   graphicCenterOffset(): { dx: number; dy: number } { return { dx: 0, dy: 0 }; }
 
+  /** Base gap between header bottom and first child in ELK groups (px). */
+  static readonly GROUP_BASE_PAD = 15;
+  /** Title line visual height for non-fixed-title shapes (px). */
+  static readonly GROUP_TITLE_HEIGHT = 20;
+
+  /**
+   * Top padding for ELK group containers (pixels).
+   *
+   * Two categories:
+   *  1. Fixed title area (folder/frame tab) — always adds fixedAreaHeight.
+   *  2. No fixed title area — adds titleHeight only when label is non-empty.
+   *
+   * Subclasses override for shape-specific logic.
+   */
+  get groupTopPadding(): number {
+    const base = Renderer.GROUP_BASE_PAD;
+    return base + (this.clusterLabel ? Renderer.GROUP_TITLE_HEIGHT : 0);
+  }
+
   /**
    * Build an engine-agnostic layout graph node for this renderer.
    *
@@ -136,7 +155,7 @@ export abstract class Renderer {
     if (this.isCluster) {
       node.label = this.clusterLabel;
       node.children = this.children.map(c => c.buildLayoutGraph());
-      node.padding = { top: 30, right: 20, bottom: 20, left: 20 };
+      node.padding = { top: this.groupTopPadding, right: 20, bottom: 20, left: 20 };
     }
     return node;
   }
