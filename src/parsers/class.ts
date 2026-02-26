@@ -98,6 +98,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   let legend: { text: string; align?: string } | null = null;
   let title: string | undefined;
   const skinparams: Record<string, string> = {};
+  // Concurrent region counter per state group: tracks how many '--' separators
+  // have been seen inside each state, used to generate unique [*] IDs per region.
+  const concurrentRegionCounters: Record<string, number> = {};
   // CSS-like <style> block rules: selector → { BackGroundColor, LineColor, LineThickness }
   const cssStyleRules: Record<string, Record<string, string>> = {};
   let styleBlockAccum: { name: string; props: Record<string, string> } | null = null;
@@ -1375,6 +1378,17 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         continue;
       }
 
+      // ── State concurrent region separator ("--" or "||") ────────────────
+      // Inside a state block, PEG emits concurrent_separator for bare "--" / "||".
+      // Increment the region counter so that subsequent [*] nodes get unique IDs.
+      if (st.kind === 'block_statement' && st.type === 'concurrent_separator' && groupStack.length > 0) {
+        const sg = groupStack[groupStack.length - 1];
+        if (sg.type === 'state') {
+          concurrentRegionCounters[sg.id] = (concurrentRegionCounters[sg.id] || 0) + 1;
+        }
+        continue;
+      }
+
       // ── Legacy activity diagram handlers ─────────────────────────────
 
       // Legacy full arrow: "(*) --> action1" or '"action1" --> "action2"'
@@ -1621,13 +1635,25 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         let to = toResolved.resolved;
 
         // Handle [*] pseudo-endpoint for state diagrams (scoped per state group)
+        // In concurrent regions (separated by '--'), each region gets its own
+        // unique start/end node ID via the concurrentRegionCounters map.
         if (rawFrom === '[*]') {
           const sg = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
-          from = sg && sg.type === 'state' ? `${sg.id}.__state_start__` : '__state_start__';
+          if (sg && sg.type === 'state') {
+            const regionIdx = concurrentRegionCounters[sg.id] || 0;
+            from = regionIdx > 0 ? `${sg.id}.__state_start__${regionIdx + 1}` : `${sg.id}.__state_start__`;
+          } else {
+            from = '__state_start__';
+          }
         }
         if (rawTo === '[*]') {
           const sg = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
-          to = sg && sg.type === 'state' ? `${sg.id}.__state_end__` : '__state_end__';
+          if (sg && sg.type === 'state') {
+            const regionIdx = concurrentRegionCounters[sg.id] || 0;
+            to = regionIdx > 0 ? `${sg.id}.__state_end__${regionIdx + 1}` : `${sg.id}.__state_end__`;
+          } else {
+            to = '__state_end__';
+          }
         }
 
         // Namespace fallback: if the qualified name doesn't exist and the raw name
@@ -1664,7 +1690,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
         if (!fromGroup && !nodesById[from]) {
           nodeOrder.push(from);
-          if (from.endsWith('__state_start__')) {
+          if (/__state_start__\d*$/.test(from)) {
             nodesById[from] = { id: from, type: NodeType.StateStart, label: '', stereotype: null, stereotypeLabel: '', bodyLines: [] };
             registerNodeInGroup(from);
           } else {
@@ -1692,7 +1718,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         }
         if (!toGroup && !nodesById[to]) {
           nodeOrder.push(to);
-          if (to.endsWith('__state_end__')) {
+          if (/__state_end__\d*$/.test(to)) {
             nodesById[to] = { id: to, type: NodeType.StateEnd, label: '', stereotype: null, stereotypeLabel: '', bodyLines: [] };
             registerNodeInGroup(to);
           } else {
