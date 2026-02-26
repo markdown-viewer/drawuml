@@ -20,7 +20,7 @@ import { mxVertex } from '../shared/xml-utils.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import { RichBodyRenderer } from './renderer.ts';
 import { RichRenderer } from './shapes/rich-renderer.ts';
-import { DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
+import { DEFAULT_FILL, COLOR_DARK, RECT_ARC_SIZE } from '../shared/theme.ts';
 import { createRenderer, hasRenderer, registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -49,7 +49,7 @@ function extractShapeFragment(fullStyle: string): string {
     const key = p.split('=')[0];
     return !COMMON_STYLE_KEYS.has(key);
   });
-  return parts.length > 0 ? parts.join(';') + ';' : 'rounded=0;';
+  return parts.length > 0 ? parts.join(';') + ';' : `rounded=1;absoluteArcSize=1;arcSize=${RECT_ARC_SIZE};`;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +122,7 @@ class BracketNodeRenderer extends RichBodyRenderer {
     this.content = Content.richBody((desc.bodyLines || []).map(l => typeof l === 'string' ? l : l.text));
 
     // Get shape info from the corresponding RichRenderer
-    let shapeFragment = 'rounded=0;';
+    let shapeFragment = `rounded=1;absoluteArcSize=1;arcSize=${RECT_ARC_SIZE};`;
     let contentYOffset = 0;
     let extraPadY = 0;
     let extraPadX = 0;

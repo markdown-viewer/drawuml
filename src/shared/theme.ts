@@ -40,10 +40,16 @@ export const CLASS_FILL = '#FFFFFF';
 /** Default stroke width for generic nodes */
 export const DEFAULT_STROKE_WIDTH = 0.5;
 
+/**
+ * Standard rounded-corner arc size for rectangular frames.
+ * Used with absoluteArcSize=1 — actual radius = RECT_ARC_SIZE / 2 = 3px.
+ */
+export const RECT_ARC_SIZE = 4;
+
 // ---------------------------------------------------------------------------
 // Misc fills
 // ---------------------------------------------------------------------------
-
+    
 /** Divider box fill color */
 export const DIVIDER_FILL = '#EEEEEE';
 

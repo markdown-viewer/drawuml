@@ -12,6 +12,7 @@
 import { Content, CLASS_ROW_HEIGHT, CLASS_SEPARATOR_HEIGHT, CLASS_BODY_PADDING_Y, TITLED_SEPARATOR_HEIGHT } from '../shared/content.ts';
 import { buildLabelHtml } from './label.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
+import { RECT_ARC_SIZE } from '../shared/theme.ts';
 import { SwimlaneRenderer } from './renderer.ts';
 import { CLASS_FILL, DEFAULT_FONT_SIZE } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
@@ -150,7 +151,7 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     'marginBottom=0',
     'rounded=1',
     'absoluteArcSize=1',
-    'arcSize=3',
+    `arcSize=${RECT_ARC_SIZE}`,
     'shadow=0',
     'strokeWidth=1',
   ];

@@ -13,7 +13,8 @@
 import { RichRenderer } from './rich-renderer.ts';
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
+import { parseNodeStyle } from '../../shared/color-utils.ts';
+import { COLOR_DARK, DEFAULT_FONT_SIZE, RECT_ARC_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
@@ -299,6 +300,11 @@ class ArchimateRenderer extends RichRenderer {
       `fillColor=none`, `strokeColor=${COLOR_DARK}`, `fontColor=${COLOR_DARK}`,
       'collapsible=0', 'container=1',
     ].filter(Boolean);
+    // Add standard rounded corners for plain-rect and dashed-rect frames;
+    // skip shapes that already define rounded or use a non-rect shape.
+    if (!shape.includes('rounded') && !shape.includes('shape=')) {
+      parts.push(`rounded=1`, `absoluteArcSize=1`, `arcSize=${RECT_ARC_SIZE}`);
+    }
     return parts.join(';') + ';';
   }
 
@@ -317,10 +323,13 @@ class ArchimateRenderer extends RichRenderer {
       const ix = this.desc.centeredIcon
         ? Math.round((box.width - iw) / 2)
         : box.width - iw - 8;
+      // Resolve icon stroke color from inline style override
+      const parsedStyle = parseNodeStyle(this.desc.style);
+      const iconStroke = parsedStyle?.strokeColor || COLOR_DARK;
       cells.push(mxVertex({
         id: `${this.id}__icon`,
         value: '',
-        style: `shape=${this.icon};fillColor=none;strokeColor=${COLOR_DARK};${this.iconExtraStyle}`,
+        style: `shape=${this.icon};fillColor=none;strokeColor=${iconStroke};${this.iconExtraStyle}`,
         parent: this.id,
         x: ix,
         y: iy + 3,
@@ -351,6 +360,7 @@ class FolderArchimateRenderer extends ArchimateRenderer {
     const shape = this.shapeStyle || '';
     const parts = [
       shape,
+      `rounded=1`, `absoluteArcSize=1`, `arcSize=${RECT_ARC_SIZE}`,
       'whiteSpace=wrap', 'html=1',
       `fontStyle=1`, `fontSize=${DEFAULT_FONT_SIZE}`,
       'align=center', 'verticalAlign=middle',
@@ -413,6 +423,11 @@ class JunctionRenderer extends ArchimateRenderer {
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
+
+/** Create an ArchimateRenderer instance for reuse by other shape modules. */
+export function createArchimateRenderer(desc: RenderDescriptor, shapeStyle: string, icon: string | null, iconExtraStyle = '') {
+  return new ArchimateRenderer(desc, shapeStyle, icon, iconExtraStyle);
+}
 
 export function registerArchimateShapes(): void {
   for (const [stereotype, style] of Object.entries(ARCHIMATE_STYLE_MAP)) {
