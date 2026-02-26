@@ -1200,18 +1200,22 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
       // Package / namespace / container block start: "package A {" or "namespace net.dummy {"
       // PEG parses this as component_statement with block=true.
-      // Dotted names (e.g., "net.dummy") are split into nested groups.
+      // PEG provides nameSegments: dotted bare names are pre-split into segments,
+      // quoted names are kept as a single-element array. No split in application layer.
       if (st.kind === 'component_statement' && st.block) {
         const ctype = String(st.componentType || '').toLowerCase();
         const rawLabel = String(st.displayName || st.name || st.alias || '').trim();
         // Extract package shape stereotype (e.g., <<Node>>, <<Cloud>>)
         const stereos: string[] = (st as any).stereotypes || [];
         const stereotype = stereos.length > 0 ? stereos[0] : undefined;
-        // Split dotted names into nested groups, unless separator is disabled.
-        // Only split bare (unquoted) names; quoted display names (st.displayName set)
-        // must never be split even if they contain dots (e.g. "VPC 10.0.0.0/16").
-        const isQuotedLabel = Boolean((st as any).displayName);
-        const segments = (!isQuotedLabel && namespaceSeparator && rawLabel.includes('.')) ? rawLabel.split('.') : [rawLabel || ctype];
+        // Use PEG-provided nameSegments directly; fall back to single-segment for legacy AST.
+        // When namespaceSeparator is disabled (null/"none"), collapse segments into one.
+        let segments: string[] = Array.isArray(st.nameSegments) && st.nameSegments.length > 0
+          ? st.nameSegments
+          : [rawLabel || ctype];
+        if (namespaceSeparator === null && segments.length > 1) {
+          segments = [segments.join('.')];
+        }
         const startParent = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
         const chain = findOrCreateGroupChain(segments, ctype, startParent, stereotype);
         // Apply color/style to the innermost (leaf) group
