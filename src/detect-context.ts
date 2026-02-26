@@ -258,6 +258,10 @@ export function detectDiagramContext(parsed): DiagramContext {
         } else if (/^[~.=\-]{2,}$/.test(arrowNoColor)) {
           // Symmetric double-char arrows (~~, .., ==, --) are class/deployment relations
           hasNonSequence = true;
+        } else if (/[0()]/.test(arrowNoColor)) {
+          // Lollipop/socket/ball arrows (0, (, )) are deployment-specific
+          hasNonSequence = true;
+          hasDeployment = true;
         } else {
           hasSequenceIndicator = true;
         }

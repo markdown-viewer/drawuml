@@ -16,12 +16,14 @@ const KNOWN_HEAD_TOKENS = new Set([
   '@', '+', '^',
   // Circle (standalone 0)
   '0',
-  // Lollipop half-circle
-  '(',
+  // Lollipop half-circle / socket
+  '(', ')',
   // Double-triangle
   '<<', '>>',
   // Half arrows (backslash / slash)
   '\\\\', '\\', '/', '//',
+  // Compound: definedBy — triangle with two dots
+  ':|>', '<|:',
   // Compound: x/o + arrow
   'x<', 'o<', '>x', '>o',
   // Compound: half + diamond
@@ -130,7 +132,8 @@ function headTokenToDrawio(token, isStart = false) {
   if (token === '#') return { arrow: 'square', fill: 0 };
   if (token === '0)' || token === '(0') return { arrow: 'ovalHalfCircle', fill: 0 };
   if (token === '0') return { arrow: 'oval', fill: 0 };
-  if (token === '(') return { arrow: 'oval', fill: 0 };
+  if (token === '(') return { arrow: 'halfCircle', fill: 0 };
+  if (token === ')') return { arrow: 'halfCircle', fill: 0 };
   if (token === '^') return { arrow: 'block', fill: 0 };
   if (token === '+') return { arrow: 'circlePlus', fill: 0 };
   if (token === '}') return { arrow: 'ERmany', fill: 0 };
@@ -146,8 +149,11 @@ function headTokenToDrawio(token, isStart = false) {
   // Half arrows — token represents user's visual shape.
   // endArrow (isStart=false): \ → halfBottom (visual \), / → halfTop (visual /)
   // startArrow (isStart=true): inverted because renderer rotates startArrow by 180°
-  if (token === '\\\\' || token === '\\') return { arrow: isStart ? 'halfTop' : 'halfBottom', fill: 1 };
-  if (token === '//' || token === '/') return { arrow: isStart ? 'halfBottom' : 'halfTop', fill: 1 };
+  // PlantUML renders half arrows as open lines, not filled triangles.
+  if (token === '\\\\' || token === '\\') return { arrow: isStart ? 'halfTop' : 'halfBottom', fill: 0 };
+  if (token === '//' || token === '/') return { arrow: isStart ? 'halfBottom' : 'halfTop', fill: 0 };
+  // Compound: :|> / <|: — hollow triangle with two dots behind (definedBy)
+  if (token === ':|>' || token === '<|:') return { arrow: 'blockTwoDots', fill: 0 };
   // Compound: x/o + arrow — dominant decorator wins
   if (token === 'x<' || token === '>x') return { arrow: 'cross', fill: 0 };
   if (token === 'o<' || token === '>o') return { arrow: 'diamondThin', fill: 0 };
