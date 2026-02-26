@@ -104,6 +104,16 @@ export interface ParsedNodeStyle {
 }
 
 /**
+ * Resolve a color string that may contain gradient separators (-, |, /).
+ * Takes the first color from a gradient like "red-green" or "red|green".
+ */
+function resolveGradientColor(raw: string): string | undefined {
+  if (!raw) return undefined;
+  const m = raw.match(/^([^|\-\/]+)[|\-\/]/);
+  return resolveColor(m ? m[1] : raw);
+}
+
+/**
  * Normalize a bare color value (without leading '#') to hex.
  * Handles CSS names, bare hex (e.g. '00FFFF'), and '#hex'.
  */
@@ -139,13 +149,26 @@ export function parseNodeStyle(raw: string | null | undefined): ParsedNodeStyle 
 
   const result: ParsedNodeStyle = {};
 
+  // Check for standalone "##" prefix (border-only style, no fill): "##[dotted]blue"
+  if (s.startsWith('##')) {
+    const strokePart = s.slice(2).trim();
+    const modMatch = strokePart.match(/^\[(\w+)\](.*)$/);
+    if (modMatch) {
+      result.lineStyle = modMatch[1]; // dashed, dotted, bold
+      if (modMatch[2]) result.strokeColor = resolveColor(modMatch[2]);
+    } else if (strokePart) {
+      result.strokeColor = resolveColor(strokePart);
+    }
+    return result;
+  }
+
   // Check for "## " stroke part: "#fill ##[modifier]stroke"
   const dualIdx = s.indexOf(' ##');
   if (dualIdx >= 0) {
     const fillPart = s.slice(1, dualIdx); // after '#', before ' ##'
     const strokePart = s.slice(dualIdx + 3); // after ' ##'
 
-    if (fillPart) result.fillColor = resolveColor(fillPart);
+    if (fillPart) result.fillColor = resolveGradientColor(fillPart);
 
     // Parse [modifier]color or just color
     const modMatch = strokePart.match(/^\[(\w+)\](.*)$/);
@@ -169,8 +192,7 @@ export function parseNodeStyle(raw: string | null | undefined): ParsedNodeStyle 
       if (!p) continue;
       if (p.startsWith('back:')) {
         // "back:lightgreen|yellow" → take first color (before gradient separator)
-        const val = p.slice(5).split('|')[0].split('/')[0];
-        result.fillColor = resolveColor(val);
+        result.fillColor = resolveGradientColor(p.slice(5));
       } else if (p.startsWith('line:')) {
         result.strokeColor = resolveColor(p.slice(5));
       } else if (p.startsWith('line.dashed:')) {
@@ -194,14 +216,15 @@ export function parseNodeStyle(raw: string | null | undefined): ParsedNodeStyle 
         // ignore header style
       } else if (!p.includes(':')) {
         // First bare value = fill color: "#pink;line:red" → pink is fill
-        if (!result.fillColor) result.fillColor = resolveColor(p);
+        if (!result.fillColor) result.fillColor = resolveGradientColor(p);
       }
     }
     return result;
   }
 
   // Simple fill color: "#palegreen"
-  result.fillColor = resolveColor(body);
+  // Handle gradient colors ("red-green", "red|green", "red/green") — take the first color.
+  result.fillColor = resolveGradientColor(body);
   return result;
 }
 

@@ -1611,8 +1611,8 @@ function peg$parse(input: string, options?: ParseOptions) {
   const peg$c815 = peg$literalExpectation("ri", true);
   const peg$c816 = "do";
   const peg$c817 = peg$literalExpectation("do", true);
-  const peg$c818 = /^[\-.~=(0]/;
-  const peg$c819 = peg$classExpectation(["-", ".", "~", "=", "(", "0"], false, false);
+  const peg$c818 = /^[\-.~=[(0]/;
+  const peg$c819 = peg$classExpectation(["-", ".", "~", "=", "[", "(", "0"], false, false);
   const peg$c820 = function(dir: any): any {
         var d = dir.toLowerCase();
         if (d === 'le') d = 'left';
