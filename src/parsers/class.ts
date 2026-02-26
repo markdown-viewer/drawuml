@@ -2274,7 +2274,10 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (!node || node.style) continue; // skip nodes with explicit inline style
       const stereo = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
       // In PlantUML, 'circle' is an alias for 'interface' — use interface CSS rule
-      const lookupStereo = stereo === 'circle' ? 'interface' : stereo;
+      // 'choice' renders as a diamond shape — use diamond CSS rule
+      const lookupStereo = stereo === 'circle' ? 'interface'
+        : stereo === 'choice' ? 'diamond'
+        : stereo;
       // Also resolve CSS class rules (.stereo) matched against custom stereotype labels («stereo» -> 'stereo')
       const customStereos = node.stereotypeLabel
         ? String(node.stereotypeLabel).split(/[\s«»]+/).map((s: string) => s.toLowerCase()).filter(Boolean)

@@ -197,7 +197,7 @@ class StateChoiceRenderer extends Renderer {
       }));
     }
 
-    cells.push(mxVertex({ id: this.node.id, value: '', style: CHOICE_STYLE, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
+    cells.push(mxVertex({ id: this.node.id, value: '', style: Renderer.applyInlineStyle(CHOICE_STYLE, this.node.style).style, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
 
     return cells;
   }
