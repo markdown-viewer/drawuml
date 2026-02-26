@@ -230,9 +230,10 @@ export abstract class RichRenderer extends Renderer {
     if (this.hasRichBody) {
       // Content.richBody metrics already include all padding;
       // extraPadX/Y from subclass account for shape decoration.
+      // topPadY accounts for fixed title area (folder tab, frame header, etc.).
       return {
         width: size.width + this.extraPadX,
-        height: size.height + this.extraPadY,
+        height: size.height + this.extraPadY + this.topPadY,
       };
     }
     return {
