@@ -3,9 +3,8 @@ import { escapeXml, mxVertex, wrapMxfile } from '../shared/xml-utils.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { parseBracketEdgeStyle, parseEdgeInlineStyle } from '../shared/color-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
-import { Content } from '../shared/content.ts';
-import { NOTE_LINK_COLOR, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY } from '../shared/theme.ts';
-import { measureText } from '@markdown-viewer/text-measure';
+import { LabelRenderer } from '../primitives/shapes/label.ts';
+import { NOTE_LINK_COLOR } from '../shared/theme.ts';
 
 export interface DrawioGenOptions {
   /** Layout engine used. Affects edge style (curved vs orthogonal). */
@@ -285,40 +284,34 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     }));
     // Edge center label at ELK-computed absolute position
     if (edge.label && layoutLabelPos) {
-      const labelHtml = escapeXml(Content.inline(edge.label).html);
-      const w = (layoutLabelSize?.width || 40) + 4;
-      const h = (layoutLabelSize?.height || 14) + 2;
-      cells.push(
-        `<mxCell id="${escapeXml(edge.id + '__label')}" value="${labelHtml}"`
-        + ` style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;resizable=0;" vertex="1" parent="1">`
-        + `<mxGeometry x="${layoutLabelPos.x - Math.round(w / 2)}" y="${layoutLabelPos.y - Math.round(h / 2)}" width="${w}" height="${h}" as="geometry"/>`
-        + `</mxCell>`
-      );
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label });
+      const m = lr.measure();
+      const w = layoutLabelSize?.width || m.width;
+      const h = layoutLabelSize?.height || m.height;
+      cells.push(...lr.render({
+        x: layoutLabelPos.x - Math.round(w / 2),
+        y: layoutLabelPos.y - Math.round(h / 2),
+        width: w, height: h,
+      }));
     }
     // Cardinality labels at Graphviz-computed taillabel/headlabel positions
     if (edge.cardFrom && layoutCardFromPos) {
-      const cardHtml = escapeXml(Content.inline(edge.cardFrom).html);
-      const m = measureText(Content.inline(edge.cardFrom).html, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
-      const w = Math.ceil(m.width) + 4;
-      const h = Math.ceil(m.height) + 2;
-      cells.push(
-        `<mxCell id="${escapeXml(edge.id + '__cardFrom')}" value="${cardHtml}"`
-        + ` style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;resizable=0;" vertex="1" parent="1">`
-        + `<mxGeometry x="${layoutCardFromPos.x - Math.round(w / 2)}" y="${layoutCardFromPos.y - Math.round(h / 2)}" width="${w}" height="${h}" as="geometry"/>`
-        + `</mxCell>`
-      );
+      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom });
+      const m = cfr.measure();
+      cells.push(...cfr.render({
+        x: layoutCardFromPos.x - Math.round(m.width / 2),
+        y: layoutCardFromPos.y - Math.round(m.height / 2),
+        width: m.width, height: m.height,
+      }));
     }
     if (edge.cardTo && layoutCardToPos) {
-      const cardHtml = escapeXml(Content.inline(edge.cardTo).html);
-      const m = measureText(Content.inline(edge.cardTo).html, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
-      const w = Math.ceil(m.width) + 4;
-      const h = Math.ceil(m.height) + 2;
-      cells.push(
-        `<mxCell id="${escapeXml(edge.id + '__cardTo')}" value="${cardHtml}"`
-        + ` style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;resizable=0;" vertex="1" parent="1">`
-        + `<mxGeometry x="${layoutCardToPos.x - Math.round(w / 2)}" y="${layoutCardToPos.y - Math.round(h / 2)}" width="${w}" height="${h}" as="geometry"/>`
-        + `</mxCell>`
-      );
+      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo });
+      const m = ctr.measure();
+      cells.push(...ctr.render({
+        x: layoutCardToPos.x - Math.round(m.width / 2),
+        y: layoutCardToPos.y - Math.round(m.height / 2),
+        width: m.width, height: m.height,
+      }));
     }
   }
 

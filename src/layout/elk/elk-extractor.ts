@@ -276,7 +276,7 @@ function collectElkEdges(
 // ---------------------------------------------------------------------------
 
 // Maximum pixel offset to consider a Z-bend "minor" and eligible for merging
-const BEND_THRESHOLD = 15;
+const BEND_THRESHOLD = 5;
 // Tolerance for treating coordinates as collinear
 const COL_TOL = 1;
 

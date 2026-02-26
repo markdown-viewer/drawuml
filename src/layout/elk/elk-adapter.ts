@@ -9,8 +9,7 @@
 import type { LayoutGraphNode } from '../layout-graph.ts';
 import type { SemanticModel, SemanticEdge } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
-import { measureText } from '@markdown-viewer/text-measure';
-import { DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY } from '../../shared/theme.ts';
+import { LabelRenderer } from '../../primitives/shapes/label.ts';
 
 // ---------------------------------------------------------------------------
 // ELK JSON type definitions (subset used by this adapter)
@@ -576,14 +575,14 @@ function collectEdges(
       targets: [target],
     };
 
-    // Edge label — use precise text measurement and inline placement
-    // to avoid inflating layer spacing with a full label dummy node.
+    // Edge label — use LabelRenderer for proper multi-line measurement
     if (edge.label) {
-      const m = measureText(edge.label, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label });
+      const m = lr.measure();
       elkEdge.labels = [{
         text: edge.label,
-        width: Math.ceil(m.width),
-        height: Math.ceil(m.height),
+        width: m.width,
+        height: m.height,
       }];
     }
 
