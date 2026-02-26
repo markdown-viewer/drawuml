@@ -20,6 +20,7 @@ export const NodeType = {
   StateFork: 'state_fork',
   StateJoin: 'state_join',
   StateChoice: 'state_choice',
+  StateHistory: 'state_history',
   // Use-case diagram node types
   Usecase: 'usecase',
   UsecaseActor: 'usecase_actor',

@@ -193,9 +193,18 @@ export function snapPortNodes(
           const otherGroupId = nodeGroupMap.get(edge.from);
           if (otherGroupId !== group.id) {
             const pts = edge.points;
-            const lastPt = pts[pts.length - 1];
-            const prevPt = pts[pts.length - 2];
-            const cross = segmentRectIntersection(prevPt, lastPt, groupBox) || lastPt;
+            // Scan all segments backwards to find the boundary crossing point.
+            // The last segment alone may be entirely inside the group for curved edges.
+            let cross: { x: number; y: number } | null = null;
+            for (let i = pts.length - 1; i > 0; i--) {
+              const segA = pts[i - 1];
+              const segB = pts[i];
+              if (!isInsideGroup(segA.x, segA.y, groupBox)) {
+                cross = segmentRectIntersection(segA, segB, groupBox);
+                break;
+              }
+            }
+            if (!cross) cross = pts[pts.length - 1]; // fallback
             if (!intersectionSet) {
               portNode.x = Math.round(cross.x) - PORT_HALF;
               portNode.y = Math.round(cross.y) - PORT_HALF;
@@ -209,9 +218,17 @@ export function snapPortNodes(
           const otherGroupId = nodeGroupMap.get(edge.to);
           if (otherGroupId !== group.id) {
             const pts = edge.points;
-            const firstPt = pts[0];
-            const nextPt = pts[1];
-            const cross = segmentRectIntersection(nextPt, firstPt, groupBox) || firstPt;
+            // Scan all segments forward to find the boundary crossing point.
+            let cross: { x: number; y: number } | null = null;
+            for (let i = 0; i < pts.length - 1; i++) {
+              const segA = pts[i];
+              const segB = pts[i + 1];
+              if (!isInsideGroup(segB.x, segB.y, groupBox)) {
+                cross = segmentRectIntersection(segA, segB, groupBox);
+                break;
+              }
+            }
+            if (!cross) cross = pts[0]; // fallback
             if (!intersectionSet) {
               portNode.x = Math.round(cross.x) - PORT_HALF;
               portNode.y = Math.round(cross.y) - PORT_HALF;

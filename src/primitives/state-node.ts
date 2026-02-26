@@ -49,6 +49,11 @@ const FORK_STYLE = `line;html=1;strokeWidth=6;strokeColor=${COLOR_DARK};`
 const CHOICE_STYLE = 'rhombus;whiteSpace=wrap;html=1;'
   + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`;
 
+const HISTORY_SIZE = 22;
+const HISTORY_STYLE = 'ellipse;whiteSpace=wrap;html=1;aspect=fixed;'
+  + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`
+  + `fontSize=${SMALL_FONT_SIZE};fontStyle=1;`;
+
 const CHOICE_LABEL_GAP = 4; // gap between label and diamond
 const CHOICE_LABEL_STYLE = `text;html=1;align=left;verticalAlign=top;`
   + `fontSize=${SMALL_FONT_SIZE};fontColor=${COLOR_DARK};`
@@ -199,6 +204,38 @@ class StateChoiceRenderer extends Renderer {
 }
 
 // ---------------------------------------------------------------------------
+// History pseudo-state renderer — circle with H or H* label
+// ---------------------------------------------------------------------------
+
+class StateHistoryRenderer extends Renderer {
+  private node: RenderDescriptor;
+  private label: string;
+
+  constructor(node: RenderDescriptor) {
+    super(node.id);
+    this.node = node;
+    this.label = node.label || 'H';
+  }
+
+  protected doMeasure() {
+    return { width: HISTORY_SIZE, height: HISTORY_SIZE };
+  }
+
+  render(box: ContentBox) {
+    const d = HISTORY_SIZE;
+    const x = box.x + Math.round((box.width - d) / 2);
+    const y = box.y + Math.round((box.height - d) / 2);
+    return [mxVertex({
+      id: this.node.id,
+      value: this.label,
+      style: HISTORY_STYLE,
+      parent: this.parentId || '1',
+      x, y, width: d, height: d,
+    })];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // State (rounded rectangle) renderer — delegates to shared Content system
 // ---------------------------------------------------------------------------
 
@@ -322,5 +359,6 @@ export function registerStateNodeRenderers(): void {
   registerRenderer('state_fork', (desc: RenderDescriptor) => new StateForkJoinRenderer(desc));
   registerRenderer('state_join', (desc: RenderDescriptor) => new StateForkJoinRenderer(desc));
   registerRenderer('state_choice', (desc: RenderDescriptor) => new StateChoiceRenderer(desc));
+  registerRenderer('state_history', (desc: RenderDescriptor) => new StateHistoryRenderer(desc));
   registerRenderer('state', (desc: RenderDescriptor) => new StateNodeRenderer(desc));
 }

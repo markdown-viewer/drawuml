@@ -277,6 +277,64 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     return target;
   }
 
+  /**
+   * Resolve history endpoint syntax: [H], [H*], Name[H], Name[H*].
+   * Creates a state_history node in the appropriate group and returns its id.
+   * Returns the original id unchanged if not a history endpoint.
+   */
+  function resolveHistoryEndpoint(rawName: string, resolvedId: string): string {
+    // Match [H] or [H*] (standalone — history of current group)
+    const standaloneMatch = /^\[H(\*?)\]$/i.exec(rawName);
+    if (standaloneMatch) {
+      const deep = standaloneMatch[1] === '*';
+      const sg = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+      const prefix = sg ? sg.id : '';
+      const histId = prefix ? `${prefix}.__history${deep ? '_deep' : ''}__` : `__history${deep ? '_deep' : ''}__`;
+      if (!nodesById[histId]) {
+        nodeOrder.push(histId);
+        nodesById[histId] = {
+          id: histId,
+          type: NodeType.StateHistory,
+          label: deep ? 'H*' : 'H',
+          stereotype: null,
+          stereotypeLabel: '',
+          bodyLines: [],
+        };
+        registerNodeInGroup(histId);
+      }
+      return histId;
+    }
+    // Match Name[H] or Name[H*] (history of named group)
+    const qualifiedMatch = /^(.+)\[H(\*?)\]$/i.exec(rawName);
+    if (qualifiedMatch) {
+      const groupName = qualifiedMatch[1];
+      const deep = qualifiedMatch[2] === '*';
+      // Find the target group by name
+      const targetGroup = findGroupByQualifiedName(groupName);
+      const prefix = targetGroup ? targetGroup.id : groupName;
+      const histId = `${prefix}.__history${deep ? '_deep' : ''}__`;
+      if (!nodesById[histId]) {
+        nodeOrder.push(histId);
+        nodesById[histId] = {
+          id: histId,
+          type: NodeType.StateHistory,
+          label: deep ? 'H*' : 'H',
+          stereotype: null,
+          stereotypeLabel: '',
+          bodyLines: [],
+        };
+        // Register inside the target group
+        if (targetGroup) {
+          if (!targetGroup.children.includes(histId)) {
+            targetGroup.children.push(histId);
+          }
+        }
+      }
+      return histId;
+    }
+    return resolvedId;
+  }
+
   /** Find an existing node whose short name (last dot-segment) matches.
    *  Returns the node id if exactly one match found, undefined otherwise. */
   function findExistingNodeByShortName(shortName: string): string | undefined {
@@ -1659,6 +1717,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             to = '__state_end__';
           }
         }
+
+        // Handle [H] / [H*] history pseudo-endpoints and Name[H] / Name[H*] variants.
+        // [H] = shallow history of current state, [H*] = deep history of current state.
+        // Name[H] / Name[H*] = history of the named state.
+        from = resolveHistoryEndpoint(rawFrom, from);
+        to = resolveHistoryEndpoint(rawTo, to);
 
         // Namespace fallback: if the qualified name doesn't exist and the raw name
         // was unqualified (no dots, no root reference), look for an existing node
