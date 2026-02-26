@@ -102,7 +102,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (engine !== 'elk') {
       style += 'curved=1;';
     } else {
-      style += 'edgeStyle=orthogonalEdgeStyle;rounded=0;';
+      style += 'edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=5;';
     }
 
     // Merge bracket style from arrowMeta.color or bodyToken bracket content
