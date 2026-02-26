@@ -364,11 +364,13 @@ export function positionTitle(layout: LayoutResult, renderers: Map<string, Rende
 
   const sz = titleR.measure();
   const nodeValues = Object.values(layout.nodes);
-  if (nodeValues.length === 0) return;
+  const groupValues: LayoutNode[] = layout.groups ? Object.values(layout.groups) : [];
+  const allBoxes = [...nodeValues, ...groupValues];
+  if (allBoxes.length === 0) return;
 
-  const minX = Math.min(...nodeValues.map(n => n.x));
-  const maxX = Math.max(...nodeValues.map(n => n.x + n.width));
-  const minY = Math.min(...nodeValues.map(n => n.y));
+  const minX = Math.min(...allBoxes.map(n => n.x));
+  const maxX = Math.max(...allBoxes.map(n => n.x + n.width));
+  const minY = Math.min(...allBoxes.map(n => n.y));
 
   const diagramWidth = maxX - minX;
   const titleX = minX + (diagramWidth - sz.width) / 2;
