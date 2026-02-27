@@ -792,9 +792,9 @@ export function parseActivityDiagram(
 
     // ── Note ──
     if (kind === 'note_start' || kind === 'note_statement') {
-      // Basic note support — attach to last action node
+      // note_start text is merged by the pre-parser (puml.ts)
       const noteId = nextId('note');
-      const position = st.position || 'right';
+      const position = st.dir || st.position || 'right';
       const lastCursor = cursors[cursors.length - 1];
       notes.push({
         id: noteId,
@@ -805,7 +805,7 @@ export function parseActivityDiagram(
       continue;
     }
 
-    // ── Note text / end note — skip ──
+    // ── Note text / end note — skip (no longer emitted by pre-parser, kept as safety) ──
     if (kind === 'note_text_line' || kind === 'note_end') continue;
 
     // ── Jump (label/goto) ──

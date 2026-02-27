@@ -143,6 +143,11 @@ export function parsePlantUml(text) {
   let quoteBlockLines: string[] = [];
   let quoteBlockStartLine = 0;
 
+  // Multi-line note block merge buffer: collect text lines and attach to the
+  // start statement so downstream parsers see a single statement with `text`.
+  let noteBlockStartSt: any = null;
+  let noteBlockTextLines: string[] = [];
+
   for (let i = 0; i < bodyLines.length; i += 1) {
     const rawLine = String(bodyLines[i] || '');
     const trimmed = rawLine.trim();
@@ -221,7 +226,7 @@ export function parsePlantUml(text) {
     }
 
     if (inNoteBlock) {
-      // Only 'end note' closes the block; everything else is treated as note text content.
+      // Only 'end note' closes the block; everything else is collected as note text.
       try {
         const st = parseStatementLine(rawLine);
         if (st && typeof st === 'object') {
@@ -230,14 +235,20 @@ export function parsePlantUml(text) {
         }
         if (st && st.kind === 'note_end') {
           inNoteBlock = false;
-          statements.push(st);
+          // Merge collected text into the note_start statement
+          if (noteBlockStartSt) {
+            noteBlockStartSt.text = noteBlockTextLines.join('\n');
+            statements.push(noteBlockStartSt);
+            noteBlockStartSt = null;
+            noteBlockTextLines = [];
+          }
           continue;
         }
       } catch {
         // ignore and treat as plain note text
       }
 
-      statements.push({ kind: 'note_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      noteBlockTextLines.push(rawLine);
       continue;
     }
 
@@ -250,14 +261,19 @@ export function parsePlantUml(text) {
         }
         if (st && st.kind === 'block_statement' && st.type === 'rnote_end') {
           inRNoteBlock = false;
-          statements.push(st);
+          if (noteBlockStartSt) {
+            noteBlockStartSt.text = noteBlockTextLines.join('\n');
+            statements.push(noteBlockStartSt);
+            noteBlockStartSt = null;
+            noteBlockTextLines = [];
+          }
           continue;
         }
       } catch {
         // ignore
       }
 
-      statements.push({ kind: 'note_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      noteBlockTextLines.push(rawLine);
       continue;
     }
 
@@ -270,14 +286,19 @@ export function parsePlantUml(text) {
         }
         if (st && st.kind === 'block_statement' && st.type === 'hnote_end') {
           inHNoteBlock = false;
-          statements.push(st);
+          if (noteBlockStartSt) {
+            noteBlockStartSt.text = noteBlockTextLines.join('\n');
+            statements.push(noteBlockStartSt);
+            noteBlockStartSt = null;
+            noteBlockTextLines = [];
+          }
           continue;
         }
       } catch {
         // ignore
       }
 
-      statements.push({ kind: 'note_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      noteBlockTextLines.push(rawLine);
       continue;
     }
 
@@ -573,12 +594,18 @@ export function parsePlantUml(text) {
       }
       if (st && st.kind === 'note_start') {
         inNoteBlock = true;
+        noteBlockStartSt = st;
+        noteBlockTextLines = [];
       }
       if (st && st.kind === 'block_statement' && st.type === 'rnote_start') {
         inRNoteBlock = true;
+        noteBlockStartSt = st;
+        noteBlockTextLines = [];
       }
       if (st && st.kind === 'block_statement' && st.type === 'hnote_start') {
         inHNoteBlock = true;
+        noteBlockStartSt = st;
+        noteBlockTextLines = [];
       }
       if (st && st.kind === 'block_statement' && st.type === 'ref_start') {
         inRefBlock = true;
@@ -648,7 +675,10 @@ export function parsePlantUml(text) {
         inArrowLabelBlock = !hasEnd && st.multilineLabel === true;
       }
 
-      statements.push(st);
+      // Note block start statements are deferred — pushed when note_end is found
+      if (!noteBlockStartSt) {
+        statements.push(st);
+      }
     } catch (error) {
       const code = error instanceof PeggySyntaxError ? 'PEGGY_SYNTAX_ERROR' : 'STRICT_PARSE_ERROR';
       errors.push({

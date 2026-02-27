@@ -93,7 +93,6 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   let rankdir = 'TB';  // default: top-to-bottom (left entity above right entity)
   let lastDefinedClass = '';  // tracks last class/entity for "note left: ..." shorthand
   let lastEdgeId = '';        // tracks last edge for "note on link" binding
-  let noteBlock = null;       // multi-line note accumulator
   let legendBlock: { lines: string[]; align: string | null } | null = null;  // multi-line legend accumulator
   let legend: { text: string; align?: string } | null = null;
   let title: string | undefined;
@@ -456,28 +455,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     const st = statements[i];
     if (!st || typeof st !== 'object') continue;
 
-    // Multi-line note block accumulation
-    if (noteBlock) {
-      if (st.kind === 'note_end') {
-        notes.push({
-          id: noteBlock.id || `note_${notes.length + 1}`,
-          text: noteBlock.lines.join('\n'),
-          position: noteBlock.position || undefined,
-          target: noteBlock.target || undefined,
-          memberTarget: noteBlock.memberTarget || undefined,
-          floating: noteBlock.floating || false,
-          onLink: noteBlock.onLink || undefined,
-          linkEdgeId: noteBlock.linkEdgeId || undefined,
-          color: noteBlock.color || undefined,
-        });
-        noteBlock = null;
-        continue;
-      }
-      // note_text_line or any other line inside note block
-      const text = String(st.text || st.raw || '').trim();
-      if (text) noteBlock.lines.push(text);
-      continue;
-    }
+    // Multi-line note block — note_text_line / note_end no longer emitted by pre-parser
+    if (st.kind === 'note_text_line' || st.kind === 'note_end') continue;
 
     // <style> block accumulation
     if (styleBlockAccum) {
@@ -1424,31 +1403,32 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       }
 
       // Multi-line note start: "note top of X" / "note as N1" / "note left"
+      // Text is pre-merged by puml.ts, so handle directly like note_statement.
       if (st.kind === 'note_start') {
-        // "note [dir] on link" — multi-line link note
+        const rawText = String(st.text || '').trim();
         if (st.on === 'link') {
-          noteBlock = {
+          notes.push({
+            id: `note_${notes.length + 1}`,
+            text: rawText,
             position: st.dir || undefined,
             onLink: true,
             linkEdgeId: lastEdgeId || undefined,
             color: st.color || undefined,
             floating: false,
-            lines: [],
-          };
+          });
           continue;
         }
         const resolved = st.target ? resolveNoteTarget(st.target) : null;
         const target = resolved ? resolved.classId : (st.dir && lastDefinedClass ? lastDefinedClass : undefined);
-        noteBlock = {
+        const alias = st.alias || undefined;
+        notes.push({
+          id: alias || `note_${notes.length + 1}`,
+          text: rawText,
           position: st.pos || st.dir || undefined,
           target,
           memberTarget: resolved?.memberTarget,
           floating: Boolean(st.alias),
-          alias: st.alias || undefined,
-          lines: [],
-        };
-        // Use alias as note id if provided
-        if (st.alias) noteBlock.id = st.alias;
+        });
         continue;
       }
 

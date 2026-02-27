@@ -370,7 +370,6 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
 
   let row = 0;
   let lastPushType = ''; // 'message' or 'note' — tracks what was last pushed
-  let noteBlock = null;
   let refBlock = null;
 
   const FRAGMENT_KEYWORDS = ['alt', 'loop', 'opt', 'par', 'break', 'group', 'critical', 'ref', 'partition'];
@@ -726,17 +725,9 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
   for (const st of statements) {
     if (!st || typeof st !== 'object') continue;
 
-    if (noteBlock) {
-      if (st.kind === 'note_end' || (st.kind === 'block_statement' && (st.type === 'rnote_end' || st.type === 'hnote_end'))) {
-        pushNote(noteBlock.position, noteBlock.participants, noteBlock.lines.join('\n'), noteBlock.noteType, noteBlock.color, false, noteBlock.concurrent, noteBlock.attachedToMsg);
-        noteBlock = null;
-        continue;
-      }
-      if (st.kind === 'note_text_line') {
-        noteBlock.lines.push(st.text || st.raw || '');
-        continue;
-      }
-    }
+    // note_text_line / note_end no longer emitted by pre-parser, skip as safety
+    if (st.kind === 'note_text_line' || st.kind === 'note_end') continue;
+    if (st.kind === 'block_statement' && (st.type === 'rnote_end' || st.type === 'hnote_end')) continue;
 
     if (refBlock) {
       if ((st.kind === 'block_statement' && st.type === 'ref_end')
@@ -1173,15 +1164,11 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
           participants.push(rightP);
         }
       }
-      noteBlock = {
-        position: pos,
-        participants,
-        lines: [],
-        noteType: isHnote ? 'hnote' : isRnote ? 'rnote' : 'note',
-        color: st.color || null,
-        concurrent: !!st.async,
-        attachedToMsg: !hasExplicitTarget2 && (pos === 'left' || pos === 'right'),
-      };
+      // Text is pre-merged by puml.ts for multi-line notes
+      const noteType = isHnote ? 'hnote' : isRnote ? 'rnote' : 'note';
+      const concurrent = !!st.async;
+      const attachedToMsg = !hasExplicitTarget2 && (pos === 'left' || pos === 'right');
+      pushNote(pos, participants, st.text || '', noteType, st.color || null, false, concurrent, attachedToMsg);
       continue;
     }
 
