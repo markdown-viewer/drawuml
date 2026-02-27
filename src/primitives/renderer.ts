@@ -35,7 +35,7 @@ export abstract class Renderer {
   /** Parent cell id for nested containers. */
   parentId?: string;
   /** Layout data reference for recursive child rendering. */
-  private _layoutRef: LayoutResult | null = null;
+  protected _layoutRef: LayoutResult | null = null;
 
   constructor(id: string) {
     this.id = id;

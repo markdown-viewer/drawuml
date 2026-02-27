@@ -101,6 +101,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   // Concurrent region counter per state group: tracks how many '--' separators
   // have been seen inside each state, used to generate unique [*] IDs per region.
   const concurrentRegionCounters: Record<string, number> = {};
+  // Concurrent region break points per state group: records children.length
+  // at each '--'/'||' separator so we can compute concurrentRegions later.
+  const concurrentRegionBreaks: Record<string, number[]> = {};
   // CSS-like <style> block rules: selector → { BackGroundColor, LineColor, LineThickness }
   const cssStyleRules: Record<string, Record<string, string>> = {};
   let styleBlockAccum: { name: string; props: Record<string, string> } | null = null;
@@ -1292,7 +1295,22 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (st.kind === 'block_statement' && (st.type === 'style_block_end' || st.type === 'block_end' || st.type === 'state_block_end')) {
         const popCount = blockPushCounts.pop() || 1;
         for (let j = 0; j < popCount && groupStack.length > 0; j++) {
-          groupStack.pop();
+          const g = groupStack.pop()!;
+          // Compute concurrentRegions for state groups with "--"/"||" separators.
+          if (g.type === 'state' && concurrentRegionBreaks[g.id]) {
+            const breaks = concurrentRegionBreaks[g.id];
+            const regions: string[][] = [];
+            let start = 0;
+            for (const bp of breaks) {
+              regions.push(g.children.slice(start, bp));
+              start = bp;
+            }
+            regions.push(g.children.slice(start));
+            // Only set if we have multiple regions with at least one non-empty
+            if (regions.length > 1) {
+              g.concurrentRegions = regions;
+            }
+          }
         }
         continue;
       }
@@ -1442,11 +1460,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
       // ── State concurrent region separator ("--" or "||") ────────────────
       // Inside a state block, PEG emits concurrent_separator for bare "--" / "||".
-      // Increment the region counter so that subsequent [*] nodes get unique IDs.
+      // Increment the region counter so that subsequent [*] nodes get unique IDs,
+      // and record the break point for concurrentRegions computation.
       if (st.kind === 'block_statement' && st.type === 'concurrent_separator' && groupStack.length > 0) {
         const sg = groupStack[groupStack.length - 1];
         if (sg.type === 'state') {
           concurrentRegionCounters[sg.id] = (concurrentRegionCounters[sg.id] || 0) + 1;
+          if (!concurrentRegionBreaks[sg.id]) concurrentRegionBreaks[sg.id] = [];
+          concurrentRegionBreaks[sg.id].push(sg.children.length);
         }
         continue;
       }

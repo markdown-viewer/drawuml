@@ -11,6 +11,7 @@ import { createNodeRenderer, createGlobalRenderers, createRenderer } from '../pr
 import type { NodeDescriptor } from '../primitives/registry.ts';
 import { resolveGroupShape } from '../primitives/group.ts';
 import { Renderer } from '../primitives/renderer.ts';
+import { ConcurrentRegionRenderer } from '../primitives/state-node.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer creation
@@ -96,6 +97,38 @@ export function buildRendererTree(
   for (const g of groups) {
     const gr = groupRenderers.get(g.id);
     if (!gr) continue;
+
+    // Concurrent regions: create intermediate region renderers.
+    // Children are wired to their region renderer instead of directly to the group.
+    if (g.concurrentRegions && g.concurrentRegions.length > 1) {
+      for (let i = 0; i < g.concurrentRegions.length; i++) {
+        const regionId = `${g.id}.__conc_region__${i}`;
+        const regionLabel = ''; // no label for now
+        const regionR = new ConcurrentRegionRenderer(regionId, regionLabel);
+        renderers.set(regionId, regionR);
+        gr.addChild(regionR);
+        for (const childId of g.concurrentRegions[i]) {
+          nodeGroupMap.set(childId, regionId);
+          const r = renderers.get(childId);
+          if (r) regionR.addChild(r);
+        }
+      }
+      // Wire childGroups as before (they don't belong to concurrent regions)
+      for (const cgId of g.childGroups) {
+        const cgr = groupRenderers.get(cgId);
+        if (cgr && cgr.isCluster) {
+          gr.addChild(cgr);
+        } else {
+          const r = renderers.get(cgId);
+          if (r) {
+            gr.addChild(r);
+            nodeGroupMap.set(cgId, g.id);
+          }
+        }
+      }
+      continue;
+    }
+
     for (const childId of g.children) {
       nodeGroupMap.set(childId, g.id);
       const r = renderers.get(childId);

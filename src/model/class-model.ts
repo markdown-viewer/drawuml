@@ -91,6 +91,9 @@ export interface SemanticGroup {
   childGroups: string[];  // child group ids
   color?: string;         // background fill color override (normalized hex)
   style?: string | null;  // raw PlantUML inline style string
+  /** Concurrent regions within state groups ("--" / "||" separators).
+   *  Each sub-array contains the child node IDs belonging to that region. */
+  concurrentRegions?: string[][];
 }
 
 export interface SemanticModel {

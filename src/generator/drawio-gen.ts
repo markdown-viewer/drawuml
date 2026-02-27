@@ -172,16 +172,29 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // Detect parallel multi-edges (same normalised A↔B pair).
     const pairKey = [edge.from, edge.to].sort().join('\0');
 
-    // For ELK parallel edges, omit cell binding to preserve ELK's
-    // calculated edge separation. Cell binding causes SegmentConnector
-    // to recalculate connection points via perimeter projection,
-    // merging parallel edges to the same routing center.
-    // Must run BEFORE isParallelEdge check so those edges take the
-    // normal sourcePoint/targetPoint path instead of DOT's single-side approach.
+    // For ELK parallel edges, keep cell binding but add exit/entry
+    // constraints to preserve ELK's calculated edge separation.
+    // Without constraints, SegmentConnector's perimeter projection
+    // merges parallel edges to the same routing center.
     if (engine === 'elk' && !hasPort && !omitSource && !omitTarget
-        && (edgePairCount.get(pairKey) || 0) > 1) {
-      omitSource = true;
-      omitTarget = true;
+        && (edgePairCount.get(pairKey) || 0) > 1
+        && points && points.length >= 2) {
+      const srcNode = layout.nodes[edge.from] || layout.groups?.[edge.from];
+      const tgtNode = layout.nodes[edge.to] || layout.groups?.[edge.to];
+      if (srcNode) {
+        const sp = points[0];
+        const exitX = Math.max(0, Math.min(1, (sp.x - srcNode.x) / srcNode.width));
+        const exitY = Math.max(0, Math.min(1, (sp.y - srcNode.y) / srcNode.height));
+        style += `exitX=${+exitX.toFixed(4)};exitY=${+exitY.toFixed(4)};exitDx=0;exitDy=0;exitPerimeter=0;`;
+        points = points.slice(1); // strip source endpoint, now constrained
+      }
+      if (tgtNode) {
+        const ep = points[points.length - 1];
+        const entryX = Math.max(0, Math.min(1, (ep.x - tgtNode.x) / tgtNode.width));
+        const entryY = Math.max(0, Math.min(1, (ep.y - tgtNode.y) / tgtNode.height));
+        style += `entryX=${+entryX.toFixed(4)};entryY=${+entryY.toFixed(4)};entryDx=0;entryDy=0;entryPerimeter=0;`;
+        points = points.slice(0, -1); // strip target endpoint, now constrained
+      }
     }
 
     const isParallelEdge = !hasPort && !omitSource && !omitTarget

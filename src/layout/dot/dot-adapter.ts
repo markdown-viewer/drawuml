@@ -153,7 +153,10 @@ function buildNodeDotLines(
   lines.push(`${inner}subgraph "cluster_${gn.id}" {`);
   lines.push(`${inner}  label="${label}"`);
   lines.push(`${inner}  style=rounded`);
-  lines.push(`${inner}  margin="20"`);
+  // Concurrent region parents need zero inner margin — regions fill the full area.
+  // Detection: child IDs containing '__conc_region__'.
+  const hasConcRegion = gn.children?.some(c => c.id.includes('__conc_region__'));
+  lines.push(`${inner}  margin="${hasConcRegion ? 0 : 20}"`);
 
   // Invisible proxy node for compound edges targeting this group
   if (ctx.groupsNeedingProxy.has(gn.id)) {

@@ -7,7 +7,7 @@
  */
 
 import type { LayoutGraphNode } from '../layout-graph.ts';
-import type { SemanticModel, SemanticEdge } from '../../model/index.ts';
+import type { SemanticModel, SemanticEdge, SemanticGroup } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { LabelRenderer } from '../../primitives/shapes/label.ts';
 
@@ -90,8 +90,12 @@ export function layoutGraphToElkSimple(
     labels: e.labels,
   }));
 
+  // Build group lookup map for concurrent region handling
+  const groupMap = new Map<string, SemanticGroup>();
+  for (const g of model.groups || []) groupMap.set(g.id, g);
+
   // Map nodes WITHOUT ports
-  const children: ElkNode[] = root.map(n => mapNodeSimple(n, renderers));
+  const children: ElkNode[] = root.map(n => mapNodeSimple(n, renderers, groupMap, elkDirection));
 
   // Add note/legend nodes
   for (const note of model.notes || []) {
@@ -173,8 +177,12 @@ export function layoutGraphToElk(
     }
   }
 
+  // Build group lookup map for concurrent region handling
+  const groupMap = new Map<string, SemanticGroup>();
+  for (const g of model.groups || []) groupMap.set(g.id, g);
+
   // Map LayoutGraphNode tree to ELK children
-  const children: ElkNode[] = root.map(n => mapNode(n, renderers, portVariants));
+  const children: ElkNode[] = root.map(n => mapNode(n, renderers, portVariants, groupMap, elkDirection));
 
   // Add note nodes (notes are not part of the LayoutGraphNode tree but may
   // be referenced by edges, e.g. "note ... as N2" with "Object .. N2")
@@ -261,7 +269,13 @@ export function layoutGraphToElk(
 /**
  * Recursively map a LayoutGraphNode to an ElkNode.
  */
-function mapNode(gn: LayoutGraphNode, renderers: Map<string, Renderer>, portVariants: Map<string, Array<{ variantId: string; side: string }>>): ElkNode {
+function mapNode(
+  gn: LayoutGraphNode,
+  renderers: Map<string, Renderer>,
+  portVariants: Map<string, Array<{ variantId: string; side: string }>>,
+  groupMap: Map<string, SemanticGroup>,
+  elkDirection: string,
+): ElkNode {
   const elk: ElkNode = {
     id: gn.id,
     width: gn.width,
@@ -270,23 +284,41 @@ function mapNode(gn: LayoutGraphNode, renderers: Map<string, Renderer>, portVari
 
   // Container node — has children
   if (gn.children && gn.children.length > 0) {
-    elk.children = gn.children.map(c => mapNode(c, renderers, portVariants));
+    const group = groupMap.get(gn.id);
 
-    // Container padding + spacing.
-    // With INCLUDE_CHILDREN, containers that define their own layoutOptions
-    // need spacing properties explicitly — otherwise ELK uses defaults (20)
-    // instead of inheriting from the root.
-    if (gn.padding) {
-      const p = gn.padding;
+    if (group?.concurrentRegions && group.concurrentRegions.length > 1) {
+      // ── Concurrent regions ─────────────────────────────────────────
+      // Renderer tree already created ConcurrentRegionRenderer children.
+      // Just map them as normal children and set perpendicular direction
+      // on the parent so region containers sit side-by-side.
+      const perpDir = (elkDirection === 'DOWN' || elkDirection === 'UP') ? 'RIGHT' : 'DOWN';
+      elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection));
       elk.layoutOptions = {
-        'elk.padding': `[top=${p.top},left=${p.left},bottom=${p.bottom},right=${p.right}]`,
-        'elk.spacing.nodeNode': '12',
-        'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-        'elk.spacing.edgeNode': '10',
-        'elk.spacing.edgeEdge': '8',
-        'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
-        'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+        'elk.direction': perpDir,
+        // Zero spacing between regions — swimlane borders provide separation
+        'elk.spacing.nodeNode': '0',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '0',
+        // Parent has no padding — regions fill the full area below title.
+        // All visual padding is inside ConcurrentRegionRenderer.
+        'elk.padding': '[top=26,left=0,bottom=0,right=0]',
       };
+    } else {
+      // ── Normal container ───────────────────────────────────────────
+      elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection));
+
+      // Container padding + spacing.
+      if (gn.padding) {
+        const p = gn.padding;
+        elk.layoutOptions = {
+          'elk.padding': `[top=${p.top},left=${p.left},bottom=${p.bottom},right=${p.right}]`,
+          'elk.spacing.nodeNode': '12',
+          'elk.layered.spacing.nodeNodeBetweenLayers': '40',
+          'elk.spacing.edgeNode': '10',
+          'elk.spacing.edgeEdge': '8',
+          'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
+          'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+        };
+      }
     }
 
     // For containers, width/height are computed by ELK — don't fix them
@@ -499,10 +531,11 @@ function distributeEdges(elkRoot: ElkNode, edges: ElkEdge[]): void {
 function boostStartPathPriority(elkRoot: ElkNode): void {
   (function walk(node: ElkNode) {
     if (node.children && node.edges) {
-      // Collect start-node IDs in this container
+      // Collect start-node IDs in this container.
+      // Match both "__state_start__" and "__state_start__N" (concurrent regions).
       const startIds = new Set<string>();
       for (const child of node.children) {
-        if (child.id.endsWith('__state_start__')) startIds.add(child.id);
+        if (/__state_start__\d*$/.test(child.id)) startIds.add(child.id);
       }
 
       if (startIds.size > 0) {
@@ -596,17 +629,36 @@ function collectEdges(
 // Simple node mapping (pass 1 — no ports)
 // ---------------------------------------------------------------------------
 
-function mapNodeSimple(gn: LayoutGraphNode, renderers: Map<string, Renderer>): ElkNode {
+function mapNodeSimple(gn: LayoutGraphNode, renderers: Map<string, Renderer>, groupMap: Map<string, SemanticGroup>, elkDirection: string): ElkNode {
   const elk: ElkNode = { id: gn.id, width: gn.width, height: gn.height };
 
   if (gn.children && gn.children.length > 0) {
-    elk.children = gn.children.map(c => mapNodeSimple(c, renderers));
-    if (gn.padding) {
-      const p = gn.padding;
+    const group = groupMap.get(gn.id);
+
+    if (group?.concurrentRegions && group.concurrentRegions.length > 1) {
+      // ── Concurrent regions: perpendicular direction on parent ──
+      const perpDir = (elkDirection === 'DOWN' || elkDirection === 'UP') ? 'RIGHT' : 'DOWN';
+      elk.children = gn.children.map(c => mapNodeSimple(c, renderers, groupMap, elkDirection));
       elk.layoutOptions = {
-        'elk.padding': `[top=${p.top},left=${p.left},bottom=${p.bottom},right=${p.right}]`,
+        'elk.direction': perpDir,
+        // Zero spacing between regions — swimlane borders provide separation
+        'elk.spacing.nodeNode': '0',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '0',
+        // Parent has no padding — regions fill the full area below title.
+        // All visual padding is inside ConcurrentRegionRenderer.
+        'elk.padding': '[top=26,left=0,bottom=0,right=0]',
       };
+    } else {
+      // ── Normal container ──
+      elk.children = gn.children.map(c => mapNodeSimple(c, renderers, groupMap, elkDirection));
+      if (gn.padding) {
+        const p = gn.padding;
+        elk.layoutOptions = {
+          'elk.padding': `[top=${p.top},left=${p.left},bottom=${p.bottom},right=${p.right}]`,
+        };
+      }
     }
+
     delete elk.width;
     delete elk.height;
   }
