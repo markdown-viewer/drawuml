@@ -384,3 +384,697 @@ export function positionTitle(layout: LayoutResult, renderers: Map<string, Rende
     height: sz.height,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Swimlane region normalization (used by both ELK and DOT engines)
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize swimlane region heights so all lanes span the full container.
+ *
+ * For DOT engine: nodes are already in correct columns (DOT clusters).
+ *   Only normalizes region heights to span full container.
+ *
+ * For ELK engine: nodes are flat-laid-out (correct Y order, single column).
+ *   This function assigns X columns per lane, shifts nodes & edge waypoints.
+ *
+ * @param engine - 'dot' (default) or 'elk'
+ */
+export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, engine: 'dot' | 'elk' = 'dot'): void {
+  if (!model.groups) return;
+
+  for (const group of model.groups) {
+    if (group.type !== 'swimlane_container' || !group.concurrentRegions || group.concurrentRegions.length < 2) continue;
+
+    const containerPos = layout.groups?.[group.id];
+    if (!containerPos) continue;
+
+    if (engine === 'elk') {
+      _rearrangeSwimlaneElk(layout, group, containerPos);
+    } else {
+      _rearrangeSwimlaneDot(layout, group, containerPos);
+    }
+  }
+}
+
+/**
+ * DOT mode: lanes are already columnar (DOT clusters). Only normalize heights.
+ */
+function _rearrangeSwimlaneDot(
+  layout: LayoutResult,
+  group: { id: string; concurrentRegions: string[][]; children: string[] },
+  containerPos: LayoutGroup,
+): void {
+  const regions = group.concurrentRegions;
+  const numLanes = regions.length;
+
+  // Collect region positions from layout engine
+  const regionPositions: Array<{ id: string; x: number; y: number; width: number; height: number }> = [];
+  for (let i = 0; i < numLanes; i++) {
+    const regionId = `${group.id}.__conc_region__${i}`;
+    const pos = layout.groups?.[regionId];
+    if (pos) {
+      regionPositions.push({ ...pos });
+    }
+  }
+
+  if (regionPositions.length === 0) return;
+
+  // Compute full container bounds from all regions and nodes
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+
+  for (const rp of regionPositions) {
+    minX = Math.min(minX, rp.x);
+    maxX = Math.max(maxX, rp.x + rp.width);
+    minY = Math.min(minY, rp.y);
+    maxY = Math.max(maxY, rp.y + rp.height);
+  }
+
+  // Also consider node extents (nodes may exceed cluster bounds)
+  for (const nid of group.children) {
+    const n = layout.nodes[nid];
+    if (!n) continue;
+    minY = Math.min(minY, n.y);
+    maxY = Math.max(maxY, n.y + n.height);
+  }
+
+  const totalHeight = maxY - minY;
+
+  // Update container to encompass all regions
+  containerPos.x = Math.round(minX);
+  containerPos.y = Math.round(minY);
+  containerPos.width = Math.round(maxX - minX);
+  containerPos.height = Math.round(totalHeight);
+
+  // Set all regions to full container height, keep X/width from engine
+  if (!layout.groups) layout.groups = {};
+  for (let i = 0; i < numLanes; i++) {
+    const regionId = `${group.id}.__conc_region__${i}`;
+    const existing = layout.groups[regionId];
+    if (existing) {
+      existing.y = containerPos.y;
+      existing.height = containerPos.height;
+    }
+  }
+}
+
+/**
+ * ELK mode: nodes are flat (single column, correct Y order).
+ * Assign X columns per lane, shift nodes & edge waypoints.
+ */
+function _rearrangeSwimlaneElk(
+  layout: LayoutResult,
+  group: { id: string; concurrentRegions: string[][]; children: string[]; concurrentRegionLabels?: string[] },
+  containerPos: LayoutGroup,
+): void {
+  const regions = group.concurrentRegions;
+  const numLanes = regions.length;
+  const LANE_PAD = 20; // padding inside each lane
+  const LANE_HEADER = 20; // header height for lane labels
+
+  // Build node→lane index map
+  const nodeLane = new Map<string, number>();
+  for (let i = 0; i < numLanes; i++) {
+    for (const nid of regions[i]) {
+      nodeLane.set(nid, i);
+    }
+  }
+
+  // Compute width of each lane: max node width + 2*padding
+  const laneWidths: number[] = [];
+  for (let i = 0; i < numLanes; i++) {
+    let maxW = 0;
+    for (const nid of regions[i]) {
+      const n = layout.nodes[nid];
+      if (n) maxW = Math.max(maxW, n.width);
+    }
+    laneWidths.push(Math.max(maxW + 2 * LANE_PAD, 80)); // min lane width 80
+  }
+
+  // Compute lane X offsets (cumulative)
+  const laneX: number[] = [];
+  let accX = 0;
+  for (let i = 0; i < numLanes; i++) {
+    laneX.push(accX);
+    accX += laneWidths[i];
+  }
+  const totalWidth = accX;
+
+  // Compute Y bounds from all nodes (ELK placed them correctly in Y)
+  let minY = Infinity, maxY = -Infinity;
+  for (const nid of group.children) {
+    const n = layout.nodes[nid];
+    if (!n) continue;
+    minY = Math.min(minY, n.y);
+    maxY = Math.max(maxY, n.y + n.height);
+  }
+  if (!isFinite(minY)) return;
+
+  const containerX = containerPos.x;
+  const containerY = Math.round(minY - LANE_HEADER);
+  const totalHeight = Math.round(maxY - minY + LANE_HEADER);
+
+  // Build old→new X mapping for edge waypoint adjustment
+  const nodeXShifts = new Map<string, { dx: number }>();
+
+  // Move each node to its lane column, centered horizontally
+  for (const nid of group.children) {
+    const n = layout.nodes[nid];
+    if (!n) continue;
+    const lane = nodeLane.get(nid);
+    if (lane === undefined) continue;
+
+    const oldCx = n.x + n.width / 2;
+    const newX = containerX + laneX[lane] + (laneWidths[lane] - n.width) / 2;
+    n.x = Math.round(newX);
+    const newCx = n.x + n.width / 2;
+    nodeXShifts.set(nid, { dx: newCx - oldCx });
+  }
+
+  // Adjust edge waypoints: for each edge, shift X coords based on
+  // the average shift of its source/target lane
+  for (const edge of layout.edges) {
+    if (!edge.points || edge.points.length < 2) continue;
+
+    const srcLane = nodeLane.get(edge.from);
+    const tgtLane = nodeLane.get(edge.to);
+    if (srcLane === undefined && tgtLane === undefined) continue;
+
+    const srcShift = nodeXShifts.get(edge.from);
+    const tgtShift = nodeXShifts.get(edge.to);
+    const srcDx = srcShift?.dx || 0;
+    const tgtDx = tgtShift?.dx || 0;
+
+    // For start/end points: use the corresponding node's shift
+    // For intermediate bend points: interpolate based on Y position
+    const pts = edge.points;
+    const startY = pts[0].y;
+    const endY = pts[pts.length - 1].y;
+    const yRange = endY - startY;
+
+    for (let k = 0; k < pts.length; k++) {
+      let dx: number;
+      if (k === 0) {
+        dx = srcDx;
+      } else if (k === pts.length - 1) {
+        dx = tgtDx;
+      } else if (Math.abs(yRange) < 1) {
+        dx = (srcDx + tgtDx) / 2;
+      } else {
+        // Interpolate shift based on Y position between source and target
+        const t = (pts[k].y - startY) / yRange;
+        dx = srcDx + (tgtDx - srcDx) * Math.max(0, Math.min(1, t));
+      }
+      pts[k] = { x: Math.round(pts[k].x + dx), y: pts[k].y };
+    }
+  }
+
+  // Update container dimensions
+  containerPos.x = containerX;
+  containerPos.y = containerY;
+  containerPos.width = totalWidth;
+  containerPos.height = totalHeight;
+
+  // Create region groups for DrawIO rendering
+  if (!layout.groups) layout.groups = {};
+  for (let i = 0; i < numLanes; i++) {
+    const regionId = `${group.id}.__conc_region__${i}`;
+    layout.groups[regionId] = {
+      id: regionId,
+      x: containerX + laneX[i],
+      y: containerY,
+      width: laneWidths[i],
+      height: totalHeight,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fix ortho edges for swimlane diagrams
+// ---------------------------------------------------------------------------
+
+/**
+ * Post-process ortho edges so that:
+ *   1. Edges always exit from the bottom of the source node and enter
+ *      from the top of the target node (no side connections).
+ *   2. Multiple outgoing/incoming edges are evenly distributed across
+ *      the node width using (n+1) equal segments.
+ *   3. Cross-column edges get a 4-point ortho path (↓ → ↓).
+ *   4. Straight vertical edges remain 2-point.
+ *
+ * Coordinate system: DrawIO (Y increases downward).
+ *   node bottom = y + height, node top = y.
+ */
+
+// ---------------------------------------------------------------------------
+// fixNodeSpacing — enforce minimum vertical gap between nodes in each lane
+// ---------------------------------------------------------------------------
+
+/**
+ * After DOT ortho layout + swimlane rearrangement, some nodes within the
+ * same lane may end up vertically too close.  This pass scans each lane
+ * for violations of `minGap` and pushes ALL nodes (across all lanes)
+ * below the offending threshold downward by the required delta.  Group
+ * geometries are adjusted accordingly.
+ *
+ * Must be called BEFORE fixOrthoEdges (which rebuilds edge paths from
+ * corrected node positions).
+ */
+export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, minGap: number = 40): void {
+  if (!model.groups) return;
+
+  const swimContainer = model.groups.find(
+    g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
+  );
+  if (!swimContainer || !swimContainer.concurrentRegions) return;
+
+  const nodes = layout.nodes;
+  const regions = swimContainer.concurrentRegions;
+  const edges = model.edges || [];
+
+  // Build a set of connected node-pair keys for quick lookup
+  const connectedPairs = new Set<string>();
+  for (const e of edges) {
+    connectedPairs.add(e.from + '\0' + e.to);
+    connectedPairs.add(e.to + '\0' + e.from);
+  }
+
+  // Iterate until no violations remain (a push in one lane may reveal
+  // a new violation in another lane after its nodes shift).
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (const region of regions) {
+      // Collect nodes in this lane, sorted top-to-bottom
+      const laneNodes = region
+        .map(nid => nodes[nid])
+        .filter((n): n is LayoutNode => n != null)
+        .sort((a, b) => a.y - b.y);
+
+      for (let i = 0; i < laneNodes.length - 1; i++) {
+        const upper = laneNodes[i];
+        const lower = laneNodes[i + 1];
+
+        // If the lower node has INCOMING edges from nodes other than the
+        // upper node (e.g. cross-lane edges), double the required gap
+        // to leave room for the incoming edge routing.
+        // Only incoming edges need space above; outgoing edges route downward.
+        const lowerHasExternalIncoming = edges.some(e =>
+          e.to === lower.id && e.from !== upper.id
+        );
+        const requiredGap = lowerHasExternalIncoming ? minGap * 2 : minGap;
+
+        const gap = lower.y - (upper.y + upper.height);
+
+        if (gap < requiredGap) {
+          const delta = requiredGap - gap;
+          const threshold = lower.y;
+
+          // Push ALL nodes at or below threshold down
+          Object.keys(nodes).forEach(nid => {
+            if (nodes[nid].y >= threshold) {
+              nodes[nid].y += delta;
+            }
+          });
+
+          // Adjust groups: push down if entirely below, expand if straddling
+          if (layout.groups) {
+            Object.keys(layout.groups).forEach(gid => {
+              const g = layout.groups![gid];
+              if (g.y >= threshold) {
+                g.y += delta;
+              } else if (g.y + g.height > threshold) {
+                g.height += delta;
+              }
+            });
+          }
+
+          changed = true;
+        }
+      }
+    }
+  }
+}
+
+export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void {
+  const edges = layout.edges;
+  if (!edges || edges.length === 0) return;
+
+  const nodes = layout.nodes;
+
+  // Collect incoming / outgoing edge indices per node
+  const inMap = new Map<string, number[]>();
+  const outMap = new Map<string, number[]>();
+  edges.forEach((e, i) => {
+    if (!inMap.has(e.to)) inMap.set(e.to, []);
+    inMap.get(e.to)!.push(i);
+    if (!outMap.has(e.from)) outMap.set(e.from, []);
+    outMap.get(e.from)!.push(i);
+  });
+
+  // --- assign exit X positions (bottom of source node) ---
+  outMap.forEach((indices, nodeId) => {
+    const node = nodes[nodeId];
+    if (!node) return;
+    // sort outgoing edges by target node X (left → right)
+    indices.sort((a, b) => {
+      const na = nodes[edges[a].to];
+      const nb = nodes[edges[b].to];
+      return ((na?.x ?? 0) + (na?.width ?? 0) / 2) - ((nb?.x ?? 0) + (nb?.width ?? 0) / 2);
+    });
+    const count = indices.length;
+    const exitY = node.y + node.height; // bottom edge (DrawIO Y-down)
+    const left = node.x;
+    indices.forEach((ei, idx) => {
+      // divide into (n+1) segments, place at boundaries
+      const exitX = left + node.width * (idx + 1) / (count + 1);
+      (edges[ei] as any)._exitX = exitX;
+      (edges[ei] as any)._exitY = exitY;
+    });
+  });
+
+  // --- assign entry X positions (top of target node) ---
+  inMap.forEach((indices, nodeId) => {
+    const node = nodes[nodeId];
+    if (!node) return;
+    // sort incoming edges by source node X (left → right)
+    indices.sort((a, b) => {
+      const na = nodes[edges[a].from];
+      const nb = nodes[edges[b].from];
+      return ((na?.x ?? 0) + (na?.width ?? 0) / 2) - ((nb?.x ?? 0) + (nb?.width ?? 0) / 2);
+    });
+    const count = indices.length;
+    const entryY = node.y; // top edge (DrawIO Y-down)
+    const left = node.x;
+    indices.forEach((ei, idx) => {
+      // divide into (n+1) segments, place at boundaries
+      const entryX = left + node.width * (idx + 1) / (count + 1);
+      (edges[ei] as any)._entryX = entryX;
+      (edges[ei] as any)._entryY = entryY;
+    });
+  });
+
+  // --- rebuild ortho paths ---
+  for (const e of edges) {
+    const ex = (e as any)._exitX as number | undefined;
+    const ey = (e as any)._exitY as number | undefined;
+    const nx = (e as any)._entryX as number | undefined;
+    const ny = (e as any)._entryY as number | undefined;
+    if (ex == null || ey == null || nx == null || ny == null) continue;
+
+    const midY = (ey + ny) / 2;
+
+    if (Math.abs(ex - nx) < 5) {
+      // same column (within 5px tolerance) → straight vertical line
+      const avgX = Math.round((ex + nx) / 2);
+      // Skip correction if original path is already a 2-point line
+      // and both endpoints shift less than 5px
+      if (e.points && e.points.length === 2) {
+        const dx0 = Math.abs(e.points[0].x - avgX) + Math.abs(e.points[0].y - ey);
+        const dx1 = Math.abs(e.points[1].x - avgX) + Math.abs(e.points[1].y - ny);
+        if (dx0 < 5 && dx1 < 5) {
+          // Clean up temp properties and skip
+          delete (e as any)._exitX;
+          delete (e as any)._exitY;
+          delete (e as any)._entryX;
+          delete (e as any)._entryY;
+          continue;
+        }
+      }
+      e.points = [{ x: avgX, y: Math.round(ey) }, { x: avgX, y: Math.round(ny) }];
+    } else {
+      // cross-column → 4-point ortho (exit ↓ → horizontal → ↓ entry)
+      e.points = [
+        { x: Math.round(ex), y: Math.round(ey) },
+        { x: Math.round(ex), y: Math.round(midY) },
+        { x: Math.round(nx), y: Math.round(midY) },
+        { x: Math.round(nx), y: Math.round(ny) },
+      ];
+    }
+
+    // Clear label position — original DOT label position is for the
+    // unmodified ortho edge and may be misplaced after path correction.
+    // The label will be repositioned by the renderer based on the new path.
+    // Keep labelPos if it exists, but recalculate to midpoint of horizontal segment.
+    if (e.labelPos && e.points.length === 4) {
+      e.labelPos = {
+        x: Math.round((e.points[1].x + e.points[2].x) / 2),
+        y: Math.round((e.points[1].y + e.points[2].y) / 2),
+      };
+    } else if (e.labelPos && e.points.length === 2) {
+      e.labelPos = {
+        x: Math.round((e.points[0].x + e.points[1].x) / 2),
+        y: Math.round((e.points[0].y + e.points[1].y) / 2),
+      };
+    }
+
+    // Clean up temp properties
+    delete (e as any)._exitX;
+    delete (e as any)._exitY;
+    delete (e as any)._entryX;
+    delete (e as any)._entryY;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// avoidNodeCollisions — reroute ortho edges around non-target nodes
+// ---------------------------------------------------------------------------
+
+/**
+ * After fixOrthoEdges, some edge segments may pass through nodes that are
+ * neither the source nor the target.  This function detects such collisions
+ * and reroutes the edge around the obstacle node's expanded bounding box.
+ *
+ * Algorithm:
+ *   1. Detect collision of edge path with actual node rect.
+ *   2. Find where the edge enters/exits the expanded (margin) rect.
+ *   3. Build two detour paths around the expanded rect (CW and CCW).
+ *   4. Pick the shorter one, splice it in, and remove bypassed points.
+ */
+export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, margin: number = 20): void {
+  const edges = layout.edges;
+  if (!edges || edges.length === 0) return;
+  const nodes = layout.nodes;
+  const nodeIds = Object.keys(nodes);
+
+  for (const edge of edges) {
+    if (!edge.points || edge.points.length < 2) continue;
+
+    const skipIds = new Set([edge.from, edge.to]);
+    const obstacles = nodeIds.filter(id => !skipIds.has(id)).map(id => nodes[id]);
+    if (obstacles.length === 0) continue;
+
+    let modified = false;
+
+    for (const obs of obstacles) {
+      const pts = edge.points!;
+
+      // Quick check: does any segment cross the actual node rect?
+      let hasCollision = false;
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (_segIntersectsRect(pts[i], pts[i + 1],
+          obs.x, obs.y, obs.x + obs.width, obs.y + obs.height)) {
+          hasCollision = true;
+          break;
+        }
+      }
+      if (!hasCollision) continue;
+
+      // Find entry and exit intersections on expanded rect
+      const expRect = {
+        left: obs.x - margin, top: obs.y - margin,
+        right: obs.x + obs.width + margin, bottom: obs.y + obs.height + margin,
+      };
+
+      let entryIdx = -1;
+      let entryPt: { x: number; y: number } | null = null;
+      let entrySide = '';
+      let exitIdx = -1;
+      let exitPt: { x: number; y: number } | null = null;
+      let exitSide = '';
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        const ints = _orthoSegRectIntersections(pts[i], pts[i + 1], expRect);
+        for (const inter of ints) {
+          if (entryIdx === -1) {
+            entryIdx = i;
+            entryPt = inter.point;
+            entrySide = inter.side;
+          }
+          // Last intersection wins as exit
+          exitIdx = i;
+          exitPt = inter.point;
+          exitSide = inter.side;
+        }
+      }
+
+      if (!entryPt || !exitPt || entryIdx === -1) continue;
+
+      // Build CW and CCW detour paths, pick shorter
+      const cwCorners = _buildRectDetour(entrySide, exitSide, expRect, true);
+      const ccwCorners = _buildRectDetour(entrySide, exitSide, expRect, false);
+      const cwLen = _orthoPathLen([entryPt, ...cwCorners, exitPt]);
+      const ccwLen = _orthoPathLen([entryPt, ...ccwCorners, exitPt]);
+      const detour = cwLen <= ccwLen ? cwCorners : ccwCorners;
+
+      // Rebuild edge: [0..entryIdx] + entryPt + detour + exitPt + [exitIdx+1..end]
+      const newPts: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i <= entryIdx; i++) newPts.push(pts[i]);
+      newPts.push({ x: Math.round(entryPt.x), y: Math.round(entryPt.y) });
+      for (const dp of detour) newPts.push({ x: Math.round(dp.x), y: Math.round(dp.y) });
+      newPts.push({ x: Math.round(exitPt.x), y: Math.round(exitPt.y) });
+      for (let i = exitIdx + 1; i < pts.length; i++) newPts.push(pts[i]);
+
+      edge.points = newPts;
+      modified = true;
+    }
+
+    // Recalculate label position after rerouting
+    if (modified && edge.labelPos && edge.points.length >= 2) {
+      let bestLen = 0;
+      let bestIdx = 0;
+      for (let i = 0; i < edge.points.length - 1; i++) {
+        const dx = edge.points[i + 1].x - edge.points[i].x;
+        const dy = edge.points[i + 1].y - edge.points[i].y;
+        const len = Math.abs(dx) + Math.abs(dy);
+        if (len > bestLen) { bestLen = len; bestIdx = i; }
+      }
+      const a = edge.points[bestIdx];
+      const b = edge.points[bestIdx + 1];
+      edge.labelPos = {
+        x: Math.round((a.x + b.x) / 2),
+        y: Math.round((a.y + b.y) / 2),
+      };
+    }
+  }
+}
+
+/** Check if an ortho segment (horizontal or vertical) intersects a rectangle */
+function _segIntersectsRect(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  left: number, top: number, right: number, bottom: number,
+): boolean {
+  if (Math.abs(p1.x - p2.x) < 0.5) {
+    // Vertical segment
+    const x = (p1.x + p2.x) / 2;
+    const yMin = Math.min(p1.y, p2.y);
+    const yMax = Math.max(p1.y, p2.y);
+    return x > left && x < right && yMax > top && yMin < bottom;
+  } else {
+    // Horizontal segment
+    const y = (p1.y + p2.y) / 2;
+    const xMin = Math.min(p1.x, p2.x);
+    const xMax = Math.max(p1.x, p2.x);
+    return y > top && y < bottom && xMax > left && xMin < right;
+  }
+}
+
+/**
+ * Find intersections of an axis-aligned segment with a rect boundary.
+ * Returns intersections ordered along the direction from p1 to p2.
+ */
+function _orthoSegRectIntersections(
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  rect: { left: number; top: number; right: number; bottom: number },
+): Array<{ point: { x: number; y: number }; side: string }> {
+  const result: Array<{ point: { x: number; y: number }; side: string; t: number }> = [];
+
+  if (Math.abs(p1.x - p2.x) < 0.5) {
+    // Vertical segment
+    const x = (p1.x + p2.x) / 2;
+    if (x <= rect.left || x >= rect.right) return [];
+    const dy = p2.y - p1.y;
+    if (Math.abs(dy) < 0.1) return [];
+    const tTop = (rect.top - p1.y) / dy;
+    if (tTop > 0.001 && tTop < 0.999) {
+      result.push({ point: { x, y: rect.top }, side: 'top', t: tTop });
+    }
+    const tBot = (rect.bottom - p1.y) / dy;
+    if (tBot > 0.001 && tBot < 0.999) {
+      result.push({ point: { x, y: rect.bottom }, side: 'bottom', t: tBot });
+    }
+  } else {
+    // Horizontal segment
+    const y = (p1.y + p2.y) / 2;
+    if (y <= rect.top || y >= rect.bottom) return [];
+    const dx = p2.x - p1.x;
+    if (Math.abs(dx) < 0.1) return [];
+    const tLeft = (rect.left - p1.x) / dx;
+    if (tLeft > 0.001 && tLeft < 0.999) {
+      result.push({ point: { x: rect.left, y }, side: 'left', t: tLeft });
+    }
+    const tRight = (rect.right - p1.x) / dx;
+    if (tRight > 0.001 && tRight < 0.999) {
+      result.push({ point: { x: rect.right, y }, side: 'right', t: tRight });
+    }
+  }
+
+  result.sort((a, b) => a.t - b.t);
+  return result.map(r => ({ point: r.point, side: r.side }));
+}
+
+/**
+ * Build intermediate corner points for a detour around a rect boundary,
+ * from entry side to exit side.
+ * CW corner order: TL(0) → TR(1) → BR(2) → BL(3)
+ */
+function _buildRectDetour(
+  entrySide: string,
+  exitSide: string,
+  rect: { left: number; top: number; right: number; bottom: number },
+  clockwise: boolean,
+): Array<{ x: number; y: number }> {
+  // Same side: direct connection, no corners needed
+  if (entrySide === exitSide) return [];
+
+  const corners = [
+    { x: rect.left, y: rect.top },     // 0: TL
+    { x: rect.right, y: rect.top },    // 1: TR
+    { x: rect.right, y: rect.bottom }, // 2: BR
+    { x: rect.left, y: rect.bottom },  // 3: BL
+  ];
+
+  // CW-end corner of each side (corner reached going CW along the side)
+  const cwEnd: Record<string, number> = { top: 1, right: 2, bottom: 3, left: 0 };
+  // CW-start corner of each side
+  const cwStart: Record<string, number> = { top: 0, right: 1, bottom: 2, left: 3 };
+
+  const path: Array<{ x: number; y: number }> = [];
+
+  if (clockwise) {
+    let c = cwEnd[entrySide];
+    const target = cwStart[exitSide];
+    let safety = 0;
+    while (c !== target && safety < 4) {
+      path.push({ ...corners[c] });
+      c = (c + 1) % 4;
+      safety++;
+    }
+    path.push({ ...corners[target] });
+  } else {
+    let c = cwStart[entrySide];
+    const target = cwEnd[exitSide];
+    let safety = 0;
+    while (c !== target && safety < 4) {
+      path.push({ ...corners[c] });
+      c = (c + 3) % 4;
+      safety++;
+    }
+    path.push({ ...corners[target] });
+  }
+
+  return path;
+}
+
+/** Compute total Manhattan length of an ortho point sequence */
+function _orthoPathLen(pts: Array<{ x: number; y: number }>): number {
+  let len = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    len += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
+  }
+  return len;
+}

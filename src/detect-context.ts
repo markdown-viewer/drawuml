@@ -121,7 +121,7 @@ export const DEPLOYMENT_COMPONENT_KEYWORDS = new Set([
   'port', 'portin', 'portout',
 ]);
 
-export type DiagramContext = 'sequence' | 'class' | 'usecase' | 'deployment' | 'state' | 'description';
+export type DiagramContext = 'sequence' | 'class' | 'usecase' | 'deployment' | 'state' | 'description' | 'activity';
 
 /**
  * Detect diagram context from parsed statements in a single pass.
@@ -145,6 +145,7 @@ export function detectDiagramContext(parsed): DiagramContext {
   let hasDeployment = false;
   let hasExplicitClassDecl = false;
   let hasImplicitClassDecl = false;
+  let hasActivity = false;
 
   for (const st of statements) {
     if (!st || typeof st !== 'object') continue;
@@ -155,6 +156,28 @@ export function detectDiagramContext(parsed): DiagramContext {
 
     // ── Non-sequence statement kinds / types ──
     if (NON_SEQUENCE_KINDS.has(kind) || NON_SEQUENCE_TYPES.has(key)) {
+      hasNonSequence = true;
+    }
+
+    // ── Activity diagram indicators ──
+    if (kind === 'activity_statement' || kind === 'activity_text_line') {
+      hasActivity = true;
+      hasNonSequence = true;
+    }
+    if (kind === 'control_statement') {
+      const t = type || String(st.text || '').toLowerCase();
+      if (['if', 'elseif', 'else', 'endif', 'switch', 'case', 'endswitch',
+           'fork', 'end fork', 'split', 'while', 'repeat',
+           'backward', 'arrow', 'link'].includes(t)) {
+        hasActivity = true;
+      }
+      if (['start', 'stop', 'end', 'kill', 'detach', 'break'].includes(t)
+          || ['start', 'stop', 'end', 'kill', 'detach', 'break'].includes(String(st.text || '').toLowerCase())) {
+        hasActivity = true;
+      }
+    }
+    if (kind === 'block_statement' && (type === 'swimlane' || type === 'partition')) {
+      hasActivity = true;
       hasNonSequence = true;
     }
 
@@ -306,13 +329,14 @@ export function detectDiagramContext(parsed): DiagramContext {
     }
   }
 
-  // Priority: sequence (if eligible) > state > deployment > usecase > description > class
+  // Priority: sequence (if eligible) > state > activity > deployment > usecase > description > class
   // Deployment > usecase because PlantUML's DescriptionDiagramFactory treats
   // both as "description" diagrams. Actors/usecases can appear in deployment
   // diagrams (with :name: or (name) syntax), and deployment-specific keywords
   // (component, node, etc.) should take precedence.
   if (!hasNonSequence && hasSequenceIndicator) return 'sequence';
   if (hasState) return 'state';
+  if (hasActivity) return 'activity';
   if (hasDeployment) return 'deployment';
   if (hasUsecase) return 'usecase';
   // Description: implicit-only class declarations (no explicit `class` keyword).

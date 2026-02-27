@@ -12,7 +12,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup, SemanticNode } from '.
 import { createNodeRenderer } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary } from './post-process.ts';
+import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions } from './post-process.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
 
 // ---------------------------------------------------------------------------
@@ -289,7 +289,9 @@ export interface DotLayoutResult {
  * Lay out a SemanticModel using viz.js DOT engine.
  * Returns layout coordinates and pre-built renderers for generation.
  */
-export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> {
+export async function dotLayout(model: SemanticModel, options?: { ortho?: boolean }): Promise<DotLayoutResult> {
+  const useOrtho = options?.ortho ?? false;
+
   // 1. Create renderers for each node
   const renderers = createRenderers(model);
 
@@ -298,7 +300,10 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
 
   // 3. Generate DOT string from LayoutGraphNode IR
   const rootNodes = rootRenderers.map(r => r.buildLayoutGraph());
-  const { dot, groupIds } = layoutGraphToDot(rootNodes, model, renderers);
+  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers);
+
+  // Inject splines=ortho for swimlane diagrams when requested
+  const dot = useOrtho ? dotRaw.replace('remincross=true', 'remincross=true\n  splines=ortho') : dotRaw;
 
   // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
   const viz = await getViz();
@@ -318,7 +323,17 @@ export async function dotLayout(model: SemanticModel): Promise<DotLayoutResult> 
   // 5. Extract + transform coordinates
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
 
-  // 5a. Snap port nodes to their parent group boundary
+  // 5a. Swimlane column rearrangement (if activity swimlanes present)
+  rearrangeSwimlanes(layout, model);
+
+  // 5a2. Fix node spacing, ortho edges, and node collision avoidance for swimlane diagrams
+  if (useOrtho) {
+    fixNodeSpacing(layout, model);
+    fixOrthoEdges(layout, model);
+    avoidNodeCollisions(layout, model);
+  }
+
+  // 5b. Snap port nodes to their parent group boundary
   snapPortNodes(layout, model, renderers);
 
   // 6. Fine-tune field-targeting notes (memberTarget) Y alignment

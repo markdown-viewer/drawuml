@@ -1,5 +1,6 @@
 import { dispatch } from './dispatcher.ts';
 import { parseClassDiagram } from './parsers/class.ts';
+import { parseActivityDiagram } from './parsers/activity.ts';
 import { parseSequenceDiagram } from './parsers/sequence.ts';
 import { parsePlantUml } from './parsers/puml.ts';
 import { preprocess } from './shared/preprocessor.ts';
@@ -46,7 +47,9 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
     return sequenceToDrawioXml(model, layout, renderers);
   }
 
-  const model = parseClassDiagram(parsed.statements, { pragmas, diagramContext });
+  const model = diagramContext === 'activity'
+    ? parseActivityDiagram(parsed.statements, { pragmas })
+    : parseClassDiagram(parsed.statements, { pragmas, diagramContext });
   model.diagramType = diagramType;
 
   const { layout, renderers } = engine === 'elk'
@@ -65,3 +68,4 @@ export type { DiagramContext } from './detect-context.ts';
 export * from './model/index.ts';
 export { parsePlantUml } from './parsers/puml.ts';
 export { parseSequenceDiagram } from './parsers/sequence.ts';
+export { parseActivityDiagram } from './parsers/activity.ts';

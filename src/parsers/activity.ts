@@ -1,0 +1,898 @@
+/**
+ * Activity diagram parser — converts PEG-parsed statements into a SemanticModel
+ * suitable for DOT/ELK layout and DrawIO XML generation.
+ *
+ * The parser walks statements sequentially, maintaining a "current node" cursor.
+ * Control flow (if/while/repeat/fork/switch/split) creates branching structure.
+ * Swimlanes and partitions map to SemanticGroups.
+ *
+ * Node types used:
+ *   - 'class' with stereotype 'activity'       → rounded rectangle (action)
+ *   - 'state_start'                            → filled circle (start)
+ *   - 'state_end'                              → bullseye circle (stop)
+ *   - 'state_fork'                             → fork/join bar
+ *   - 'state_choice'                           → diamond (decision/merge)
+ */
+
+import { DiagramType, NodeType, EdgeType } from '../model/index.ts';
+import type { SemanticModel, SemanticGroup, SemanticNode, SemanticEdge, ClassNote } from '../model/class-model.ts';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+let idCounter = 0;
+function nextId(prefix: string): string {
+  return `${prefix}_${++idCounter}`;
+}
+
+function resetIds(): void {
+  idCounter = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Parser
+// ---------------------------------------------------------------------------
+
+export interface ActivityParseOptions {
+  pragmas?: Record<string, string>;
+}
+
+export function parseActivityDiagram(
+  statements: any[],
+  options: ActivityParseOptions = {},
+): SemanticModel {
+  resetIds();
+
+  const nodes: SemanticNode[] = [];
+  const edges: SemanticEdge[] = [];
+  const notes: ClassNote[] = [];
+  const groups: SemanticGroup[] = [];
+  const nodesById: Record<string, SemanticNode> = Object.create(null);
+  const skinparams: Record<string, string> = {};
+  let title: string | undefined;
+  let edgeCount = 0;
+
+  // Current execution cursor — the node(s) from which the next activity continues.
+  // Multiple cursors arise after if/else branches before merge.
+  let cursors: string[] = [];
+
+  // Swimlane tracking
+  let currentSwimlane: SemanticGroup | null = null;
+  const swimlaneMap = new Map<string, SemanticGroup>();
+  let swimlaneCounter = 0;
+
+  // Partition/group stack
+  const groupStack: SemanticGroup[] = [];
+  let groupCounter = 0;
+
+  // Arrow styling for next edge
+  let pendingArrowColor: string | null = null;
+  let pendingArrowLabel: string | null = null;
+  let pendingArrowStyle: string | null = null;
+
+  // Multi-line activity accumulator
+  let activityAccum: { lines: string[]; color?: string } | null = null;
+
+  // ---------------------------------------------------------------------------
+  // Node creation
+  // ---------------------------------------------------------------------------
+
+  function addNode(node: SemanticNode): void {
+    if (nodesById[node.id]) return;
+    nodesById[node.id] = node;
+    nodes.push(node);
+    // Register in current group
+    const group = currentSwimlane || (groupStack.length > 0 ? groupStack[groupStack.length - 1] : null);
+    if (group && !group.children.includes(node.id)) {
+      group.children.push(node.id);
+    }
+  }
+
+  function createActionNode(label: string, color?: string | null): string {
+    const id = nextId('act');
+    const node: SemanticNode = {
+      id,
+      type: NodeType.Class as any,
+      label,
+      stereotype: 'activity',
+      bodyLines: [],
+    };
+    if (color) node.style = `#back:${color}`;
+    addNode(node);
+    return id;
+  }
+
+  function createStartNode(): string {
+    const id = nextId('start');
+    addNode({
+      id,
+      type: NodeType.StateStart as any,
+      label: '',
+      stereotype: null,
+      bodyLines: [],
+    });
+    return id;
+  }
+
+  function createStopNode(): string {
+    const id = nextId('stop');
+    addNode({
+      id,
+      type: NodeType.StateEnd as any,
+      label: '',
+      stereotype: null,
+      bodyLines: [],
+    });
+    return id;
+  }
+
+  function createEndNode(): string {
+    // 'end' uses a filled circle (same as start but final)
+    const id = nextId('end');
+    addNode({
+      id,
+      type: NodeType.StateStart as any,
+      label: '',
+      stereotype: null,
+      bodyLines: [],
+    });
+    return id;
+  }
+
+  function createForkBar(): string {
+    const id = nextId('fork');
+    addNode({
+      id,
+      type: NodeType.StateFork as any,
+      label: '',
+      stereotype: null,
+      bodyLines: [],
+    });
+    return id;
+  }
+
+  function createDiamond(label: string): string {
+    const id = nextId('diamond');
+    addNode({
+      id,
+      type: NodeType.StateChoice as any,
+      label,
+      stereotype: null,
+      bodyLines: [],
+    });
+    return id;
+  }
+
+  function createMergeDiamond(): string {
+    return createDiamond('');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Edge creation
+  // ---------------------------------------------------------------------------
+
+  function addEdge(from: string, to: string, label?: string, style?: string | null): void {
+    edgeCount++;
+    const edge: SemanticEdge = {
+      id: `e${edgeCount}`,
+      type: EdgeType.Association as any,
+      from,
+      to,
+      label: label || '',
+      arrow: '-->',
+    };
+    if (style) edge.style = style;
+    edges.push(edge);
+  }
+
+  function connectCursorsTo(targetId: string, label?: string): void {
+    const arrowLabel = label || pendingArrowLabel || '';
+    const arrowStyle = pendingArrowStyle || (pendingArrowColor ? `#line:${pendingArrowColor}` : null);
+    for (const c of cursors) {
+      addEdge(c, targetId, arrowLabel, arrowStyle);
+    }
+    pendingArrowColor = null;
+    pendingArrowLabel = null;
+    pendingArrowStyle = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Swimlane management
+  // ---------------------------------------------------------------------------
+
+  function switchSwimlane(name: string, color?: string | null): void {
+    if (swimlaneMap.has(name)) {
+      currentSwimlane = swimlaneMap.get(name)!;
+      return;
+    }
+    swimlaneCounter++;
+    const id = `swim_${swimlaneCounter}`;
+    const group: SemanticGroup = {
+      id,
+      label: name,
+      type: 'rectangle',
+      stereotype: '',
+      children: [],
+      childGroups: [],
+    };
+    if (color) group.color = color;
+    groups.push(group);
+    swimlaneMap.set(name, group);
+    currentSwimlane = group;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Partition/group management
+  // ---------------------------------------------------------------------------
+
+  function pushPartition(label: string, color?: string | null): void {
+    groupCounter++;
+    const parentId = currentSwimlane?.id || (groupStack.length > 0 ? groupStack[groupStack.length - 1].id : undefined);
+    const id = `group_${groupCounter}`;
+    const group: SemanticGroup = {
+      id,
+      label,
+      type: 'rectangle',
+      stereotype: '',
+      parentId,
+      children: [],
+      childGroups: [],
+    };
+    if (color) group.color = color;
+    groups.push(group);
+    if (parentId) {
+      const parent = groups.find(g => g.id === parentId);
+      if (parent) parent.childGroups.push(id);
+    }
+    groupStack.push(group);
+  }
+
+  function popPartition(): void {
+    groupStack.pop();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Flush multi-line activity
+  // ---------------------------------------------------------------------------
+
+  function flushActivity(): void {
+    if (!activityAccum) return;
+    const label = activityAccum.lines.join('\\n');
+    const nodeId = createActionNode(label, activityAccum.color);
+    connectCursorsTo(nodeId);
+    cursors = [nodeId];
+    activityAccum = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Control flow context stack
+  // ---------------------------------------------------------------------------
+
+  interface IfContext {
+    type: 'if';
+    diamondId: string;
+    branchEnds: string[][]; // end cursors from each branch
+    elseSeen: boolean;
+  }
+
+  interface WhileContext {
+    type: 'while';
+    condId: string; // diamond at loop head
+    yesLabel: string;
+    noLabel: string;
+  }
+
+  interface RepeatContext {
+    type: 'repeat';
+    startId: string; // node at repeat start (junction for backward)
+    backwardLabel: string;
+  }
+
+  interface ForkContext {
+    type: 'fork';
+    forkBarId: string;
+    branchEnds: string[][];
+    keyword: string; // 'fork' or 'split'
+  }
+
+  interface SwitchContext {
+    type: 'switch';
+    diamondId: string;
+    branchEnds: string[][];
+  }
+
+  type ControlContext = IfContext | WhileContext | RepeatContext | ForkContext | SwitchContext;
+  const controlStack: ControlContext[] = [];
+
+  // ---------------------------------------------------------------------------
+  // Statement processing
+  // ---------------------------------------------------------------------------
+
+  for (let i = 0; i < statements.length; i++) {
+    const st = statements[i];
+    if (!st || typeof st !== 'object') continue;
+
+    const kind = st.kind || '';
+    const type = st.type || '';
+    const rawText = String(st.text || '').toLowerCase();
+
+    // Skip blanks and comments
+    if (kind === 'blank_line' || kind === 'comment_line') continue;
+
+    // Flush multi-line activity when we see a non-text line
+    if (kind !== 'activity_text_line' && activityAccum) {
+      flushActivity();
+    }
+
+    // ── Skinparam ──
+    if (kind === 'directive_statement' && String(st.keyword || '').toLowerCase() === 'skinparam') {
+      if (st.key && st.value) skinparams[st.key] = st.value;
+      continue;
+    }
+
+    // ── Title ──
+    if (kind === 'markup_statement' && type === 'title_line') {
+      title = st.text;
+      continue;
+    }
+
+    // ── Swimlane ──
+    if (kind === 'block_statement' && type === 'swimlane') {
+      flushActivity();
+      switchSwimlane(st.name, st.color);
+      continue;
+    }
+
+    // ── Partition ──
+    if (kind === 'block_statement' && type === 'partition') {
+      flushActivity();
+      const text = String(st.text || '').trim();
+      const cleaned = text.replace(/\s*\{?\s*$/, '').trim();
+      const parts = cleaned.match(/^(.+?)\s+(#\S+)$/);
+      const rawLabel = parts ? parts[1] : cleaned;
+      const label = rawLabel.replace(/^"|"$/g, '').replace(/"/g, '').trim();
+      const color = parts ? parts[2] : undefined;
+      pushPartition(label, color);
+      continue;
+    }
+
+    // ── Group block start (group/package/rectangle/card with {) ──
+    if (kind === 'block_statement' && type === 'group' && st.block) {
+      flushActivity();
+      const label = String(st.text || '').trim();
+      pushPartition(label);
+      continue;
+    }
+
+    // ── Block end (}) ──
+    if (kind === 'block_statement' && (type === 'style_block_end' || rawText === '}')) {
+      flushActivity();
+      if (groupStack.length > 0) popPartition();
+      continue;
+    }
+
+    // ── Start ──
+    if (kind === 'control_statement' && rawText === 'start') {
+      const id = createStartNode();
+      if (cursors.length > 0) connectCursorsTo(id);
+      cursors = [id];
+      continue;
+    }
+
+    // ── Stop ──
+    if (kind === 'control_statement' && rawText === 'stop') {
+      const id = createStopNode();
+      connectCursorsTo(id);
+      cursors = [];
+      continue;
+    }
+
+    // ── End ──
+    if (kind === 'control_statement' && rawText === 'end') {
+      const id = createEndNode();
+      connectCursorsTo(id);
+      cursors = [];
+      continue;
+    }
+
+    // ── Kill / Detach ──
+    if (kind === 'control_statement' && (rawText === 'kill' || rawText === 'detach')) {
+      // Terminate current flow — just clear cursors
+      cursors = [];
+      continue;
+    }
+
+    // ── Break ──
+    if (kind === 'control_statement' && rawText === 'break') {
+      cursors = [];
+      continue;
+    }
+
+    // ── Activity (single-line terminated) ──
+    if (kind === 'activity_statement' && st.terminated === true) {
+      const label = String(st.text || '');
+      const nodeId = createActionNode(label, st.color);
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
+    // ── Activity (multi-line start) ──
+    if (kind === 'activity_statement' && st.terminated === false && !st.continuation) {
+      activityAccum = { lines: [String(st.text || '')], color: st.color };
+      continue;
+    }
+
+    // ── Activity text line (continuation of multi-line) ──
+    if (kind === 'activity_text_line') {
+      if (activityAccum) {
+        let line = String(st.text || '');
+        // Remove trailing ';' from last line
+        if (line.endsWith(';')) line = line.slice(0, -1);
+        activityAccum.lines.push(line.trim());
+      }
+      continue;
+    }
+
+    // ── Activity continuation (line ending with ;) ──
+    if (kind === 'activity_statement' && st.continuation === true) {
+      const label = String(st.text || '');
+      const nodeId = createActionNode(label, st.color);
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
+    // ── Colored activity ──
+    if (kind === 'activity_statement' && st.color) {
+      const label = String(st.text || '');
+      const nodeId = createActionNode(label, st.color);
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
+    // ── Colored activity via declaration_statement (#color:text;) ──
+    if (kind === 'declaration_statement' && st.visibility === '#') {
+      const raw = String(st.text || '');
+      // Parse "color:text;" pattern
+      const m = raw.match(/^(\w+):(.+?)(?:;)?$/);
+      if (m) {
+        const color = '#' + m[1];
+        const label = m[2].trim();
+        const nodeId = createActionNode(label, color);
+        connectCursorsTo(nodeId);
+        cursors = [nodeId];
+        continue;
+      }
+    }
+
+    // ── Arrow styling ──
+    if (kind === 'control_statement' && type === 'arrow') {
+      pendingArrowColor = st.color || null;
+      const text = String(st.text || '').trim();
+      if (text && !text.endsWith(';')) {
+        pendingArrowLabel = text;
+      } else if (text) {
+        pendingArrowLabel = text.replace(/;$/, '').trim();
+      }
+      continue;
+    }
+
+    // ── Link color ──
+    if (kind === 'control_statement' && type === 'link') {
+      pendingArrowColor = st.color || null;
+      continue;
+    }
+
+    // ── If ──
+    if (kind === 'control_statement' && type === 'if') {
+      const cond = String(st.cond || '');
+      const diamondId = createDiamond(cond);
+      connectCursorsTo(diamondId);
+      cursors = [diamondId];
+
+      controlStack.push({
+        type: 'if',
+        diamondId,
+        branchEnds: [],
+        elseSeen: false,
+      });
+
+      // Start 'then' branch with label
+      const branchLabel = st.branch || 'yes';
+      pendingArrowLabel = branchLabel;
+      continue;
+    }
+
+    // ── ElseIf ──
+    if (kind === 'control_statement' && type === 'elseif') {
+      const ctx = controlStack[controlStack.length - 1];
+      if (ctx && ctx.type === 'if') {
+        // Save current branch endpoint
+        ctx.branchEnds.push([...cursors]);
+        // Create new diamond for elseif
+        const cond = String(st.cond || '');
+        const diamondId = createDiamond(cond);
+        // Previous diamond's else branch → this diamond
+        const prevLabel = st.lineBranch || 'no';
+        addEdge(ctx.diamondId, diamondId, prevLabel);
+        ctx.diamondId = diamondId;
+        cursors = [diamondId];
+        // Start branch
+        pendingArrowLabel = st.branch || 'yes';
+      }
+      continue;
+    }
+
+    // ── Else ──
+    if (kind === 'control_statement' && type === 'else') {
+      const ctx = controlStack[controlStack.length - 1];
+      if (ctx && ctx.type === 'if') {
+        // Save current branch endpoint
+        ctx.branchEnds.push([...cursors]);
+        ctx.elseSeen = true;
+        // Else branch starts from the last diamond
+        cursors = [ctx.diamondId];
+        pendingArrowLabel = st.branch || st.lineBranch || 'no';
+      }
+      continue;
+    }
+
+    // ── Sequence block else (fallback from SequenceKeywordLine) ──
+    if (kind === 'block_statement' && type === 'sequence_block' &&
+        String(st.keyword || '').toLowerCase() === 'else') {
+      const ctx = controlStack[controlStack.length - 1];
+      if (ctx && ctx.type === 'if') {
+        ctx.branchEnds.push([...cursors]);
+        ctx.elseSeen = true;
+        cursors = [ctx.diamondId];
+        const branchText = String(st.text || '').replace(/^\(/, '').replace(/\)$/, '').trim();
+        pendingArrowLabel = branchText || 'no';
+      }
+      continue;
+    }
+
+    // ── Endif ──
+    if ((kind === 'control_statement' && (type === 'endif' || rawText === 'endif'))) {
+      const ctx = controlStack.pop();
+      if (ctx && ctx.type === 'if') {
+        // Collect all branch ends
+        ctx.branchEnds.push([...cursors]);
+        if (!ctx.elseSeen) {
+          // Implicit else: direct edge from last diamond
+          ctx.branchEnds.push([ctx.diamondId]);
+        }
+        const allEnds = ctx.branchEnds.flat().filter(c => c);
+        if (allEnds.length > 1) {
+          // Create merge diamond
+          const mergeId = createMergeDiamond();
+          for (const c of allEnds) { addEdge(c, mergeId); }
+          cursors = [mergeId];
+        } else if (allEnds.length === 1) {
+          cursors = allEnds;
+        } else {
+          cursors = [];
+        }
+      }
+      continue;
+    }
+
+    // ── While ──
+    if (kind === 'control_statement' && type === 'while') {
+      const kw = String(st.keyword || '').toLowerCase();
+      if (kw === 'while' || kw === '') {
+        const text = String(st.text || '');
+        // Parse condition and is-label from text: "(cond) is (label)"
+        const condMatch = text.match(/^\(([^)]*)\)(?:\s+is\s+\(([^)]*)\))?/i);
+        const cond = condMatch ? condMatch[1] : text;
+        const yesLabel = condMatch && condMatch[2] ? condMatch[2] : 'yes';
+        const diamondId = createDiamond(cond);
+        connectCursorsTo(diamondId);
+        cursors = [diamondId];
+        pendingArrowLabel = yesLabel;
+        controlStack.push({
+          type: 'while',
+          condId: diamondId,
+          yesLabel,
+          noLabel: '',
+        });
+      } else if (kw === 'endwhile') {
+        const text = String(st.text || '');
+        const outMatch = text.match(/^\(([^)]*)\)/);
+        const noLabel = outMatch ? outMatch[1] : 'no';
+        const ctx = controlStack.pop();
+        if (ctx && ctx.type === 'while') {
+          // Loop back edge: current → diamond
+          for (const c of cursors) { addEdge(c, ctx.condId); }
+          // Exit edge: diamond →
+          cursors = [ctx.condId];
+          pendingArrowLabel = noLabel;
+        }
+      }
+      continue;
+    }
+
+    // ── Repeat ──
+    if (kind === 'control_statement' && type === 'repeat') {
+      const kw = String(st.keyword || '').toLowerCase();
+      if (kw === 'repeat') {
+        // repeat start — create a junction node as loop entry
+        const junctionId = createMergeDiamond();
+        connectCursorsTo(junctionId);
+        cursors = [junctionId];
+        controlStack.push({
+          type: 'repeat',
+          startId: junctionId,
+          backwardLabel: '',
+        });
+        // If repeat has a label ":text;", create an action node
+        const text = String(st.text || '').trim();
+        if (text) {
+          const labelMatch = text.match(/^:(.+);?$/);
+          if (labelMatch) {
+            const nodeId = createActionNode(labelMatch[1].replace(/;$/, ''));
+            connectCursorsTo(nodeId);
+            cursors = [nodeId];
+          }
+        }
+      } else if (kw === 'repeat while') {
+        const text = String(st.text || '');
+        // Parse: "(cond)" or "(cond) is (yes)" or "(cond) is (yes) not (no)"
+        const m = text.match(/^\(([^)]*)\)(?:\s+is\s+\(([^)]*)\))?(?:\s+not\s+\(([^)]*)\))?/i);
+        const cond = m ? m[1] : text;
+        const yesLabel = m && m[2] ? m[2] : 'yes';
+        const noLabel = m && m[3] ? m[3] : 'no';
+        const ctx = controlStack.pop();
+        if (ctx && ctx.type === 'repeat') {
+          // Create condition diamond at bottom
+          const diamondId = createDiamond(cond);
+          connectCursorsTo(diamondId);
+          // Loop back: diamond → start
+          addEdge(diamondId, ctx.startId, yesLabel);
+          // Exit
+          cursors = [diamondId];
+          pendingArrowLabel = noLabel;
+        }
+      }
+      continue;
+    }
+
+    // ── Backward (inside repeat) ──
+    if (kind === 'control_statement' && type === 'backward') {
+      const ctx = controlStack[controlStack.length - 1];
+      if (ctx && ctx.type === 'repeat') {
+        const text = String(st.text || '').trim().replace(/^:/, '').replace(/;$/, '');
+        if (text) ctx.backwardLabel = text;
+      }
+      continue;
+    }
+
+    // ── Fork / Split ──
+    if (kind === 'control_statement' && type === 'fork') {
+      const kw = String(st.keyword || '').toLowerCase();
+      if (kw === 'fork') {
+        const barId = createForkBar();
+        connectCursorsTo(barId);
+        cursors = [barId];
+        controlStack.push({
+          type: 'fork',
+          forkBarId: barId,
+          branchEnds: [],
+          keyword: 'fork',
+        });
+      } else if (kw === 'fork again') {
+        const ctx = controlStack[controlStack.length - 1];
+        if (ctx && ctx.type === 'fork') {
+          ctx.branchEnds.push([...cursors]);
+          cursors = [ctx.forkBarId];
+        }
+      } else if (kw === 'end fork') {
+        const ctx = controlStack.pop();
+        if (ctx && ctx.type === 'fork') {
+          ctx.branchEnds.push([...cursors]);
+          const joinBarId = createForkBar();
+          for (const ends of ctx.branchEnds) {
+            for (const c of ends) { addEdge(c, joinBarId); }
+          }
+          cursors = [joinBarId];
+        }
+      } else if (kw === 'end merge') {
+        const ctx = controlStack.pop();
+        if (ctx && ctx.type === 'fork') {
+          ctx.branchEnds.push([...cursors]);
+          // end merge: just merge to a single point (no join bar)
+          const mergeId = createMergeDiamond();
+          for (const ends of ctx.branchEnds) {
+            for (const c of ends) { addEdge(c, mergeId); }
+          }
+          cursors = [mergeId];
+        }
+      }
+      continue;
+    }
+
+    // ── Split ──
+    if (kind === 'control_statement' && type === 'split') {
+      const kw = String(st.keyword || '').toLowerCase();
+      if (kw === 'split') {
+        // Split doesn't create a bar — just saves current cursors as branch start
+        controlStack.push({
+          type: 'fork',
+          forkBarId: cursors[0] || '',
+          branchEnds: [],
+          keyword: 'split',
+        });
+      } else if (kw === 'split again') {
+        const ctx = controlStack[controlStack.length - 1];
+        if (ctx && ctx.type === 'fork' && ctx.keyword === 'split') {
+          ctx.branchEnds.push([...cursors]);
+          cursors = [ctx.forkBarId];
+        }
+      } else if (kw === 'end split') {
+        const ctx = controlStack.pop();
+        if (ctx && ctx.type === 'fork' && ctx.keyword === 'split') {
+          ctx.branchEnds.push([...cursors]);
+          const joinBarId = createForkBar();
+          for (const ends of ctx.branchEnds) {
+            for (const c of ends) { addEdge(c, joinBarId); }
+          }
+          cursors = [joinBarId];
+        }
+      }
+      continue;
+    }
+
+    // ── Switch ──
+    if (kind === 'control_statement' && type === 'switch') {
+      const cond = String(st.cond || '');
+      const diamondId = createDiamond(cond);
+      connectCursorsTo(diamondId);
+      cursors = [diamondId];
+      controlStack.push({
+        type: 'switch',
+        diamondId,
+        branchEnds: [],
+      });
+      continue;
+    }
+
+    // ── Case ──
+    if (kind === 'control_statement' && type === 'case') {
+      const ctx = controlStack[controlStack.length - 1];
+      if (ctx && ctx.type === 'switch') {
+        if (cursors[0] !== ctx.diamondId) {
+          ctx.branchEnds.push([...cursors]);
+        }
+        cursors = [ctx.diamondId];
+        const text = String(st.text || '').replace(/^\(/, '').replace(/\)$/, '').trim();
+        pendingArrowLabel = text || '';
+      }
+      continue;
+    }
+
+    // ── EndSwitch ──
+    if (kind === 'control_statement' && type === 'endswitch') {
+      const ctx = controlStack.pop();
+      if (ctx && ctx.type === 'switch') {
+        ctx.branchEnds.push([...cursors]);
+        const allEnds = ctx.branchEnds.flat().filter(c => c);
+        if (allEnds.length > 1) {
+          const mergeId = createMergeDiamond();
+          for (const c of allEnds) { addEdge(c, mergeId); }
+          cursors = [mergeId];
+        } else if (allEnds.length === 1) {
+          cursors = allEnds;
+        }
+      }
+      continue;
+    }
+
+    // ── Note ──
+    if (kind === 'note_start' || kind === 'note_statement') {
+      // Basic note support — attach to last action node
+      const noteId = nextId('note');
+      const position = st.position || 'right';
+      const lastCursor = cursors[cursors.length - 1];
+      notes.push({
+        id: noteId,
+        text: String(st.text || ''),
+        position,
+        target: lastCursor || undefined,
+      });
+      continue;
+    }
+
+    // ── Note text / end note — skip ──
+    if (kind === 'note_text_line' || kind === 'note_end') continue;
+
+    // ── Jump (label/goto) ──
+    if (kind === 'jump_statement') continue; // TODO: implement label/goto
+
+    // ── Bullet/list activity ──
+    if (kind === 'activity_statement' && st.bullet) {
+      const label = `${st.bullet} ${String(st.text || '')}`;
+      const nodeId = createActionNode(label);
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
+    // ── Circle spot (A) ──
+    if (kind === 'activity_statement' && st.paren) {
+      const label = String(st.text || '');
+      const nodeId = nextId('spot');
+      addNode({
+        id: nodeId,
+        type: NodeType.Class as any,
+        label,
+        stereotype: 'circle',
+        bodyLines: [],
+      });
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
+    // ── Skinparam inline ──
+    if (kind === 'directive_statement') continue;
+    if (kind === 'style_text_line') continue;
+
+    // ── Unhandled statement — skip silently ──
+  }
+
+  // Flush any remaining multi-line activity
+  flushActivity();
+
+  // ---------------------------------------------------------------------------
+  // Consolidate swimlanes into a single root group with concurrentRegions
+  // ---------------------------------------------------------------------------
+  if (swimlaneMap.size > 0) {
+    const swimlaneGroups = Array.from(swimlaneMap.values());
+    const swimlaneIds = new Set(swimlaneGroups.map(g => g.id));
+
+    const rootGroup: SemanticGroup = {
+      id: '__swimlanes__',
+      label: '',
+      type: 'swimlane_container',
+      stereotype: '',
+      children: [],
+      childGroups: [],
+      concurrentRegions: swimlaneGroups.map(g => [...g.children]),
+      concurrentRegionLabels: swimlaneGroups.map(g => g.label),
+      concurrentRegionColors: swimlaneGroups.map(g => g.color || ''),
+    };
+
+    // Flatten all swimlane children into root group's children
+    for (const sg of swimlaneGroups) {
+      rootGroup.children.push(...sg.children);
+    }
+
+    // Separate swimlane groups from non-swimlane groups (partitions etc.)
+    const otherGroups = groups.filter(g => !swimlaneIds.has(g.id));
+
+    // Reparent partition groups that were children of swimlane groups
+    for (const g of otherGroups) {
+      if (g.parentId && swimlaneIds.has(g.parentId)) {
+        g.parentId = '__swimlanes__';
+        rootGroup.childGroups.push(g.id);
+      }
+    }
+
+    // Replace groups array with consolidated structure
+    groups.length = 0;
+    groups.push(rootGroup, ...otherGroups);
+  }
+
+  return {
+    diagramType: DiagramType.UML,
+    nodes,
+    edges,
+    notes,
+    groups,
+    title,
+    rankdir: 'TB',
+    skinparams: Object.keys(skinparams).length > 0 ? skinparams : undefined,
+  };
+}

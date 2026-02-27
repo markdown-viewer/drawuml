@@ -11,9 +11,10 @@ import type { LayoutResult } from '../../model/index.ts';
 import type { SemanticModel } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from '../renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle } from '../post-process.ts';
+import { snapPortNodes, alignFieldNotes, positionTitle, rearrangeSwimlanes } from '../post-process.ts';
 import { layoutGraphToElk, layoutGraphToElkSimple } from './elk-adapter.ts';
 import { extractElkLayout } from './elk-extractor.ts';
+import { dotLayout } from '../dot-layout.ts';
 
 // ---------------------------------------------------------------------------
 // ELK instance management
@@ -43,6 +44,14 @@ export interface ElkLayoutResult {
  * Returns layout coordinates and pre-built renderers for generation.
  */
 export async function elkLayout(model: SemanticModel): Promise<ElkLayoutResult> {
+  // Swimlane diagrams: fallback to DOT layout with ortho edges + edge fix
+  const hasSwimlanes = (model.groups || []).some(
+    g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
+  );
+  if (hasSwimlanes) {
+    return dotLayout(model, { ortho: true });
+  }
+
   const elk = getElk();
 
   // 1. Create renderers for each node
@@ -79,13 +88,18 @@ export async function elkLayout(model: SemanticModel): Promise<ElkLayoutResult> 
   // 8. Extract layout result
   const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
-  // 9. Post-processing (shared with DOT engine)
+  // 9. Swimlane column rearrangement (if activity swimlanes present)
+  rearrangeSwimlanes(layout, model, 'elk');
+
+  // 10. Post-processing (shared with DOT engine)
   snapPortNodes(layout, model, renderers);
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
   positionTitle(layout, renderers);
 
   return { layout, renderers };
 }
+
+
 
 // ---------------------------------------------------------------------------
 // Pass 1 helper — collect node center positions from ELK result

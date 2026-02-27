@@ -112,6 +112,8 @@ interface DotAdapterContext {
   connectedNodes: Set<string>;
   /** Map of all renderers */
   renderers: Map<string, Renderer>;
+  /** Group lookup by ID */
+  groupById: Map<string, SemanticGroup>;
   /** Greedy bin-packing for orphan nodes into rows */
   buildRowPacking: (nodeIds: string[], indent: string, maxRowWidth: number, maxPerRow: number) => string[];
 }
@@ -135,6 +137,46 @@ function buildNodeDotLines(
   if (!gn.children || gn.children.length === 0) {
     const attrs = buildNodeAttrs(gn, ctx.portNodes.has(gn.id));
     return [`${indent}"${gn.id}" [${attrs}]`];
+  }
+
+  // ── Activity swimlane container: lane clusters ─────────────────────
+  // Each region becomes a cluster. DOT with newrank=true handles
+  // cross-cluster ranking and edge routing correctly.
+  const group = ctx.groupById.get(gn.id);
+  if (group?.type === 'swimlane_container' && group.concurrentRegions && group.concurrentRegions.length > 1) {
+    const lines: string[] = [];
+    // Outer container - invisible wrapper
+    lines.push(`${indent}subgraph "cluster_${gn.id}_p0" {`);
+    lines.push(`${indent}  label=""`);
+    lines.push(`${indent}  margin="8"`);
+    const inner = indent + '  ';
+    lines.push(`${inner}subgraph "cluster_${gn.id}" {`);
+    lines.push(`${inner}  label=""`);
+    lines.push(`${inner}  style=invis`);
+    lines.push(`${inner}  margin="0"`);
+    // Each region child as its own cluster with zero protection margin
+    for (const regionChild of gn.children) {
+      const regionLabel = regionChild.label || '';
+      const inner2 = inner + '  ';
+      lines.push(`${inner2}subgraph "cluster_${regionChild.id}_p0" {`);
+      lines.push(`${inner2}  label=""`);
+      lines.push(`${inner2}  margin="0"`);
+      lines.push(`${inner2}  subgraph "cluster_${regionChild.id}" {`);
+      lines.push(`${inner2}    label="${regionLabel}"`);
+      lines.push(`${inner2}    style=rounded`);
+      lines.push(`${inner2}    margin="20"`);
+      // Lane's leaf nodes
+      if (regionChild.children) {
+        for (const leaf of regionChild.children) {
+          lines.push(...buildNodeDotLines(leaf, inner2 + '    ', ctx));
+        }
+      }
+      lines.push(`${inner2}  }`);
+      lines.push(`${inner2}}`);
+    }
+    lines.push(`${inner}}`);
+    lines.push(`${indent}}`);
+    return lines;
   }
 
   // Container node → DOT subgraph cluster
@@ -401,6 +443,7 @@ export function layoutGraphToDot(
     groupsWithExternalEdge,
     connectedNodes,
     renderers,
+    groupById,
     buildRowPacking,
   };
 
@@ -529,6 +572,11 @@ export function layoutGraphToDot(
     .map(gn => gn.id);
   const rankLines = buildRowPacking(topLeafIds, '  ');
 
+  // --- Detect swimlane diagrams ---
+  const hasSwimlanes = (model.groups || []).some(
+    g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
+  );
+
   // --- Assemble DOT string ---
 
   const dotStr = `digraph G {
@@ -536,7 +584,7 @@ export function layoutGraphToDot(
   nodesep=${nodesepInch}
   ranksep=${ranksepInch}
   remincross=true
-  searchsize=500
+  searchsize=500${hasSwimlanes ? '\n  newrank=true' : ''}
   edge [fontsize=${DOT_FONT_SIZE},labelfontsize=${DOT_FONT_SIZE}]
   node [fontsize=${DOT_FONT_SIZE},height=0.35,width=0.55]
 ${nodeGroupLines.join('\n')}

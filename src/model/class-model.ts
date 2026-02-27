@@ -91,9 +91,14 @@ export interface SemanticGroup {
   childGroups: string[];  // child group ids
   color?: string;         // background fill color override (normalized hex)
   style?: string | null;  // raw PlantUML inline style string
-  /** Concurrent regions within state groups ("--" / "||" separators).
+  /** Concurrent regions within state groups ("--" / "||" separators)
+   *  or swimlane groups in activity diagrams.
    *  Each sub-array contains the child node IDs belonging to that region. */
   concurrentRegions?: string[][];
+  /** Labels for concurrent regions (parallel array to concurrentRegions). */
+  concurrentRegionLabels?: string[];
+  /** Background colors for concurrent regions (parallel array). */
+  concurrentRegionColors?: string[];
 }
 
 export interface SemanticModel {

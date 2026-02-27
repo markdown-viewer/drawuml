@@ -236,6 +236,119 @@ class StateHistoryRenderer extends Renderer {
 }
 
 // ---------------------------------------------------------------------------
+// Swimlane container — invisible root group that tiles lane children
+// ---------------------------------------------------------------------------
+
+/**
+ * Invisible container renderer for activity diagram swimlanes.
+ * It draws no frame; its children (ConcurrentRegionRenderers) are tiled
+ * side-by-side, each spanning the full container height.
+ */
+export class SwimlaneContainerRenderer extends Renderer {
+  constructor(id: string) {
+    super(id);
+  }
+
+  get isCluster(): boolean { return true; }
+  get clusterLabel(): string { return ''; }
+
+  override get groupTopPadding(): number { return 0; }
+
+  override buildLayoutGraph() {
+    const node = super.buildLayoutGraph();
+    // Zero padding: regions fill the entire area
+    if (node.padding) {
+      node.padding.top = 0;
+      node.padding.left = 0;
+      node.padding.right = 0;
+      node.padding.bottom = 0;
+    }
+    return node;
+  }
+
+  protected doMeasure() {
+    // Size computed by layout engine
+    return { width: 100, height: 100 };
+  }
+
+  render(box: ContentBox): string[] {
+    const parentCellId = this.parentId || '1';
+
+    // Invisible group container
+    const cells: string[] = [
+      `<mxCell id="${escapeXml(this.id)}" value="" `
+      + `style="group;strokeColor=none;fillColor=none;" `
+      + `vertex="1" parent="${escapeXml(parentCellId)}">`
+      + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
+      + `</mxCell>`,
+    ];
+
+    // Tile concurrent region children side-by-side
+    const regionChildren = this.children.filter(c => c instanceof ConcurrentRegionRenderer);
+    if (regionChildren.length > 1) {
+      cells.push(...this.renderConcurrentLanes(box, regionChildren));
+    } else {
+      cells.push(...this.renderChildren());
+    }
+    return cells;
+  }
+
+  /**
+   * Tile region lanes side-by-side filling the container area.
+   * Uses proportional widths from ELK-computed positions.
+   */
+  private renderConcurrentLanes(box: ContentBox, regions: Renderer[]): string[] {
+    const layout = this._layoutRef;
+    if (!layout) return this.renderChildren();
+
+    const myAbs = (layout.groups && layout.groups[this.id]) || layout.nodes[this.id];
+    if (!myAbs) return this.renderChildren();
+
+    // Collect region ELK positions, sorted by x
+    const regionInfos: { renderer: Renderer; elkBox: { x: number; y: number; width: number; height: number } }[] = [];
+    for (const r of regions) {
+      const rl = layout.groups?.[r.id];
+      if (rl) regionInfos.push({ renderer: r, elkBox: rl });
+    }
+    regionInfos.sort((a, b) => a.elkBox.x - b.elkBox.x);
+
+    // No title bar; lanes fill the entire container height
+    const laneY = 0;
+    const laneH = box.height;
+
+    // Proportional-width lanes filling the container
+    const n = regionInfos.length;
+    const totalElkW = regionInfos.reduce((s, r) => s + r.elkBox.width, 0);
+    const laneWidths = regionInfos.map(r => r.elkBox.width / totalElkW * box.width);
+
+    const cells: string[] = [];
+    let cumulX = 0;
+    for (let i = 0; i < n; i++) {
+      const laneX = Math.round(cumulX);
+      cumulX += laneWidths[i];
+      const actualW = Math.round(cumulX) - laneX;
+      const laneBox: ContentBox = { x: laneX, y: laneY, width: actualW, height: laneH };
+      cells.push(...regionInfos[i].renderer.render(laneBox));
+    }
+
+    // Non-region children rendered normally
+    for (const child of this.children) {
+      if (child instanceof ConcurrentRegionRenderer) continue;
+      if (child.isPort) continue;
+      const cl = layout.nodes[child.id] || (layout.groups && layout.groups[child.id]);
+      if (!cl) continue;
+      cells.push(...child.render({
+        x: cl.x - myAbs.x,
+        y: cl.y - myAbs.y,
+        width: cl.width,
+        height: cl.height,
+      }));
+    }
+    return cells;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Concurrent region renderer — child swimlane lane within a composite state
 // ---------------------------------------------------------------------------
 
@@ -246,10 +359,12 @@ class StateHistoryRenderer extends Renderer {
  */
 export class ConcurrentRegionRenderer extends Renderer {
   private regionLabel: string;
+  private regionColor: string;
 
-  constructor(id: string, label: string = '') {
+  constructor(id: string, label: string = '', color: string = '') {
     super(id);
     this.regionLabel = label;
+    this.regionColor = color;
   }
 
   get isCluster(): boolean { return true; }
@@ -284,9 +399,10 @@ export class ConcurrentRegionRenderer extends Renderer {
     // Render as a standard DrawIO swimlane lane with visible borders.
     // Adjacent lanes naturally form visual separators.
     const startSize = this.regionLabel ? 20 : 0;
+    const fill = this.regionColor || 'none';
     const style = `swimlane;html=1;startSize=${startSize};`
       + `collapsible=0;rounded=0;`
-      + `strokeWidth=0.5;fillColor=none;strokeColor=${COLOR_DARK};`
+      + `strokeWidth=0.5;fillColor=${fill};strokeColor=${COLOR_DARK};`
       + `fontStyle=0;fontSize=11;`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
@@ -519,4 +635,5 @@ export function registerStateNodeRenderers(): void {
   registerRenderer('state_choice', (desc: RenderDescriptor) => new StateChoiceRenderer(desc));
   registerRenderer('state_history', (desc: RenderDescriptor) => new StateHistoryRenderer(desc));
   registerRenderer('state', (desc: RenderDescriptor) => new StateNodeRenderer(desc));
+  registerRenderer('swimlane_container', (desc: RenderDescriptor) => new SwimlaneContainerRenderer(desc.id));
 }
