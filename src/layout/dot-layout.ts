@@ -185,6 +185,14 @@ function extractLayout(
         if (isInverted) cardFromPos = pos; else cardToPos = pos;
       }
 
+      // Parse center label position (lp) from Graphviz.
+      // This is the center point of the edge label text.
+      let labelPos: { x: number; y: number } | undefined;
+      if (vizEdge.lp && typeof vizEdge.lp === 'string') {
+        const [lpx, lpy] = (vizEdge.lp as string).split(',').map(Number);
+        labelPos = { x: Math.round(lpx + xShift), y: Math.round(allMaxY - lpy) };
+      }
+
       layoutEdges.push({
         id: edges[i]?.id || `e${i + 1}`,
         from: fromName,
@@ -192,6 +200,7 @@ function extractLayout(
         points: waypoints,
         fromGroup: groupIds.has(fromName) ? fromName : undefined,
         toGroup: groupIds.has(toName) ? toName : undefined,
+        labelPos,
         cardFromPos,
         cardToPos,
       });
