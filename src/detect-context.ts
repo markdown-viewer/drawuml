@@ -76,6 +76,7 @@ const SEQUENCE_INDICATOR_TYPES = new Set([
   // Participant declarations
   'declaration_statement|participant',
   'declaration_statement|mainframe',
+  'declaration_statement|autoactivate',
   // Message arrows (NOTE: routing_relation handled separately below)
   'generic_statement|sequence_message',
   'generic_statement|sequence_start_message',
@@ -159,10 +160,22 @@ export function detectDiagramContext(parsed): DiagramContext {
       hasNonSequence = true;
     }
 
+    // ── Sequence: autoactivate (parsed as declaration_statement|member) ──
+    if (kind === 'declaration_statement' && type === 'member' &&
+        /^autoactivate\b/i.test(String(st.raw || ''))) {
+      hasSequenceIndicator = true;
+    }
+
     // ── Activity diagram indicators ──
     if (kind === 'activity_statement' || kind === 'activity_text_line') {
-      hasActivity = true;
-      hasNonSequence = true;
+      // 'return' is also a valid sequence message — don't mark as non-sequence
+      if (kind === 'activity_statement' && type === 'return') {
+        hasActivity = true;
+        hasSequenceIndicator = true;
+      } else {
+        hasActivity = true;
+        hasNonSequence = true;
+      }
     }
     if (kind === 'control_statement') {
       const t = type || String(st.text || '').toLowerCase();
@@ -176,9 +189,14 @@ export function detectDiagramContext(parsed): DiagramContext {
         hasActivity = true;
       }
     }
-    if (kind === 'block_statement' && (type === 'swimlane' || type === 'partition')) {
+    if (kind === 'block_statement' && type === 'swimlane') {
       hasActivity = true;
       hasNonSequence = true;
+    }
+    // partition is valid in both activity and sequence diagrams (box grouping);
+    // it is neutral for sequence detection — other indicators will decide.
+    if (kind === 'block_statement' && type === 'partition') {
+      hasActivity = true;
     }
 
     // ── Track explicit vs implicit class declarations ──

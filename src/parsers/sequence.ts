@@ -1006,6 +1006,12 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         }
         continue;
       }
+      // 'end' closes a fragment (partition/group/alt/etc.)
+      const ctrlText = String(st.text || '').toLowerCase();
+      if (ctrlText === 'end') {
+        handleFragment('end', '');
+        continue;
+      }
     }
 
     if (st.kind === 'activity_statement' && st.type === 'return') {
@@ -1085,6 +1091,28 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       if (keyword === 'end') {
         continue;
       }
+    }
+
+    // partition is equivalent to a fragment in sequence diagrams
+    if (st.kind === 'block_statement' && st.type === 'partition') {
+      const label = String(st.text || '').replace(/\s*\{?\s*$/, '').trim();
+      // Extract color if present: "#color label" or "label #color"
+      const colorBefore = label.match(/^(#\S+)\s+(.+)$/);
+      const colorAfter = label.match(/^(.+?)\s+(#\S+)$/);
+      let fragLabel: string;
+      let fragColor: string | undefined;
+      if (colorBefore) {
+        fragColor = colorBefore[1];
+        fragLabel = colorBefore[2];
+      } else if (colorAfter) {
+        fragLabel = colorAfter[1];
+        fragColor = colorAfter[2];
+      } else {
+        fragLabel = label;
+      }
+      fragLabel = fragLabel.replace(/^"|"$/g, '').trim();
+      handleFragment('partition', fragLabel, undefined, fragColor);
+      continue;
     }
 
     if (st.kind === 'block_statement' && st.type === 'ref_single') {
