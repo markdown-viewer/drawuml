@@ -49,7 +49,7 @@ const NON_SEQUENCE_TYPES = new Set([
   // ArchiMate declarations
   'declaration_statement|archimate',
   'declaration_statement|junction',
-  // mxgraph icons are class/component/deployment only — never sequence
+  // mxgraph icons — never sequence (supported in activity + class/deployment)
   'generic_statement|mxgraph_icon',
 
   // Class diagram structure

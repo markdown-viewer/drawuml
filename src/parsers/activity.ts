@@ -463,6 +463,29 @@ export function parseActivityDiagram(
       continue;
     }
 
+    // ── mxgraph icon declaration ──
+    // e.g. mxgraph.aws4.lambda_function "Process Order" as proc
+    if (kind === 'generic_statement' && type === 'mxgraph_icon') {
+      const shapeKey = String(st.shapeKey || '').trim();
+      const rawLabel = String(st.label || '').trim();
+      const rawColor = String(st.color || '').trim() || null;
+      const label = rawLabel || shapeKey;
+      const nodeId = nextId('act');
+      const node: SemanticNode = {
+        id: nodeId,
+        type: NodeType.Class as any,
+        label,
+        stereotype: shapeKey,
+        stereotypeLabel: '',
+        bodyLines: [],
+      };
+      if (rawColor) node.style = rawColor;
+      addNode(node);
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
     // ── Activity (single-line terminated) ──
     if (kind === 'activity_statement' && st.terminated === true) {
       const label = String(st.text || '');
