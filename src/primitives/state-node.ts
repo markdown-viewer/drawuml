@@ -43,6 +43,10 @@ const START_STYLE = 'shape=startState;whiteSpace=wrap;html=1;aspect=fixed;'
 const END_STYLE = 'shape=endState;whiteSpace=wrap;html=1;aspect=fixed;'
   + `fillColor=${COLOR_DARK};strokeColor=${COLOR_DARK};strokeWidth=1;`;
 
+const FLOW_FINAL_SIZE = 22;
+const FLOW_FINAL_STYLE = 'shape=flowFinal;whiteSpace=wrap;html=1;aspect=fixed;'
+  + `fillColor=none;strokeColor=${COLOR_DARK};strokeWidth=1;`;
+
 const FORK_STYLE = `line;html=1;strokeWidth=6;strokeColor=${COLOR_DARK};`
   + `fillColor=${COLOR_DARK};perimeter=linePerimeter;`;
 
@@ -92,6 +96,22 @@ class StateEndRenderer extends Renderer {
     const x = box.x + Math.round((box.width - d) / 2);
     const y = box.y + Math.round((box.height - d) / 2);
     return [mxVertex({ id: this.node.id, value: '', style: END_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
+  }
+}
+
+class FlowFinalRenderer extends Renderer {
+  private node: { id: string };
+  constructor(node: { id: string }) { super(node.id); this.node = node; }
+
+  protected doMeasure() {
+    return { width: FLOW_FINAL_SIZE, height: FLOW_FINAL_SIZE };
+  }
+
+  render(box: ContentBox) {
+    const d = FLOW_FINAL_SIZE;
+    const x = box.x + Math.round((box.width - d) / 2);
+    const y = box.y + Math.round((box.height - d) / 2);
+    return [mxVertex({ id: this.node.id, value: '', style: FLOW_FINAL_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
 
@@ -663,6 +683,7 @@ function stateGroupStyle(style?: string | null, noRounding?: boolean): string {
 export function registerStateNodeRenderers(): void {
   registerRenderer('state_start', (desc: RenderDescriptor) => new StateStartRenderer(desc));
   registerRenderer('state_end', (desc: RenderDescriptor) => new StateEndRenderer(desc));
+  registerRenderer('state_flow_final', (desc: RenderDescriptor) => new FlowFinalRenderer(desc));
   registerRenderer('state_fork', (desc: RenderDescriptor) => new StateForkJoinRenderer(desc));
   registerRenderer('state_join', (desc: RenderDescriptor) => new StateForkJoinRenderer(desc));
   registerRenderer('state_choice', (desc: RenderDescriptor) => new StateChoiceRenderer(desc));

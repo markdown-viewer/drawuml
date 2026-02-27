@@ -1058,22 +1058,22 @@ export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel,
     for (const obs of obstacles) {
       const pts = edge.points!;
 
-      // Quick check: does any segment cross the actual node rect?
+      // Expanded rect = node rect + margin
+      const expRect = {
+        left: obs.x - margin, top: obs.y - margin,
+        right: obs.x + obs.width + margin, bottom: obs.y + obs.height + margin,
+      };
+
+      // Check if any segment crosses the expanded rect (not just the node rect)
       let hasCollision = false;
       for (let i = 0; i < pts.length - 1; i++) {
         if (_segIntersectsRect(pts[i], pts[i + 1],
-          obs.x, obs.y, obs.x + obs.width, obs.y + obs.height)) {
+          expRect.left, expRect.top, expRect.right, expRect.bottom)) {
           hasCollision = true;
           break;
         }
       }
       if (!hasCollision) continue;
-
-      // Find entry and exit intersections on expanded rect
-      const expRect = {
-        left: obs.x - margin, top: obs.y - margin,
-        right: obs.x + obs.width + margin, bottom: obs.y + obs.height + margin,
-      };
 
       let entryIdx = -1;
       let entryPt: { x: number; y: number } | null = null;

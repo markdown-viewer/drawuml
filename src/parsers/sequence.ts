@@ -759,6 +759,11 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       }
     }
 
+    if (st.kind === 'markup_statement' && st.type === 'title_line') {
+      titleLines.push(String(st.text || ''));
+      continue;
+    }
+
     if (st.kind === 'blank_line' || st.kind === 'comment_line' || st.kind === 'markup_statement') {
       continue;
     }
@@ -807,9 +812,6 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       if (kw === 'newpage') {
         // Only render the first page; stop processing further statements
         break;
-      }
-      if (kw === 'title') {
-        titleLines.push(txt);
       }
       continue;
     }

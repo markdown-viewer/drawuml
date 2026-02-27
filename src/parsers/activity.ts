@@ -67,6 +67,10 @@ export function parseActivityDiagram(
   const groupStack: SemanticGroup[] = [];
   let groupCounter = 0;
 
+  // Label/goto support
+  const labelMap = new Map<string, string>(); // label name → node id
+  const pendingLabels: string[] = []; // labels waiting to be assigned to next node
+
   // Arrow styling for next edge
   let pendingArrowColor: string | null = null;
   let pendingArrowLabel: string | null = null;
@@ -87,6 +91,10 @@ export function parseActivityDiagram(
     const group = currentSwimlane || (groupStack.length > 0 ? groupStack[groupStack.length - 1] : null);
     if (group && !group.children.includes(node.id)) {
       group.children.push(node.id);
+    }
+    // Consume pending labels — associate them with this node
+    while (pendingLabels.length > 0) {
+      labelMap.set(pendingLabels.pop()!, node.id);
     }
   }
 
@@ -129,11 +137,11 @@ export function parseActivityDiagram(
   }
 
   function createEndNode(): string {
-    // 'end' uses a filled circle (same as start but final)
+    // 'end' uses a flow final node (circle with X cross)
     const id = nextId('end');
     addNode({
       id,
-      type: NodeType.StateStart as any,
+      type: NodeType.StateFlowFinal as any,
       label: '',
       stereotype: null,
       bodyLines: [],
@@ -173,7 +181,7 @@ export function parseActivityDiagram(
   // Edge creation
   // ---------------------------------------------------------------------------
 
-  function addEdge(from: string, to: string, label?: string, style?: string | null): void {
+  function addEdge(from: string, to: string, label?: string, opts?: { style?: string | null; bracketColor?: string | null }): void {
     edgeCount++;
     const edge: SemanticEdge = {
       id: `e${edgeCount}`,
@@ -183,15 +191,17 @@ export function parseActivityDiagram(
       label: label || '',
       arrow: '-->',
     };
-    if (style) edge.style = style;
+    if (opts?.style) edge.style = opts.style;
+    if (opts?.bracketColor) edge.arrowMeta = { color: opts.bracketColor } as any;
     edges.push(edge);
   }
 
   function connectCursorsTo(targetId: string, label?: string): void {
     const arrowLabel = label || pendingArrowLabel || '';
-    const arrowStyle = pendingArrowStyle || (pendingArrowColor ? `#line:${pendingArrowColor}` : null);
+    const color = pendingArrowColor || null;
+    const style = pendingArrowStyle || null;
     for (const c of cursors) {
-      addEdge(c, targetId, arrowLabel, arrowStyle);
+      addEdge(c, targetId, arrowLabel, { style, bracketColor: color });
     }
     pendingArrowColor = null;
     pendingArrowLabel = null;
@@ -227,14 +237,14 @@ export function parseActivityDiagram(
   // Partition/group management
   // ---------------------------------------------------------------------------
 
-  function pushPartition(label: string, color?: string | null): void {
+  function pushPartition(label: string, color?: string | null, groupType?: string): void {
     groupCounter++;
     const parentId = currentSwimlane?.id || (groupStack.length > 0 ? groupStack[groupStack.length - 1].id : undefined);
     const id = `group_${groupCounter}`;
     const group: SemanticGroup = {
       id,
       label,
-      type: 'rectangle',
+      type: groupType || 'frame',
       stereotype: '',
       parentId,
       children: [],
@@ -275,6 +285,12 @@ export function parseActivityDiagram(
     diamondId: string;
     branchEnds: string[][]; // end cursors from each branch
     elseSeen: boolean;
+    swimlane: SemanticGroup | null; // swimlane at if-start, restored at endif
+  }
+
+  interface BreakPoint {
+    cursor: string;  // node id at break site
+    label: string;   // pending arrow label at break time
   }
 
   interface WhileContext {
@@ -282,12 +298,14 @@ export function parseActivityDiagram(
     condId: string; // diamond at loop head
     yesLabel: string;
     noLabel: string;
+    breakPoints: BreakPoint[];
   }
 
   interface RepeatContext {
     type: 'repeat';
     startId: string; // node at repeat start (junction for backward)
     backwardLabel: string;
+    breakPoints: BreakPoint[];
   }
 
   interface ForkContext {
@@ -350,19 +368,42 @@ export function parseActivityDiagram(
       flushActivity();
       const text = String(st.text || '').trim();
       const cleaned = text.replace(/\s*\{?\s*$/, '').trim();
-      const parts = cleaned.match(/^(.+?)\s+(#\S+)$/);
-      const rawLabel = parts ? parts[1] : cleaned;
+      // Color may appear before or after label: "partition #color Label" or "partition Label #color"
+      const colorBefore = cleaned.match(/^(#\S+)\s+(.+)$/);
+      const colorAfter = cleaned.match(/^(.+?)\s+(#\S+)$/);
+      let rawLabel: string;
+      let color: string | undefined;
+      if (colorBefore) {
+        color = colorBefore[1];
+        rawLabel = colorBefore[2];
+      } else if (colorAfter) {
+        rawLabel = colorAfter[1];
+        color = colorAfter[2];
+      } else {
+        rawLabel = cleaned;
+      }
       const label = rawLabel.replace(/^"|"$/g, '').replace(/"/g, '').trim();
-      const color = parts ? parts[2] : undefined;
       pushPartition(label, color);
       continue;
     }
 
-    // ── Group block start (group/package/rectangle/card with {) ──
+    // ── Group block start (group with {) ──
     if (kind === 'block_statement' && type === 'group' && st.block) {
       flushActivity();
-      const label = String(st.text || '').trim();
+      const label = String(st.text || '').replace(/^"|"$/g, '').trim();
       pushPartition(label);
+      continue;
+    }
+
+    // ── Container block start (package/rectangle/card/... with {) ──
+    if (kind === 'component_statement' && st.block) {
+      flushActivity();
+      const compType = String(st.componentType || '');
+      const label = String(st.name || '').replace(/^"|"+$/g, '').trim();
+      const color = st.color || null;
+      // Pass componentType directly — resolveGroupShape() in rendering layer
+      // resolves shape via renderer registry (hasRenderer).
+      pushPartition(label, color, compType || undefined);
       continue;
     }
 
@@ -406,7 +447,19 @@ export function parseActivityDiagram(
 
     // ── Break ──
     if (kind === 'control_statement' && rawText === 'break') {
+      // Find nearest while/repeat context and save break cursors
+      for (let si = controlStack.length - 1; si >= 0; si--) {
+        const ctx = controlStack[si];
+        if (ctx.type === 'while' || ctx.type === 'repeat') {
+          const label = pendingArrowLabel || '';
+          for (const c of cursors) {
+            ctx.breakPoints.push({ cursor: c, label });
+          }
+          break;
+        }
+      }
       cursors = [];
+      pendingArrowLabel = null;
       continue;
     }
 
@@ -499,6 +552,7 @@ export function parseActivityDiagram(
         diamondId,
         branchEnds: [],
         elseSeen: false,
+        swimlane: currentSwimlane,
       });
 
       // Start 'then' branch with label
@@ -567,8 +621,11 @@ export function parseActivityDiagram(
         }
         const allEnds = ctx.branchEnds.flat().filter(c => c);
         if (allEnds.length > 1) {
-          // Create merge diamond
+          // Create merge diamond in the swimlane where the if started
+          const savedSwimlane = currentSwimlane;
+          currentSwimlane = ctx.swimlane;
           const mergeId = createMergeDiamond();
+          currentSwimlane = savedSwimlane;
           for (const c of allEnds) { addEdge(c, mergeId); }
           cursors = [mergeId];
         } else if (allEnds.length === 1) {
@@ -598,6 +655,7 @@ export function parseActivityDiagram(
           condId: diamondId,
           yesLabel,
           noLabel: '',
+          breakPoints: [],
         });
       } else if (kw === 'endwhile') {
         const text = String(st.text || '');
@@ -607,9 +665,20 @@ export function parseActivityDiagram(
         if (ctx && ctx.type === 'while') {
           // Loop back edge: current → diamond
           for (const c of cursors) { addEdge(c, ctx.condId); }
-          // Exit edge: diamond →
-          cursors = [ctx.condId];
-          pendingArrowLabel = noLabel;
+
+          if (ctx.breakPoints.length > 0) {
+            // Create merge junction for break exits + normal while exit
+            const mergeId = createMergeDiamond();
+            addEdge(ctx.condId, mergeId, noLabel);
+            for (const bp of ctx.breakPoints) {
+              addEdge(bp.cursor, mergeId, bp.label);
+            }
+            cursors = [mergeId];
+          } else {
+            // No break — normal exit from diamond
+            cursors = [ctx.condId];
+            pendingArrowLabel = noLabel;
+          }
         }
       }
       continue;
@@ -627,6 +696,7 @@ export function parseActivityDiagram(
           type: 'repeat',
           startId: junctionId,
           backwardLabel: '',
+          breakPoints: [],
         });
         // If repeat has a label ":text;", create an action node
         const text = String(st.text || '').trim();
@@ -650,11 +720,27 @@ export function parseActivityDiagram(
           // Create condition diamond at bottom
           const diamondId = createDiamond(cond);
           connectCursorsTo(diamondId);
-          // Loop back: diamond → start
-          addEdge(diamondId, ctx.startId, yesLabel);
+          // Loop back: diamond → start (via backward action node if present)
+          if (ctx.backwardLabel) {
+            const bwId = createActionNode(ctx.backwardLabel);
+            addEdge(diamondId, bwId, yesLabel);
+            addEdge(bwId, ctx.startId);
+          } else {
+            addEdge(diamondId, ctx.startId, yesLabel);
+          }
           // Exit
-          cursors = [diamondId];
-          pendingArrowLabel = noLabel;
+          if (ctx.breakPoints.length > 0) {
+            // Create merge junction for break exits + normal repeat exit
+            const mergeId = createMergeDiamond();
+            addEdge(diamondId, mergeId, noLabel);
+            for (const bp of ctx.breakPoints) {
+              addEdge(bp.cursor, mergeId, bp.label);
+            }
+            cursors = [mergeId];
+          } else {
+            cursors = [diamondId];
+            pendingArrowLabel = noLabel;
+          }
         }
       }
       continue;
@@ -808,12 +894,44 @@ export function parseActivityDiagram(
     // ── Note text / end note — skip (no longer emitted by pre-parser, kept as safety) ──
     if (kind === 'note_text_line' || kind === 'note_end') continue;
 
-    // ── Jump (label/goto) ──
-    if (kind === 'jump_statement') continue; // TODO: implement label/goto
+    // ── Label definition ──
+    if (kind === 'component_statement' && st.componentType === 'label') {
+      const name = String(st.name || '');
+      // Create a merge diamond as the goto target
+      const mergeId = createMergeDiamond();
+      connectCursorsTo(mergeId);
+      cursors = [mergeId];
+      labelMap.set(name, mergeId);
+      continue;
+    }
 
-    // ── Bullet/list activity ──
+    // ── Jump (goto) ──
+    if (kind === 'jump_statement' && st.keyword === 'goto') {
+      const target = String(st.target || '');
+      const targetId = labelMap.get(target);
+      if (targetId) {
+        connectCursorsTo(targetId);
+      }
+      cursors = [];
+      continue;
+    }
+
+    // ── Jump (other) ──
+    if (kind === 'jump_statement') continue;
+
+    // ── Bullet/list activity (* item / - item) ──
     if (kind === 'activity_statement' && st.bullet) {
-      const label = `${st.bullet} ${String(st.text || '')}`;
+      const label = String(st.text || '');
+      const nodeId = createActionNode(label);
+      connectCursorsTo(nodeId);
+      cursors = [nodeId];
+      continue;
+    }
+
+    // ── Dash-list activity (- item) parsed as declaration_statement ──
+    if (kind === 'declaration_statement' && st.type === 'member') {
+      flushActivity();
+      const label = String(st.text || '');
       const nodeId = createActionNode(label);
       connectCursorsTo(nodeId);
       cursors = [nodeId];

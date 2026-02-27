@@ -17,6 +17,7 @@ export const NodeType = {
   State: 'state',
   StateStart: 'state_start',
   StateEnd: 'state_end',
+  StateFlowFinal: 'state_flow_final',
   StateFork: 'state_fork',
   StateJoin: 'state_join',
   StateChoice: 'state_choice',
