@@ -411,6 +411,8 @@ export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, e
 
     if (engine === 'elk') {
       _rearrangeSwimlaneElk(layout, group, containerPos);
+    } else if (model.rankdir === 'LR') {
+      _rearrangeSwimlaneDotLR(layout, group, containerPos);
     } else {
       _rearrangeSwimlaneDot(layout, group, containerPos);
     }
@@ -476,6 +478,102 @@ function _rearrangeSwimlaneDot(
       existing.y = containerPos.y;
       existing.height = containerPos.height;
     }
+  }
+}
+
+/**
+ * DOT LR mode: lanes are stacked vertically (horizontal bands).
+ * Each lane spans the full container width; heights are normalized.
+ * A LANE_HEADER offset is added on the left for the lane title area.
+ */
+function _rearrangeSwimlaneDotLR(
+  layout: LayoutResult,
+  group: { id: string; concurrentRegions: string[][]; children: string[] },
+  containerPos: LayoutGroup,
+): void {
+  const regions = group.concurrentRegions;
+  const numLanes = regions.length;
+  const LANE_PAD = 20;
+  const LANE_HEADER = 40; // left-side title width for horizontal lanes
+
+  // Build node→lane index map
+  const nodeLane = new Map<string, number>();
+  for (let i = 0; i < numLanes; i++) {
+    for (const nid of regions[i]) {
+      nodeLane.set(nid, i);
+    }
+  }
+
+  // Compute height of each lane: max node height + 2*padding
+  const laneHeights: number[] = [];
+  for (let i = 0; i < numLanes; i++) {
+    let maxH = 0;
+    for (const nid of regions[i]) {
+      const n = layout.nodes[nid];
+      if (n) maxH = Math.max(maxH, n.height);
+    }
+    laneHeights.push(Math.max(maxH + 2 * LANE_PAD, 80));
+  }
+
+  // Compute lane Y offsets (cumulative)
+  const laneY: number[] = [];
+  let accY = 0;
+  for (let i = 0; i < numLanes; i++) {
+    laneY.push(accY);
+    accY += laneHeights[i];
+  }
+  const totalHeight = accY;
+
+  // Compute X bounds from all regions and nodes
+  let minX = Infinity, maxX = -Infinity;
+  for (let i = 0; i < numLanes; i++) {
+    const regionId = `${group.id}.__conc_region__${i}`;
+    const pos = layout.groups?.[regionId];
+    if (pos) {
+      minX = Math.min(minX, pos.x);
+      maxX = Math.max(maxX, pos.x + pos.width);
+    }
+  }
+  for (const nid of group.children) {
+    const n = layout.nodes[nid];
+    if (!n) continue;
+    minX = Math.min(minX, n.x);
+    maxX = Math.max(maxX, n.x + n.width);
+  }
+  if (!isFinite(minX)) return;
+
+  const totalWidth = maxX - minX + LANE_HEADER;
+  const containerY = containerPos.y;
+  const containerX = Math.round(minX);
+
+  // Move each node: shift right by LANE_HEADER, center vertically in lane
+  for (const nid of group.children) {
+    const n = layout.nodes[nid];
+    if (!n) continue;
+    const lane = nodeLane.get(nid);
+    if (lane === undefined) continue;
+
+    n.x = n.x + LANE_HEADER;
+    n.y = Math.round(containerY + laneY[lane] + (laneHeights[lane] - n.height) / 2);
+  }
+
+  // Update container
+  containerPos.x = containerX;
+  containerPos.y = containerY;
+  containerPos.width = Math.round(totalWidth);
+  containerPos.height = totalHeight;
+
+  // Update region groups — horizontal bands
+  if (!layout.groups) layout.groups = {};
+  for (let i = 0; i < numLanes; i++) {
+    const regionId = `${group.id}.__conc_region__${i}`;
+    layout.groups[regionId] = {
+      id: regionId,
+      x: containerX,
+      y: containerY + laneY[i],
+      width: containerPos.width,
+      height: laneHeights[i],
+    };
   }
 }
 
@@ -652,6 +750,7 @@ export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, minGa
   const nodes = layout.nodes;
   const regions = swimContainer.concurrentRegions;
   const edges = model.edges || [];
+  const isLR = model.rankdir === 'LR';
 
   // Build a set of connected node-pair keys for quick lookup
   const connectedPairs = new Set<string>();
@@ -667,48 +766,70 @@ export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, minGa
     changed = false;
 
     for (const region of regions) {
-      // Collect nodes in this lane, sorted top-to-bottom
+      // Collect nodes in this lane, sorted along the flow axis
       const laneNodes = region
         .map(nid => nodes[nid])
         .filter((n): n is LayoutNode => n != null)
-        .sort((a, b) => a.y - b.y);
+        .sort((a, b) => isLR ? a.x - b.x : a.y - b.y);
 
       for (let i = 0; i < laneNodes.length - 1; i++) {
-        const upper = laneNodes[i];
-        const lower = laneNodes[i + 1];
+        const prev = laneNodes[i];
+        const next = laneNodes[i + 1];
 
-        // If the lower node has INCOMING edges from nodes other than the
-        // upper node (e.g. cross-lane edges), double the required gap
+        // If the next node has INCOMING edges from nodes other than the
+        // previous node (e.g. cross-lane edges), double the required gap
         // to leave room for the incoming edge routing.
-        // Only incoming edges need space above; outgoing edges route downward.
-        const lowerHasExternalIncoming = edges.some(e =>
-          e.to === lower.id && e.from !== upper.id
+        const nextHasExternalIncoming = edges.some(e =>
+          e.to === next.id && e.from !== prev.id
         );
-        const requiredGap = lowerHasExternalIncoming ? minGap * 2 : minGap;
+        const requiredGap = nextHasExternalIncoming ? minGap * 2 : minGap;
 
-        const gap = lower.y - (upper.y + upper.height);
+        // LR: check horizontal gap; TB: check vertical gap
+        const gap = isLR
+          ? next.x - (prev.x + prev.width)
+          : next.y - (prev.y + prev.height);
 
         if (gap < requiredGap) {
           const delta = requiredGap - gap;
-          const threshold = lower.y;
 
-          // Push ALL nodes at or below threshold down
-          Object.keys(nodes).forEach(nid => {
-            if (nodes[nid].y >= threshold) {
-              nodes[nid].y += delta;
-            }
-          });
-
-          // Adjust groups: push down if entirely below, expand if straddling
-          if (layout.groups) {
-            Object.keys(layout.groups).forEach(gid => {
-              const g = layout.groups![gid];
-              if (g.y >= threshold) {
-                g.y += delta;
-              } else if (g.y + g.height > threshold) {
-                g.height += delta;
+          if (isLR) {
+            const threshold = next.x;
+            // Push ALL nodes at or beyond threshold to the right
+            Object.keys(nodes).forEach(nid => {
+              if (nodes[nid].x >= threshold) {
+                nodes[nid].x += delta;
               }
             });
+            // Adjust groups
+            if (layout.groups) {
+              Object.keys(layout.groups).forEach(gid => {
+                const g = layout.groups![gid];
+                if (g.x >= threshold) {
+                  g.x += delta;
+                } else if (g.x + g.width > threshold) {
+                  g.width += delta;
+                }
+              });
+            }
+          } else {
+            const threshold = next.y;
+            // Push ALL nodes at or below threshold down
+            Object.keys(nodes).forEach(nid => {
+              if (nodes[nid].y >= threshold) {
+                nodes[nid].y += delta;
+              }
+            });
+            // Adjust groups: push down if entirely below, expand if straddling
+            if (layout.groups) {
+              Object.keys(layout.groups).forEach(gid => {
+                const g = layout.groups![gid];
+                if (g.y >= threshold) {
+                  g.y += delta;
+                } else if (g.y + g.height > threshold) {
+                  g.height += delta;
+                }
+              });
+            }
           }
 
           changed = true;
@@ -723,6 +844,7 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
   if (!edges || edges.length === 0) return;
 
   const nodes = layout.nodes;
+  const isLR = model.rankdir === 'LR';
 
   // Collect incoming / outgoing edge indices per node
   const inMap = new Map<string, number[]>();
@@ -734,47 +856,91 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
     outMap.get(e.from)!.push(i);
   });
 
-  // --- assign exit X positions (bottom of source node) ---
-  outMap.forEach((indices, nodeId) => {
-    const node = nodes[nodeId];
-    if (!node) return;
-    // sort outgoing edges by target node X (left → right)
-    indices.sort((a, b) => {
-      const na = nodes[edges[a].to];
-      const nb = nodes[edges[b].to];
-      return ((na?.x ?? 0) + (na?.width ?? 0) / 2) - ((nb?.x ?? 0) + (nb?.width ?? 0) / 2);
-    });
-    const count = indices.length;
-    const exitY = node.y + node.height; // bottom edge (DrawIO Y-down)
-    const left = node.x;
-    indices.forEach((ei, idx) => {
-      // divide into (n+1) segments, place at boundaries
-      const exitX = left + node.width * (idx + 1) / (count + 1);
-      (edges[ei] as any)._exitX = exitX;
-      (edges[ei] as any)._exitY = exitY;
-    });
-  });
+  if (isLR) {
+    // --- LR mode: exit from right side, entry from left side ---
 
-  // --- assign entry X positions (top of target node) ---
-  inMap.forEach((indices, nodeId) => {
-    const node = nodes[nodeId];
-    if (!node) return;
-    // sort incoming edges by source node X (left → right)
-    indices.sort((a, b) => {
-      const na = nodes[edges[a].from];
-      const nb = nodes[edges[b].from];
-      return ((na?.x ?? 0) + (na?.width ?? 0) / 2) - ((nb?.x ?? 0) + (nb?.width ?? 0) / 2);
+    // Assign exit positions (right side of source node)
+    outMap.forEach((indices, nodeId) => {
+      const node = nodes[nodeId];
+      if (!node) return;
+      // sort outgoing edges by target node Y (top → bottom)
+      indices.sort((a, b) => {
+        const na = nodes[edges[a].to];
+        const nb = nodes[edges[b].to];
+        return ((na?.y ?? 0) + (na?.height ?? 0) / 2) - ((nb?.y ?? 0) + (nb?.height ?? 0) / 2);
+      });
+      const count = indices.length;
+      const exitX = node.x + node.width; // right edge
+      const top = node.y;
+      indices.forEach((ei, idx) => {
+        const exitY = top + node.height * (idx + 1) / (count + 1);
+        (edges[ei] as any)._exitX = exitX;
+        (edges[ei] as any)._exitY = exitY;
+      });
     });
-    const count = indices.length;
-    const entryY = node.y; // top edge (DrawIO Y-down)
-    const left = node.x;
-    indices.forEach((ei, idx) => {
-      // divide into (n+1) segments, place at boundaries
-      const entryX = left + node.width * (idx + 1) / (count + 1);
-      (edges[ei] as any)._entryX = entryX;
-      (edges[ei] as any)._entryY = entryY;
+
+    // Assign entry positions (left side of target node)
+    inMap.forEach((indices, nodeId) => {
+      const node = nodes[nodeId];
+      if (!node) return;
+      // sort incoming edges by source node Y (top → bottom)
+      indices.sort((a, b) => {
+        const na = nodes[edges[a].from];
+        const nb = nodes[edges[b].from];
+        return ((na?.y ?? 0) + (na?.height ?? 0) / 2) - ((nb?.y ?? 0) + (nb?.height ?? 0) / 2);
+      });
+      const count = indices.length;
+      const entryX = node.x; // left edge
+      const top = node.y;
+      indices.forEach((ei, idx) => {
+        const entryY = top + node.height * (idx + 1) / (count + 1);
+        (edges[ei] as any)._entryX = entryX;
+        (edges[ei] as any)._entryY = entryY;
+      });
     });
-  });
+  } else {
+    // --- TB mode: exit from bottom, entry from top ---
+
+    // Assign exit X positions (bottom of source node)
+    outMap.forEach((indices, nodeId) => {
+      const node = nodes[nodeId];
+      if (!node) return;
+      // sort outgoing edges by target node X (left → right)
+      indices.sort((a, b) => {
+        const na = nodes[edges[a].to];
+        const nb = nodes[edges[b].to];
+        return ((na?.x ?? 0) + (na?.width ?? 0) / 2) - ((nb?.x ?? 0) + (nb?.width ?? 0) / 2);
+      });
+      const count = indices.length;
+      const exitY = node.y + node.height; // bottom edge
+      const left = node.x;
+      indices.forEach((ei, idx) => {
+        const exitX = left + node.width * (idx + 1) / (count + 1);
+        (edges[ei] as any)._exitX = exitX;
+        (edges[ei] as any)._exitY = exitY;
+      });
+    });
+
+    // Assign entry X positions (top of target node)
+    inMap.forEach((indices, nodeId) => {
+      const node = nodes[nodeId];
+      if (!node) return;
+      // sort incoming edges by source node X (left → right)
+      indices.sort((a, b) => {
+        const na = nodes[edges[a].from];
+        const nb = nodes[edges[b].from];
+        return ((na?.x ?? 0) + (na?.width ?? 0) / 2) - ((nb?.x ?? 0) + (nb?.width ?? 0) / 2);
+      });
+      const count = indices.length;
+      const entryY = node.y; // top edge
+      const left = node.x;
+      indices.forEach((ei, idx) => {
+        const entryX = left + node.width * (idx + 1) / (count + 1);
+        (edges[ei] as any)._entryX = entryX;
+        (edges[ei] as any)._entryY = entryY;
+      });
+    });
+  }
 
   // --- rebuild ortho paths ---
   for (const e of edges) {
@@ -784,40 +950,61 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
     const ny = (e as any)._entryY as number | undefined;
     if (ex == null || ey == null || nx == null || ny == null) continue;
 
-    const midY = (ey + ny) / 2;
+    if (isLR) {
+      // LR mode: flow is left→right
+      const midX = (ex + nx) / 2;
 
-    if (Math.abs(ex - nx) < 5) {
-      // same column (within 5px tolerance) → straight vertical line
-      const avgX = Math.round((ex + nx) / 2);
-      // Skip correction if original path is already a 2-point line
-      // and both endpoints shift less than 5px
-      if (e.points && e.points.length === 2) {
-        const dx0 = Math.abs(e.points[0].x - avgX) + Math.abs(e.points[0].y - ey);
-        const dx1 = Math.abs(e.points[1].x - avgX) + Math.abs(e.points[1].y - ny);
-        if (dx0 < 5 && dx1 < 5) {
-          // Clean up temp properties and skip
-          delete (e as any)._exitX;
-          delete (e as any)._exitY;
-          delete (e as any)._entryX;
-          delete (e as any)._entryY;
-          continue;
+      if (Math.abs(ey - ny) < 5) {
+        // same row (within 5px tolerance) → straight horizontal line
+        const avgY = Math.round((ey + ny) / 2);
+        if (e.points && e.points.length === 2) {
+          const d0 = Math.abs(e.points[0].y - avgY) + Math.abs(e.points[0].x - ex);
+          const d1 = Math.abs(e.points[1].y - avgY) + Math.abs(e.points[1].x - nx);
+          if (d0 < 5 && d1 < 5) {
+            delete (e as any)._exitX; delete (e as any)._exitY;
+            delete (e as any)._entryX; delete (e as any)._entryY;
+            continue;
+          }
         }
+        e.points = [{ x: Math.round(ex), y: avgY }, { x: Math.round(nx), y: avgY }];
+      } else {
+        // cross-row → 4-point ortho (exit → → vertical → → entry)
+        e.points = [
+          { x: Math.round(ex), y: Math.round(ey) },
+          { x: Math.round(midX), y: Math.round(ey) },
+          { x: Math.round(midX), y: Math.round(ny) },
+          { x: Math.round(nx), y: Math.round(ny) },
+        ];
       }
-      e.points = [{ x: avgX, y: Math.round(ey) }, { x: avgX, y: Math.round(ny) }];
     } else {
-      // cross-column → 4-point ortho (exit ↓ → horizontal → ↓ entry)
-      e.points = [
-        { x: Math.round(ex), y: Math.round(ey) },
-        { x: Math.round(ex), y: Math.round(midY) },
-        { x: Math.round(nx), y: Math.round(midY) },
-        { x: Math.round(nx), y: Math.round(ny) },
-      ];
+      // TB mode: flow is top→bottom
+      const midY = (ey + ny) / 2;
+
+      if (Math.abs(ex - nx) < 5) {
+        // same column (within 5px tolerance) → straight vertical line
+        const avgX = Math.round((ex + nx) / 2);
+        if (e.points && e.points.length === 2) {
+          const dx0 = Math.abs(e.points[0].x - avgX) + Math.abs(e.points[0].y - ey);
+          const dx1 = Math.abs(e.points[1].x - avgX) + Math.abs(e.points[1].y - ny);
+          if (dx0 < 5 && dx1 < 5) {
+            delete (e as any)._exitX; delete (e as any)._exitY;
+            delete (e as any)._entryX; delete (e as any)._entryY;
+            continue;
+          }
+        }
+        e.points = [{ x: avgX, y: Math.round(ey) }, { x: avgX, y: Math.round(ny) }];
+      } else {
+        // cross-column → 4-point ortho (exit ↓ → horizontal → ↓ entry)
+        e.points = [
+          { x: Math.round(ex), y: Math.round(ey) },
+          { x: Math.round(ex), y: Math.round(midY) },
+          { x: Math.round(nx), y: Math.round(midY) },
+          { x: Math.round(nx), y: Math.round(ny) },
+        ];
+      }
     }
 
-    // Clear label position — original DOT label position is for the
-    // unmodified ortho edge and may be misplaced after path correction.
-    // The label will be repositioned by the renderer based on the new path.
-    // Keep labelPos if it exists, but recalculate to midpoint of horizontal segment.
+    // Recalculate label position to midpoint of the middle segment
     if (e.labelPos && e.points.length === 4) {
       e.labelPos = {
         x: Math.round((e.points[1].x + e.points[2].x) / 2),

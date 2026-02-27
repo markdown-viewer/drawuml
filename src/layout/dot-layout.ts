@@ -303,7 +303,11 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers);
 
   // Inject splines=ortho for swimlane diagrams when requested
-  const dot = useOrtho ? dotRaw.replace('remincross=true', 'remincross=true\n  splines=ortho') : dotRaw;
+  // Skip ortho for LR mode — Graphviz hangs with splines=ortho + rankdir=LR + cross-cluster edges
+  const skipOrthoSplines = model.rankdir === 'LR';
+  const dot = (useOrtho && !skipOrthoSplines)
+    ? dotRaw.replace('remincross=true', 'remincross=true\n  splines=ortho')
+    : dotRaw;
 
   // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
   const viz = await getViz();

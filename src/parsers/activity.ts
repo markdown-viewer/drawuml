@@ -52,6 +52,7 @@ export function parseActivityDiagram(
   const skinparams: Record<string, string> = {};
   let title: string | undefined;
   let edgeCount = 0;
+  let rankdir: 'TB' | 'LR' = 'TB';
 
   // Current execution cursor — the node(s) from which the next activity continues.
   // Multiple cursors arise after if/else branches before merge.
@@ -835,8 +836,13 @@ export function parseActivityDiagram(
       continue;
     }
 
-    // ── Skinparam inline ──
-    if (kind === 'directive_statement') continue;
+    // ── Direction ──
+    if (kind === 'directive_statement') {
+      const kw = String(st.keyword || '').toLowerCase();
+      if (kw === 'left to right direction') rankdir = 'LR';
+      else if (kw === 'top to bottom direction') rankdir = 'TB';
+      continue;
+    }
     if (kind === 'style_text_line') continue;
 
     // ── Unhandled statement — skip silently ──
@@ -892,7 +898,7 @@ export function parseActivityDiagram(
     notes,
     groups,
     title,
-    rankdir: 'TB',
+    rankdir,
     skinparams: Object.keys(skinparams).length > 0 ? skinparams : undefined,
   };
 }

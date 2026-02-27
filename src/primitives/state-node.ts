@@ -304,12 +304,41 @@ export class SwimlaneContainerRenderer extends Renderer {
     const myAbs = (layout.groups && layout.groups[this.id]) || layout.nodes[this.id];
     if (!myAbs) return this.renderChildren();
 
-    // Collect region ELK positions, sorted by x
+    // Collect region layout positions
     const regionInfos: { renderer: Renderer; elkBox: { x: number; y: number; width: number; height: number } }[] = [];
     for (const r of regions) {
       const rl = layout.groups?.[r.id];
       if (rl) regionInfos.push({ renderer: r, elkBox: rl });
     }
+
+    // Detect LR mode: all regions share the same X → stacked vertically
+    const allSameX = regionInfos.length > 1 &&
+      regionInfos.every(ri => Math.abs(ri.elkBox.x - regionInfos[0].elkBox.x) < 1);
+
+    if (allSameX) {
+      // LR mode: lanes stacked vertically (horizontal bands)
+      regionInfos.sort((a, b) => a.elkBox.y - b.elkBox.y);
+      const n = regionInfos.length;
+      const totalElkH = regionInfos.reduce((s, r) => s + r.elkBox.height, 0);
+      const laneHeights = regionInfos.map(r => r.elkBox.height / totalElkH * box.height);
+
+      const cells: string[] = [];
+      let cumulY = 0;
+      for (let i = 0; i < n; i++) {
+        const ri = regionInfos[i];
+        if (ri.renderer instanceof ConcurrentRegionRenderer) {
+          ri.renderer._isHorizontalLane = true;
+        }
+        const laneY = Math.round(cumulY);
+        cumulY += laneHeights[i];
+        const actualH = Math.round(cumulY) - laneY;
+        const laneBox: ContentBox = { x: 0, y: laneY, width: box.width, height: actualH };
+        cells.push(...ri.renderer.render(laneBox));
+      }
+      return cells;
+    }
+
+    // TB mode: lanes side-by-side (vertical columns)
     regionInfos.sort((a, b) => a.elkBox.x - b.elkBox.x);
 
     // No title bar; lanes fill the entire container height
@@ -360,6 +389,8 @@ export class SwimlaneContainerRenderer extends Renderer {
 export class ConcurrentRegionRenderer extends Renderer {
   private regionLabel: string;
   private regionColor: string;
+  /** When true, render label on the left side (LR / horizontal swimlane). */
+  _isHorizontalLane: boolean = false;
 
   constructor(id: string, label: string = '', color: string = '') {
     super(id);
@@ -398,9 +429,11 @@ export class ConcurrentRegionRenderer extends Renderer {
     const parentCellId = this.parentId || '1';
     // Render as a standard DrawIO swimlane lane with visible borders.
     // Adjacent lanes naturally form visual separators.
-    const startSize = this.regionLabel ? 20 : 0;
+    // LR mode: horizontal=0 puts the label on the left side, startSize=40.
+    const startSize = this.regionLabel ? (this._isHorizontalLane ? 40 : 20) : 0;
     const fill = this.regionColor || 'none';
-    const style = `swimlane;html=1;startSize=${startSize};`
+    const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
+    const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=0.5;fillColor=${fill};strokeColor=${COLOR_DARK};`
       + `fontStyle=0;fontSize=11;`;
