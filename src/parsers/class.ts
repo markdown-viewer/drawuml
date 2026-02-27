@@ -600,6 +600,26 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         continue;
       }
 
+      // Standalone usecase shorthand: "(First usecase)" parsed as activity_statement with paren
+      if (st.kind === 'activity_statement' && st.paren) {
+        const label = String(st.text || '').trim();
+        const id = normalizeId(label);
+        if (id && !nodesById[id]) {
+          nodeOrder.push(id);
+          nodesById[id] = {
+            id,
+            type: NodeType.Usecase,
+            label,
+            stereotype: 'usecase',
+            stereotypeLabel: '',
+            bodyLines: [],
+          };
+          registerNodeInGroup(id);
+          lastDefinedClass = id;
+        }
+        continue;
+      }
+
       // Usecase declaration: "(First usecase)" or "(Another usecase) as (UC2)"
       // or "usecase UC as Label" or "usecase (text) as alias"
       if (st.kind === 'declaration_statement' && declType === 'usecase') {

@@ -147,6 +147,8 @@ export function detectDiagramContext(parsed): DiagramContext {
   let hasExplicitClassDecl = false;
   let hasImplicitClassDecl = false;
   let hasActivity = false;
+  let hasStrongActivity = false; // :text;, start, stop, if, etc. — unambiguous activity indicators
+  let hasArrowStatement = false; // arrow_statement → legacy activity syntax (handled by class parser)
 
   for (const st of statements) {
     if (!st || typeof st !== 'object') continue;
@@ -172,8 +174,14 @@ export function detectDiagramContext(parsed): DiagramContext {
       if (kind === 'activity_statement' && type === 'return') {
         hasActivity = true;
         hasSequenceIndicator = true;
+      } else if (kind === 'activity_statement' && st.paren) {
+        // (text) is ambiguous: could be activity or usecase declaration.
+        // Mark both and let priority logic decide based on other indicators.
+        hasActivity = true;
+        hasUsecase = true;
       } else {
         hasActivity = true;
+        hasStrongActivity = true;
         hasNonSequence = true;
       }
     }
@@ -183,20 +191,28 @@ export function detectDiagramContext(parsed): DiagramContext {
            'fork', 'end fork', 'split', 'while', 'repeat',
            'backward', 'arrow', 'link'].includes(t)) {
         hasActivity = true;
+        hasStrongActivity = true;
       }
       if (['start', 'stop', 'end', 'kill', 'detach', 'break'].includes(t)
           || ['start', 'stop', 'end', 'kill', 'detach', 'break'].includes(String(st.text || '').toLowerCase())) {
         hasActivity = true;
+        hasStrongActivity = true;
       }
     }
     if (kind === 'block_statement' && type === 'swimlane') {
       hasActivity = true;
+      hasStrongActivity = true;
       hasNonSequence = true;
     }
     // partition is valid in both activity and sequence diagrams (box grouping);
     // it is neutral for sequence detection — other indicators will decide.
     if (kind === 'block_statement' && type === 'partition') {
       hasActivity = true;
+    }
+
+    // ── Legacy activity diagram: arrow_statement (e.g. (*) --> "Node") ──
+    if (kind === 'arrow_statement') {
+      hasArrowStatement = true;
     }
 
     // ── Track explicit vs implicit class declarations ──
@@ -354,9 +370,12 @@ export function detectDiagramContext(parsed): DiagramContext {
   // (component, node, etc.) should take precedence.
   if (!hasNonSequence && hasSequenceIndicator) return 'sequence';
   if (hasState) return 'state';
-  if (hasActivity) return 'activity';
+  // arrow_statement is legacy activity syntax — must go through the class parser,
+  // not the new activity parser which does not handle arrow_statement.
+  if (hasStrongActivity && !hasArrowStatement) return 'activity';
   if (hasDeployment) return 'deployment';
   if (hasUsecase) return 'usecase';
+  if (hasActivity) return 'activity';
   // Description: implicit-only class declarations (no explicit `class` keyword).
   // Matches PlantUML's DescriptionDiagramFactory (priority 1) which renders
   // bare entity declarations like `Foo <<Bar>>` as actors by default.
