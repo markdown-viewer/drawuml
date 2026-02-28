@@ -4,11 +4,13 @@ import { Renderer } from '../primitives/renderer.ts';
 import { parseBracketEdgeStyle, parseEdgeInlineStyle } from '../shared/color-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { LabelRenderer } from '../primitives/shapes/label.ts';
-import { NOTE_LINK_COLOR } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 
 export interface DrawioGenOptions {
   /** Layout engine used. Affects edge style (curved vs orthogonal). */
   engine?: 'dot' | 'elk';
+  /** Computed theme for this conversion pass. */
+  theme?: Theme;
 }
 
 export function semanticToDrawioXml(model, layout, renderers: Map<string, Renderer>, options?: DrawioGenOptions) {
@@ -343,7 +345,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     const targetLayout = layout.nodes[note.target];
     if (!noteLayout || !targetLayout) continue;
     const edgeId = `__note_edge_${note.id}`;
-    const style = `endArrow=none;dashed=1;strokeColor=${NOTE_LINK_COLOR};`;
+    const noteLinkColor = options?.theme?.noteLinkColor ?? '#AEAE8F';
+    const style = `endArrow=none;dashed=1;strokeColor=${noteLinkColor};`;
     // Resolve member-level target: match "A::counter" to field cell id "A::int counter"
     let edgeTarget = note.target;
     if (note.memberTarget) {

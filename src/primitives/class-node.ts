@@ -12,9 +12,7 @@
 import { Content, CLASS_ROW_HEIGHT, CLASS_SEPARATOR_HEIGHT, CLASS_BODY_PADDING_Y, TITLED_SEPARATOR_HEIGHT } from '../shared/content.ts';
 import { buildLabelHtml } from './label.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
-import { RECT_ARC_SIZE } from '../shared/theme.ts';
 import { SwimlaneRenderer } from './renderer.ts';
-import { CLASS_FILL, DEFAULT_FONT_SIZE } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
@@ -28,7 +26,7 @@ export { CLASS_ROW_HEIGHT as ROW_HEIGHT, CLASS_SEPARATOR_HEIGHT as SEPARATOR_HEI
 // Constants
 // ---------------------------------------------------------------------------
 
-const TITLE_FONT_SIZE = DEFAULT_FONT_SIZE;   // container font size for title area
+const TITLE_FONT_SIZE = 12;   // container font size for title area
 
 /** Spot character and background color per entity stereotype/type. */
 const SPOT_MAP: Record<string, { char: string; color: string }> = {
@@ -131,7 +129,7 @@ export function computeTitleH(node: { label: string; stereotype?: string | null;
 // ---------------------------------------------------------------------------
 
 /** Generate swimlane style string for a class node mxCell. */
-export function classNodeStyle(node: { stereotype?: string | null; type?: string; label: string; stereotypeLabel?: string; style?: string | null; hideCircle?: boolean }, startSize?: number): string {
+export function classNodeStyle(node: { stereotype?: string | null; type?: string; label: string; stereotypeLabel?: string; style?: string | null; hideCircle?: boolean }, startSize?: number, theme?: { rectArcSize: number; classFill: string }): string {
   const stype = node.stereotype || node.type || '';
   const resolvedSize = startSize ?? computeTitleH(node);
   const parsed = parseNodeStyle(node.style);
@@ -151,7 +149,7 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     'marginBottom=0',
     'rounded=1',
     'absoluteArcSize=1',
-    `arcSize=${RECT_ARC_SIZE}`,
+    `arcSize=${theme?.rectArcSize ?? 4}`,
     'shadow=0',
     'strokeWidth=1',
   ];
@@ -175,7 +173,7 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
 
   // Default white fill when no custom fill specified
   if (!base.some(s => s.startsWith('fillColor='))) {
-    base.push(`fillColor=${CLASS_FILL}`);
+    base.push(`fillColor=${theme?.classFill ?? '#FFFFFF'}`);
   }
 
   return base.join(';') + ';';
@@ -230,7 +228,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   private skipAutoSep: boolean;
 
   constructor(node: NodeDescriptor) {
-    super(node.id);
+    super(node.id, node.theme);
     this.node = node;
     const entityType = node.stereotype || node.type || '';
     this.skipAutoSep = entityType === 'object';
@@ -250,7 +248,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   }
 
   protected getContainerStyle(titleHeight: number) {
-    return classNodeStyle(this.node, titleHeight);
+    return classNodeStyle(this.node, titleHeight, this.theme);
   }
 
   protected getRowStyle() {

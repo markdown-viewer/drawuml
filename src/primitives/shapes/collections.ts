@@ -8,7 +8,6 @@ import { mxVertex } from '../../shared/xml-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
 import { Renderer } from '../renderer.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
@@ -18,7 +17,7 @@ const SHADOW_OFFSET = 5;
 
 class CollectionsRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=mxgraph.basic.rect;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=middle;fillColor=#FFFFFF;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};whiteSpace=wrap;`;
+    return `shape=mxgraph.basic.rect;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=#FFFFFF;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
   }
   protected get extraPadX(): number { return SHADOW_OFFSET; }
   protected get extraPadY(): number { return SHADOW_OFFSET; }
@@ -31,7 +30,7 @@ class CollectionsRenderer extends RichRenderer {
 
   // Back shadow rectangle rendered behind main frame
   protected renderExtraCells(box: ContentBox): string[] {
-    let bs = `rounded=0;fillColor=none;strokeColor=${COLOR_DARK};`;
+    let bs = `rounded=0;fillColor=none;strokeColor=${this.theme.colorDark};`;
     if (this.color) bs = bs.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
     { const r = Renderer.applyInlineStyle(bs, this.desc.style); bs = r.style; }
     return [mxVertex({

@@ -15,6 +15,7 @@
 
 import type { Renderer } from './renderer.ts';
 import type { BodyLine } from '../model/class-model.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Descriptor hierarchy
@@ -68,6 +69,10 @@ export interface RenderDescriptor {
   actorStyle?: string;
   /** When true, the archimate icon overlay is horizontally centered instead of top-right. */
   centeredIcon?: boolean;
+
+  // ── Theme ───────────────────────────────────────────────────────────
+  /** Computed theme for this conversion pass. */
+  theme?: Theme;
 
   // ── Element-specific ────────────────────────────────────────────────
   /** Text alignment ('left' | 'center' | 'right'). */

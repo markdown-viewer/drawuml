@@ -11,6 +11,8 @@ import { semanticToDrawioXml } from './generator/drawio-gen.ts';
 import { sequenceToDrawioXml } from './generator/sequence-gen.ts';
 import { DiagramType } from './model/index.ts';
 import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
+import type { ThemeConfig, Theme } from './shared/theme.ts';
+import { createTheme } from './shared/theme.ts';
 
 // Re-export init helper so callers can pre-warm viz.js
 export { dotLayout, initViz } from './layout/dot-layout.ts';
@@ -31,6 +33,8 @@ export type LayoutEngine = 'dot' | 'elk';
 export interface ConvertOptions {
   /** Layout engine to use. Default: 'dot'. */
   engine?: LayoutEngine;
+  /** Theme configuration. Default: computed from fontSize=12. */
+  theme?: ThemeConfig;
 }
 
 export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Promise<string> {
@@ -38,13 +42,14 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
   clearRenderWarnings();
 
   const engine = options?.engine ?? 'dot';
+  const theme = createTheme(options?.theme);
   const { diagramType, body, parsed, diagramContext } = dispatch(dsl);
   const { source, pragmas } = preprocess(body);
 
   if (diagramType === DiagramType.Sequence) {
     const model = parseSequenceDiagram(source, { strict: true });
-    const { renderers, ...layout } = sequenceTableLayout(model);
-    return sequenceToDrawioXml(model, layout, renderers);
+    const { renderers, ...layout } = sequenceTableLayout(model, { theme });
+    return sequenceToDrawioXml(model, layout, renderers, theme);
   }
 
   const model = diagramContext === 'activity'
@@ -53,10 +58,10 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
   model.diagramType = diagramType;
 
   const { layout, renderers } = engine === 'elk'
-    ? await elkLayout(model)
-    : await dotLayout(model);
+    ? await elkLayout(model, { theme })
+    : await dotLayout(model, { theme });
 
-  return semanticToDrawioXml(model, layout, renderers, { engine });
+  return semanticToDrawioXml(model, layout, renderers, { engine, theme });
 }
 
 export function parsePumlToJson(dsl) {
@@ -65,6 +70,8 @@ export function parsePumlToJson(dsl) {
 
 export { dispatch } from './dispatcher.ts';
 export type { DiagramContext } from './detect-context.ts';
+export type { ThemeConfig, Theme } from './shared/theme.ts';
+export { createTheme } from './shared/theme.ts';
 export * from './model/index.ts';
 export { parsePlantUml } from './parsers/puml.ts';
 export { parseSequenceDiagram } from './parsers/sequence.ts';

@@ -21,7 +21,6 @@ import { mxVertex, mxContentLabel, escapeXml } from '../../shared/xml-utils.ts';
 import { Renderer } from '../renderer.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
-import { COLOR_DARK, DEFAULT_FILL, DEFAULT_FONT_SIZE, TITLE_MIN_WIDTH, TITLE_PAD_X, TITLE_PAD_Y } from '../../shared/theme.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -69,7 +68,7 @@ export abstract class RichRenderer extends Renderer {
   protected readonly hasRichBody: boolean;
 
   constructor(desc: RenderDescriptor) {
-    super(desc.id);
+    super(desc.id, desc.theme);
     this.desc = desc;
     this.hasRichBody = this.detectRichBody();
     this.content = this.buildContent();
@@ -237,8 +236,8 @@ export abstract class RichRenderer extends Renderer {
       };
     }
     return {
-      width: Math.max(TITLE_MIN_WIDTH, size.width + TITLE_PAD_X + this.extraPadX),
-      height: size.height + TITLE_PAD_Y + this.extraPadY + this.topPadY,
+      width: Math.max(this.theme.titleMinWidth, size.width + this.theme.titlePadX + this.extraPadX),
+      height: size.height + this.theme.titlePadY + this.extraPadY + this.topPadY,
     };
   }
 
@@ -290,7 +289,7 @@ export abstract class RichRenderer extends Renderer {
       if (bodyHtml && bodyHtml !== frameValue) {
         const stereoStyle = `text;html=1;align=center;verticalAlign=middle;`
           + `resizable=0;points=[];autosize=0;strokeColor=none;fillColor=none;`
-          + `fontSize=12;fontColor=${COLOR_DARK};`;
+          + `fontSize=12;fontColor=${this.theme.colorDark};`;
         cells.push(mxVertex({
           id: `${this.id}__body`,
           value: bodyHtml,
@@ -303,7 +302,7 @@ export abstract class RichRenderer extends Renderer {
       cells.push(...this.renderChildren());
     } else if (bodyHtml) {
       // Content label as child cell
-      const labelStyle = `fontSize=${DEFAULT_FONT_SIZE};${fontColorOverride || `fontColor=${COLOR_DARK};`}`;
+      const labelStyle = `fontSize=${this.theme.fontSize};${fontColorOverride || `fontColor=${this.theme.colorDark};`}`;
       cells.push(mxContentLabel(
         this.id, bodyHtml,
         fb.width - this.contentWidthReduction, fb.height,
@@ -328,7 +327,7 @@ export abstract class RichRenderer extends Renderer {
     const base = [
       'html=1', 'whiteSpace=wrap', 'container=1',
       shapeFragment.replace(/;$/, ''),
-      `fillColor=${DEFAULT_FILL}`, `strokeColor=${COLOR_DARK}`, 'strokeWidth=0.5',
+      `fillColor=${this.theme.defaultFill}`, `strokeColor=${this.theme.colorDark}`, 'strokeWidth=0.5',
       'align=left', 'verticalAlign=top',
       'spacingLeft=10', 'spacingRight=10', `spacingTop=${6 + this.topPadY}`, 'spacingBottom=6',
       'overflow=hidden',
@@ -346,8 +345,8 @@ export abstract class RichRenderer extends Renderer {
     s = styledS;
     s = this.postProcessStyle(s);
 
-    const fillColor = s.match(/fillColor=([^;]*)/)?.[1] || DEFAULT_FILL;
-    const strokeColor = s.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
+    const fillColor = s.match(/fillColor=([^;]*)/)?.[1] || this.theme.defaultFill;
+    const strokeColor = s.match(/strokeColor=([^;]*)/)?.[1] || this.theme.colorDark;
 
     const cells: string[] = [];
     if (this.content.hasSeparators) {

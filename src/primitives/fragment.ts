@@ -6,7 +6,7 @@
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor } from '../shared/color-utils.ts';
 import { Content } from '../shared/content.ts';
-import { COLOR_DARK, SMALL_FONT_SIZE } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -17,6 +17,7 @@ import { COLOR_DARK, SMALL_FONT_SIZE } from '../shared/theme.ts';
  * Returns an array of mxCell strings.
  */
 export function renderFragment(frag: {
+  theme?: Theme;
   id: string;
   type: string;
   label?: string;
@@ -73,9 +74,11 @@ export function renderFragment(frag: {
   }));
 
   // Condition label to the right of the tab
+  const smallFontSize = frag.theme?.smallFontSize ?? 10;
+  const colorDark = frag.theme?.colorDark ?? '#181818';
   if (conditionLabel) {
     const condHtml = Content.inline(conditionLabel).html;
-    const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=4;spacingTop=-2;fontSize=${SMALL_FONT_SIZE};`;
+    const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=4;spacingTop=-2;fontSize=${smallFontSize};`;
     cells.push(mxVertex({
       id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
       parent: '1',
@@ -103,7 +106,7 @@ export function renderFragment(frag: {
     }
 
     // Section separator: dashed line + label text
-    const lineStyle = `shape=line;strokeWidth=1;strokeColor=${COLOR_DARK};dashed=1;dashPattern=5 5;`;
+    const lineStyle = `shape=line;strokeWidth=1;strokeColor=${colorDark};dashed=1;dashPattern=5 5;`;
     cells.push(mxVertex({
       id: frag.id + '_sec_line_' + (i + 1), value: '', style: lineStyle,
       parent: '1',
@@ -111,7 +114,7 @@ export function renderFragment(frag: {
     }));
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
-      style: `text;align=left;verticalAlign=top;spacingLeft=8;spacingTop=-2;fontSize=${SMALL_FONT_SIZE};`,
+      style: `text;align=left;verticalAlign=top;spacingLeft=8;spacingTop=-2;fontSize=${smallFontSize};`,
       parent: '1',
       x: frag.x + 4, y: y + 2, width: frag.width - 8, height: 20,
     }));

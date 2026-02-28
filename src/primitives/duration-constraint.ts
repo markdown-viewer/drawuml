@@ -5,13 +5,14 @@
 
 import { escapeXml, mxVertex } from '../shared/xml-utils.ts';
 import { Content } from '../shared/content.ts';
-import { COLOR_DARK, SMALL_FONT_SIZE } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 
 /**
  * Render a duration constraint (vertical line with arrows + label) to DrawIO mxCell XML strings.
  * Returns an array of mxCell strings.
  */
 export function renderDurationConstraint(dc: {
+  theme?: Theme;
   id: string;
   x: number;
   y1: number;
@@ -21,7 +22,9 @@ export function renderDurationConstraint(dc: {
   labelWidth?: number;
 }): string[] {
   const cells: string[] = [];
-  const lineStyle = `endArrow=block;endFill=1;startArrow=block;startFill=1;strokeColor=${COLOR_DARK};`;
+  const colorDark = dc.theme?.colorDark ?? '#181818';
+  const smallFontSize = dc.theme?.smallFontSize ?? 10;
+  const lineStyle = `endArrow=block;endFill=1;startArrow=block;startFill=1;strokeColor=${colorDark};`;
   cells.push(
     `<mxCell id="${escapeXml(dc.id + '_line')}" value="" style="${lineStyle}" edge="1" parent="1">`
     + `<mxGeometry relative="1" as="geometry">`
@@ -35,7 +38,7 @@ export function renderDurationConstraint(dc: {
     const labelHtml = Content.inline(dc.label).html;
     const lineH = dc.y2 - dc.y1;
     const labelY = dc.y1 + lineH / 2 - 7;
-    const labelStyle = `text;html=1;align=left;verticalAlign=middle;whiteSpace=nowrap;fontSize=${SMALL_FONT_SIZE};`;
+    const labelStyle = `text;html=1;align=left;verticalAlign=middle;whiteSpace=nowrap;fontSize=${smallFontSize};`;
     cells.push(mxVertex({
       id: dc.id + '_label', value: labelHtml, style: labelStyle,
       parent: '1',

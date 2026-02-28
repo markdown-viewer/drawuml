@@ -5,13 +5,12 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class DatabaseRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=cylinder3;whiteSpace=wrap;size=10;fontStyle=1;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};collapsible=0;container=1;`;
+    return `shape=cylinder3;whiteSpace=wrap;size=10;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
   // Top cap height (size=10); reserves top area for ellipse, pushes label down
   protected get topPadY(): number { return 20; }

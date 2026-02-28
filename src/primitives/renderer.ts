@@ -24,11 +24,15 @@ import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import type { ContentBox, FinalizeBodyCtx, ContentBlock } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
+import type { Theme } from '../shared/theme.ts';
+import { createTheme } from '../shared/theme.ts';
 
 // ─── Base class ──────────────────────────────────────────────────────────────
 
 export abstract class Renderer {
   readonly id: string;
+  /** Theme for the current conversion pass. */
+  readonly theme: Theme;
   private _size: { width: number; height: number } | null = null;
   /** Child renderers managed by this container (empty for leaf nodes). */
   readonly children: Renderer[] = [];
@@ -37,8 +41,9 @@ export abstract class Renderer {
   /** Layout data reference for recursive child rendering. */
   protected _layoutRef: LayoutResult | null = null;
 
-  constructor(id: string) {
+  constructor(id: string, theme?: Theme) {
     this.id = id;
+    this.theme = theme ?? createTheme();
   }
 
   /** Set layout reference for this renderer and all descendants. */
@@ -207,8 +212,8 @@ export type NodeRenderer = Renderer;
 export abstract class SwimlaneRenderer extends Renderer {
   protected content: Content;
 
-  constructor(nodeId: string) {
-    super(nodeId);
+  constructor(nodeId: string, theme?: Theme) {
+    super(nodeId, theme);
   }
 
   /**

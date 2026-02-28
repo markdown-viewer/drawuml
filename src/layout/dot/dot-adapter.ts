@@ -9,7 +9,7 @@ import type { LayoutGraphNode, LayoutPort } from '../layout-graph.ts';
 import type { SemanticModel, SemanticEdge, SemanticGroup } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { unescapePlantUml } from '../../shared/puml-unescape.ts';
-import { DOT_NODESEP_PX, DOT_RANKSEP_PX, DOT_MAX_ROW_WIDTH, DOT_FONT_SIZE } from '../../shared/theme.ts';
+import type { Theme } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -116,6 +116,8 @@ interface DotAdapterContext {
   groupById: Map<string, SemanticGroup>;
   /** Greedy bin-packing for orphan nodes into rows */
   buildRowPacking: (nodeIds: string[], indent: string, maxRowWidth: number, maxPerRow: number) => string[];
+  /** DOT nodesep value in pixels */
+  dotNodesepPx: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +186,7 @@ function buildNodeDotLines(
 
   // Outer protection subgraph (mirrors PlantUML's "p0" wrapper)
   const outerMargin = ctx.groupsWithExternalEdge.has(gn.id)
-    ? DOT_NODESEP_PX
+    ? ctx.dotNodesepPx
     : 8;
   lines.push(`${indent}subgraph "cluster_${gn.id}_p0" {`);
   lines.push(`${indent}  label=""`);
@@ -264,10 +266,15 @@ export function layoutGraphToDot(
   rootNodes: LayoutGraphNode[],
   model: SemanticModel,
   renderers: Map<string, Renderer>,
+  theme?: Theme,
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
-  const nodesepInch = pxToInch(DOT_NODESEP_PX);
-  const ranksepInch = pxToInch(DOT_RANKSEP_PX);
+  const dotNodesepPx = theme?.dotNodesepPx ?? 30;
+  const dotRanksepPx = theme?.dotRanksepPx ?? 40;
+  const dotMaxRowWidth = theme?.dotMaxRowWidth ?? 800;
+  const dotFontSize = theme?.dotFontSize ?? 10;
+  const nodesepInch = pxToInch(dotNodesepPx);
+  const ranksepInch = pxToInch(dotRanksepPx);
 
   // --- Compound edge analysis ---
 
@@ -355,7 +362,7 @@ export function layoutGraphToDot(
     connectedNodes.add(e.to);
   }
 
-  function buildRowPacking(nodeIds: string[], indent: string, maxRowWidth = DOT_MAX_ROW_WIDTH, maxPerRow = 0): string[] {
+  function buildRowPacking(nodeIds: string[], indent: string, maxRowWidth = dotMaxRowWidth, maxPerRow = 0): string[] {
     const orphans = nodeIds.filter(id => !connectedNodes.has(id));
     if (orphans.length <= 1) return [];
     const rows: string[][] = [];
@@ -365,7 +372,7 @@ export function layoutGraphToDot(
     for (const id of orphans) {
       const r = renderers.get(id);
       const w = r ? r.measure().width : 160;
-      const needed = currentRow.length > 0 ? w + DOT_NODESEP_PX : w;
+      const needed = currentRow.length > 0 ? w + dotNodesepPx : w;
       const widthExceeded = currentRow.length > 0 && currentWidth + needed > maxRowWidth;
       const countExceeded = maxPerRow > 0 && currentRow.length >= maxPerRow;
       if (currentRow.length > 0 && (widthExceeded || countExceeded)) {
@@ -445,6 +452,7 @@ export function layoutGraphToDot(
     renderers,
     groupById,
     buildRowPacking,
+    dotNodesepPx,
   };
 
   // --- Node + group DOT blocks (walk IR tree) ---
@@ -585,8 +593,8 @@ export function layoutGraphToDot(
   ranksep=${ranksepInch}
   remincross=true
   searchsize=500${hasSwimlanes ? '\n  newrank=true' : ''}
-  edge [fontsize=${DOT_FONT_SIZE},labelfontsize=${DOT_FONT_SIZE}]
-  node [fontsize=${DOT_FONT_SIZE},height=0.35,width=0.55]
+  edge [fontsize=${dotFontSize},labelfontsize=${dotFontSize}]
+  node [fontsize=${dotFontSize},height=0.35,width=0.55]
 ${nodeGroupLines.join('\n')}
 ${edgeLines.join('\n')}
 ${noteLines.join('\n')}

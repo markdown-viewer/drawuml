@@ -12,7 +12,6 @@ import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
@@ -58,8 +57,8 @@ class UmlShapeRenderer extends IconRenderer {
     });
     const cx = box.x + Math.round((box.width - this.iconWidth) / 2);
     let s = `shape=${this.config.shape};verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
-      + `fillColor=none;strokeColor=${COLOR_DARK};strokeWidth=0.5;`
-      + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;`;
+      + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+      + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`;
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
     const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
     s = styledS;

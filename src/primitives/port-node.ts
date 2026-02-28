@@ -30,7 +30,7 @@ export class PortNodeRenderer extends Renderer {
   private _rawStyle: string | null;
 
   constructor(desc: RenderDescriptor) {
-    super(desc.id);
+    super(desc.id, desc.theme);
     this._label = desc.label ?? desc.id;
     this._portKind = (desc.stereotype === 'portout') ? 'portout' : 'portin';
     this._rawStyle = desc.style ?? null;

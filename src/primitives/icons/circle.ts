@@ -11,7 +11,6 @@ import { Renderer } from '../renderer.ts';
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
-import { DEFAULT_FONT_FAMILY, TITLE_FONT_SIZE, DEFAULT_FILL, COLOR_DARK } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
@@ -22,11 +21,6 @@ import type { ContentBox } from '../../shared/content.ts';
 
 const CIRCLE_DIAMETER = 16;    // PlantUML: rx=8, ry=8
 const CIRCLE_TEXT_GAP = 16;    // gap between circle and text below
-
-const CIRCLE_STYLE = 'ellipse;whiteSpace=wrap;html=1;aspect=fixed;'
-  + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`
-  + `fontSize=${TITLE_FONT_SIZE};fontColor=${COLOR_DARK};`
-  + 'verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;align=center;';
 
 // ---------------------------------------------------------------------------
 // Renderer
@@ -39,8 +33,8 @@ class CircleRenderer extends IconRenderer {
   constructor(desc: RenderDescriptor) {
     super(desc);
     this.labelHtml = Content.inline(this.label).html;
-    // Pre-measure with TITLE_FONT_SIZE to cache textWidth for render()
-    const meas = measureText(this.labelHtml, TITLE_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+    // Pre-measure with titleFontSize to cache textWidth for render()
+    const meas = measureText(this.labelHtml, this.theme.titleFontSize, this.theme.fontFamily, 'normal', 'normal', true);
     this.textWidth = Math.ceil(meas.width);
   }
 
@@ -49,9 +43,9 @@ class CircleRenderer extends IconRenderer {
   protected override get iconGap(): number { return CIRCLE_TEXT_GAP; }
   protected override get paddingX(): number { return 40; }
 
-  // Override: circle uses TITLE_FONT_SIZE for measurement
+  // Override: circle uses titleFontSize for measurement
   protected override measureLabel() {
-    return measureText(this.labelHtml, TITLE_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+    return measureText(this.labelHtml, this.theme.titleFontSize, this.theme.fontFamily, 'normal', 'normal', true);
   }
 
   // Override: padding applies to icon width too
@@ -69,7 +63,11 @@ class CircleRenderer extends IconRenderer {
     const cy = box.y;
     // Use actual text width as labelWidth to prevent wrapping without over-expanding
     const labelWidth = Math.max(this.textWidth + 4, CIRCLE_DIAMETER);
-    let s = CIRCLE_STYLE + `labelWidth=${labelWidth};`;
+    let s = 'ellipse;whiteSpace=wrap;html=1;aspect=fixed;'
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+      + `fontSize=${this.theme.titleFontSize};fontColor=${this.theme.colorDark};`
+      + 'verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;align=center;'
+      + `labelWidth=${labelWidth};`;
     const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);

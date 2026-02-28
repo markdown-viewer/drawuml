@@ -15,7 +15,7 @@ import { measureText } from '@markdown-viewer/text-measure';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
 import { textRowStyle, separatorStyle } from './class-node.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
-import { DEFAULT_FONT_FAMILY, SMALL_FONT_SIZE, DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
@@ -33,35 +33,9 @@ const FORK_HEIGHT = 6;
 
 const CHOICE_SIZE = 24;
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const START_STYLE = 'shape=startState;whiteSpace=wrap;html=1;aspect=fixed;'
-  + `fillColor=${COLOR_DARK};strokeColor=${COLOR_DARK};strokeWidth=1;`;
-
-const END_STYLE = 'shape=endState;whiteSpace=wrap;html=1;aspect=fixed;'
-  + `fillColor=${COLOR_DARK};strokeColor=${COLOR_DARK};strokeWidth=1;`;
-
 const FLOW_FINAL_SIZE = 22;
-const FLOW_FINAL_STYLE = 'shape=flowFinal;whiteSpace=wrap;html=1;aspect=fixed;'
-  + `fillColor=none;strokeColor=${COLOR_DARK};strokeWidth=1;`;
-
-const FORK_STYLE = `line;html=1;strokeWidth=6;strokeColor=${COLOR_DARK};`
-  + `fillColor=${COLOR_DARK};perimeter=linePerimeter;`;
-
-const CHOICE_STYLE = 'rhombus;whiteSpace=wrap;html=1;'
-  + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`;
-
 const HISTORY_SIZE = 22;
-const HISTORY_STYLE = 'ellipse;whiteSpace=wrap;html=1;aspect=fixed;'
-  + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`
-  + `fontSize=${SMALL_FONT_SIZE};fontStyle=1;`;
-
 const CHOICE_LABEL_GAP = 4; // gap between label and diamond
-const CHOICE_LABEL_STYLE = `text;html=1;align=left;verticalAlign=top;`
-  + `fontSize=${SMALL_FONT_SIZE};fontColor=${COLOR_DARK};`
-  + `resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;`;
 
 // ---------------------------------------------------------------------------
 // Start / End renderers
@@ -69,7 +43,7 @@ const CHOICE_LABEL_STYLE = `text;html=1;align=left;verticalAlign=top;`
 
 class StateStartRenderer extends Renderer {
   private node: { id: string };
-  constructor(node: { id: string }) { super(node.id); this.node = node; }
+  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
     return { width: START_DIAMETER, height: START_DIAMETER };
@@ -79,13 +53,13 @@ class StateStartRenderer extends Renderer {
     const d = START_DIAMETER;
     const x = box.x + Math.round((box.width - d) / 2);
     const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: START_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
+    return [mxVertex({ id: this.node.id, value: '', style: `shape=startState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=1;`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
 
 class StateEndRenderer extends Renderer {
   private node: { id: string };
-  constructor(node: { id: string }) { super(node.id); this.node = node; }
+  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
     return { width: END_OUTER, height: END_OUTER };
@@ -95,13 +69,13 @@ class StateEndRenderer extends Renderer {
     const d = END_OUTER;
     const x = box.x + Math.round((box.width - d) / 2);
     const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: END_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
+    return [mxVertex({ id: this.node.id, value: '', style: `shape=endState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=1;`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
 
 class FlowFinalRenderer extends Renderer {
   private node: { id: string };
-  constructor(node: { id: string }) { super(node.id); this.node = node; }
+  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
     return { width: FLOW_FINAL_SIZE, height: FLOW_FINAL_SIZE };
@@ -111,7 +85,7 @@ class FlowFinalRenderer extends Renderer {
     const d = FLOW_FINAL_SIZE;
     const x = box.x + Math.round((box.width - d) / 2);
     const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: FLOW_FINAL_STYLE, parent: this.parentId || '1', x, y, width: d, height: d })];
+    return [mxVertex({ id: this.node.id, value: '', style: `shape=flowFinal;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=1;`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
 
@@ -121,7 +95,7 @@ class FlowFinalRenderer extends Renderer {
 
 class StateForkJoinRenderer extends Renderer {
   private node: { id: string };
-  constructor(node: { id: string }) { super(node.id); this.node = node; }
+  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
     return { width: FORK_WIDTH, height: FORK_HEIGHT };
@@ -132,7 +106,7 @@ class StateForkJoinRenderer extends Renderer {
     const h = FORK_HEIGHT;
     const x = box.x + Math.round((box.width - w) / 2);
     const y = box.y + Math.round((box.height - h) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: FORK_STYLE, parent: this.parentId || '1', x, y, width: w, height: h })];
+    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=6;strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
   }
 }
 
@@ -147,11 +121,11 @@ class StateChoiceRenderer extends Renderer {
   private labelHeight: number;
 
   constructor(node: RenderDescriptor) {
-    super(node.id);
+    super(node.id, node.theme);
     this.node = node;
     this.label = node.label || '';
     if (this.label) {
-      const meas = measureText(this.label, SMALL_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+      const meas = measureText(this.label, this.theme.smallFontSize, this.theme.fontFamily, 'normal', 'normal', true);
       this.labelWidth = Math.ceil(meas.width);
       this.labelHeight = Math.ceil(meas.height);
     } else {
@@ -208,16 +182,20 @@ class StateChoiceRenderer extends Renderer {
         labelX = dx - this.labelWidth - CHOICE_LABEL_GAP;
         labelY = dy - this.labelHeight - CHOICE_LABEL_GAP;
       }
+      const choiceLabelStyle = `text;html=1;align=left;verticalAlign=top;`
+        + `fontSize=${this.theme.smallFontSize};fontColor=${this.theme.colorDark};`
+        + `resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;`;
       cells.push(mxVertex({
         id: `${this.node.id}__label`,
         value: this.label,
-        style: CHOICE_LABEL_STYLE,
+        style: choiceLabelStyle,
         parent: this.parentId || '1',
         x: labelX, y: labelY, width: this.labelWidth, height: this.labelHeight,
       }));
     }
 
-    cells.push(mxVertex({ id: this.node.id, value: '', style: Renderer.applyInlineStyle(CHOICE_STYLE, this.node.style).style, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
+    const choiceStyle = `rhombus;whiteSpace=wrap;html=1;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`;
+    cells.push(mxVertex({ id: this.node.id, value: '', style: Renderer.applyInlineStyle(choiceStyle, this.node.style).style, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
 
     return cells;
   }
@@ -232,7 +210,7 @@ class StateHistoryRenderer extends Renderer {
   private label: string;
 
   constructor(node: RenderDescriptor) {
-    super(node.id);
+    super(node.id, node.theme);
     this.node = node;
     this.label = node.label || 'H';
   }
@@ -248,7 +226,7 @@ class StateHistoryRenderer extends Renderer {
     return [mxVertex({
       id: this.node.id,
       value: this.label,
-      style: HISTORY_STYLE,
+      style: `ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;fontSize=${this.theme.smallFontSize};fontStyle=1;`,
       parent: this.parentId || '1',
       x, y, width: d, height: d,
     })];
@@ -265,8 +243,8 @@ class StateHistoryRenderer extends Renderer {
  * side-by-side, each spanning the full container height.
  */
 export class SwimlaneContainerRenderer extends Renderer {
-  constructor(id: string) {
-    super(id);
+  constructor(id: string, theme?: Theme) {
+    super(id, theme);
   }
 
   get isCluster(): boolean { return true; }
@@ -412,8 +390,8 @@ export class ConcurrentRegionRenderer extends Renderer {
   /** When true, render label on the left side (LR / horizontal swimlane). */
   _isHorizontalLane: boolean = false;
 
-  constructor(id: string, label: string = '', color: string = '') {
-    super(id);
+  constructor(id: string, label: string = '', color: string = '', theme?: Theme) {
+    super(id, theme);
     this.regionLabel = label;
     this.regionColor = color;
   }
@@ -455,7 +433,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
-      + `strokeWidth=0.5;fillColor=${fill};strokeColor=${COLOR_DARK};`
+      + `strokeWidth=0.5;fillColor=${fill};strokeColor=${this.theme.colorDark};`
       + `fontStyle=0;fontSize=11;`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
@@ -495,7 +473,7 @@ export class ConcurrentRegionRenderer extends Renderer {
 // ---------------------------------------------------------------------------
 
 /** Generate swimlane style for a state node with optional color. */
-function stateNodeStyle(startSize: number, style?: string | null): string {
+function stateNodeStyle(startSize: number, theme: Theme, style?: string | null): string {
   const parsed = parseNodeStyle(style);
   const base = [
     'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', 'arcSize=10',
@@ -518,8 +496,8 @@ function stateNodeStyle(startSize: number, style?: string | null): string {
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
     else if (parsed.lineStyle === 'bold') base.push('strokeWidth=2');
   }
-  if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${DEFAULT_FILL}`);
-  if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${COLOR_DARK}`);
+  if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
+  if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
   return base.join(';') + ';';
 }
 
@@ -528,7 +506,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   private nodeStyle?: string | null;
 
   constructor(node: RenderDescriptor) {
-    super(node.id);
+    super(node.id, node.theme);
     this.nodeLabel = node.label ?? '';
     this.nodeStyle = node.style;
     const titleHtml = Content.inline(node.label ?? '').html;
@@ -541,7 +519,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   }
 
   protected getContainerStyle(titleHeight: number) {
-    return stateNodeStyle(titleHeight, this.nodeStyle);
+    return stateNodeStyle(titleHeight, this.theme, this.nodeStyle);
   }
 
   protected getRowStyle() { return textRowStyle(); }
@@ -561,7 +539,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const labelHtml = Content.inline(this.nodeLabel).html;
       const parentCellId = this.parentId || '1';
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
-      const style = stateGroupStyle(this.nodeStyle, hasConcurrentRegions);
+      const style = stateGroupStyle(this.theme, this.nodeStyle, hasConcurrentRegions);
       const cells = [`<mxCell id="${escapeXml(this.id)}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(parentCellId)}">`
         + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
         + `</mxCell>`];
@@ -642,7 +620,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
 // ---------------------------------------------------------------------------
 
 /** DrawIO style for a composite state container with optional color. */
-function stateGroupStyle(style?: string | null, noRounding?: boolean): string {
+function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boolean): string {
   const parsed = parseNodeStyle(style);
   const base = noRounding ? [
     'swimlane', 'html=1', 'rounded=0',
@@ -670,8 +648,8 @@ function stateGroupStyle(style?: string | null, noRounding?: boolean): string {
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
     else if (parsed.lineStyle === 'bold') base.push('strokeWidth=2');
   }
-  if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${DEFAULT_FILL}`);
-  if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${COLOR_DARK}`);
+  if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
+  if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
   return base.join(';') + ';';
 }
 
@@ -689,5 +667,5 @@ export function registerStateNodeRenderers(): void {
   registerRenderer('state_choice', (desc: RenderDescriptor) => new StateChoiceRenderer(desc));
   registerRenderer('state_history', (desc: RenderDescriptor) => new StateHistoryRenderer(desc));
   registerRenderer('state', (desc: RenderDescriptor) => new StateNodeRenderer(desc));
-  registerRenderer('swimlane_container', (desc: RenderDescriptor) => new SwimlaneContainerRenderer(desc.id));
+  registerRenderer('swimlane_container', (desc: RenderDescriptor) => new SwimlaneContainerRenderer(desc.id, desc.theme));
 }

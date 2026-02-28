@@ -1,104 +1,96 @@
 /**
- * Default PlantUML color palette and typography constants (2026 theme).
+ * Theme configuration for PlantUML → DrawIO rendering.
  *
- * Centralized constants to avoid hardcoding hex values and font sizes
- * across primitives. These match PlantUML's current default rendering.
+ * Provides Theme interface and createTheme() factory.
+ * All sizing derives from a base fontSize (default 12).
  */
 
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-measure';
 
-// Re-export font family from text-measure so consumers only depend on theme.ts
-export { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE };
-
 // ---------------------------------------------------------------------------
-// Typography
+// Theme interface & factory
 // ---------------------------------------------------------------------------
 
-/** Small font size for auxiliary labels (choice label, fragment tab, duration constraint). */
-export const SMALL_FONT_SIZE = 11;
+/** Minimal input for theme creation. Defaults computed from fontSize. */
+export interface ThemeConfig {
+  /** Base font size (default: 12). All sizing derives from this. */
+  fontSize?: number;
+  /** Font family (default: DEFAULT_FONT_FAMILY from text-measure). */
+  fontFamily?: string;
+}
 
-/** Font size for container labels (box label). */
-export const LABEL_FONT_SIZE = 13;
+/** Full computed theme — all values ready for use. */
+export interface Theme {
+  // Typography
+  readonly fontSize: number;
+  readonly fontFamily: string;
+  readonly smallFontSize: number;
+  readonly labelFontSize: number;
+  readonly titleFontSize: number;
 
-/** Font size for titles and circle nodes. */
-export const TITLE_FONT_SIZE = 14;
+  // Core palette
+  readonly colorDark: string;
+  readonly defaultFill: string;
+  readonly classFill: string;
+  readonly defaultStrokeWidth: number;
+  readonly rectArcSize: number;
 
-// ---------------------------------------------------------------------------
-// Core palette
-// ---------------------------------------------------------------------------
+  // Misc fills
+  readonly dividerFill: string;
+  readonly legendFill: string;
 
-/** Near-black used for strokes, borders, text, pseudo-states, and group outlines.
- *  PlantUML uses #000000/#181818/#222222 interchangeably — merged here. */
-export const COLOR_DARK = '#181818';
+  // Shape padding
+  readonly titleMinWidth: number;
+  readonly titlePadX: number;
+  readonly titlePadY: number;
+  readonly contentPadX: number;
+  readonly contentPadY: number;
 
-/** Default fill color for generic nodes (activity, state, circle, diamond, bracket, etc.) */
-export const DEFAULT_FILL = '#F1F1F1';
+  // Accent colors
+  readonly noteLinkColor: string;
+  readonly destroyStroke: string;
 
-/** Default fill for class swimlane nodes and frames */
-export const CLASS_FILL = '#FFFFFF';
+  // DOT layout
+  readonly dotNodesepPx: number;
+  readonly dotRanksepPx: number;
+  readonly dotMaxRowWidth: number;
+  readonly dotFontSize: number;
+}
 
-/** Default stroke width for generic nodes */
-export const DEFAULT_STROKE_WIDTH = 0.5;
+/** Create a fully computed Theme from minimal config. */
+export function createTheme(config?: ThemeConfig): Theme {
+  const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
+  const fontFamily = config?.fontFamily ?? DEFAULT_FONT_FAMILY;
 
-/**
- * Standard rounded-corner arc size for rectangular frames.
- * Used with absoluteArcSize=1 — actual radius = RECT_ARC_SIZE / 2 = 3px.
- */
-export const RECT_ARC_SIZE = 4;
+  return {
+    fontSize,
+    fontFamily,
+    smallFontSize: fontSize / 1.15,
+    labelFontSize: fontSize * 1.15,
+    titleFontSize: fontSize * 1.2,
 
-// ---------------------------------------------------------------------------
-// Misc fills
-// ---------------------------------------------------------------------------
-    
-/** Divider box fill color */
-export const DIVIDER_FILL = '#EEEEEE';
+    colorDark: '#181818',
+    defaultFill: '#F1F1F1',
+    classFill: '#FFFFFF',
+    defaultStrokeWidth: fontSize / 24,
+    rectArcSize: fontSize / 3,
 
-// ---------------------------------------------------------------------------
-// Shape padding (leaf node sizing)
-// ---------------------------------------------------------------------------
+    dividerFill: '#EEEEEE',
+    legendFill: '#DDDDDD',
 
-/** Minimum width for title-only leaf nodes (matches participant rectangle). */
-export const TITLE_MIN_WIDTH = 80;
+    titleMinWidth: fontSize * 6,
+    titlePadX: fontSize * 1.5,
+    titlePadY: fontSize,
+    contentPadX: fontSize * 1.6,
+    contentPadY: fontSize / 1.2,
 
-/** Horizontal padding for title-only leaf nodes (matches participant rectangle). */
-export const TITLE_PAD_X = 20;
+    noteLinkColor: '#AEAE8F',
+    destroyStroke: '#A80036',
 
-/** Vertical padding for title-only leaf nodes (matches participant rectangle). */
-export const TITLE_PAD_Y = 12;
+    dotNodesepPx: fontSize * 3.33,
+    dotRanksepPx: fontSize * 4.17,
+    dotMaxRowWidth: fontSize * 58.33,
+    dotFontSize: fontSize,
+  };
+}
 
-/** Horizontal padding for leaf nodes with body content (matches note). */
-export const CONTENT_PAD_X = 23;
-
-/** Vertical padding for leaf nodes with body content (matches note). */
-export const CONTENT_PAD_Y = 10;
-
-/** Legend box fill color */
-export const LEGEND_FILL = '#DDDDDD';
-
-// ---------------------------------------------------------------------------
-// Accent colors
-// ---------------------------------------------------------------------------
-
-/** Note link/anchor dashed line color */
-export const NOTE_LINK_COLOR = '#AEAE8F';
-
-/** Sequence destroy marker stroke color */
-export const DESTROY_STROKE = '#A80036';
-
-// ---------------------------------------------------------------------------
-// DOT layout constants
-// ---------------------------------------------------------------------------
-
-/** Minimum horizontal gap between nodes in the same rank (px). */
-export const DOT_NODESEP_PX = 40;
-
-/** Minimum vertical gap between ranks (px). */
-export const DOT_RANKSEP_PX = 50;
-
-/** Target maximum row width for orphan node packing (px). */
-export const DOT_MAX_ROW_WIDTH = 700;
-
-/** Font size for DOT edge/node labels.
- *  Must be >= the actual rendered font (LABEL 13, TITLE 14) so Graphviz
- *  reserves enough space for titles and labels. */
-export const DOT_FONT_SIZE = 14;

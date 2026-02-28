@@ -5,7 +5,7 @@
 
 import { mxVertex } from '../shared/xml-utils.ts';
 import { Content } from '../shared/content.ts';
-import { COLOR_DARK, DIVIDER_FILL } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -16,6 +16,7 @@ import { COLOR_DARK, DIVIDER_FILL } from '../shared/theme.ts';
  * Returns an array of mxCell strings (empty for ellipsis type).
  */
 export function renderDivider(divider: {
+  theme?: Theme;
   id: string;
   type: string;
   label: string;
@@ -45,22 +46,24 @@ export function renderDivider(divider: {
   }
 
   // Section dividers (== text ==): two horizontal lines + bordered text box
+  const colorDark = divider.theme?.colorDark ?? '#181818';
+  const dividerFill = divider.theme?.dividerFill ?? '#EEEEEE';
   const lineY1 = divider.y - 1;
   const lineY2 = divider.y + 2;
   cells.push(mxVertex({
-    id: divider.id + '_line1', value: '', style: `shape=line;strokeWidth=1;strokeColor=${COLOR_DARK};`,
+    id: divider.id + '_line1', value: '', style: `shape=line;strokeWidth=1;strokeColor=${colorDark};`,
     parent: '1',
     x: divider.x1, y: lineY1, width: divider.x2 - divider.x1, height: 1,
   }));
   cells.push(mxVertex({
-    id: divider.id + '_line2', value: '', style: `shape=line;strokeWidth=1;strokeColor=${COLOR_DARK};`,
+    id: divider.id + '_line2', value: '', style: `shape=line;strokeWidth=1;strokeColor=${colorDark};`,
     parent: '1',
     x: divider.x1, y: lineY2, width: divider.x2 - divider.x1, height: 1,
   }));
   // Bordered text box centered between the lines
   const labelHtml = Content.inline(divider.label).html;
   const hh = divider.halfHeight;
-  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fillColor=${DIVIDER_FILL};strokeColor=${COLOR_DARK};strokeWidth=2;`;
+  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=2;`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
     parent: '1',

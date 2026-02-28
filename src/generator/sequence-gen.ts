@@ -13,8 +13,9 @@ import { renderDestroyMarker, renderActivationBar } from '../primitives/activati
 import { renderFragment } from '../primitives/fragment.ts';
 import { renderDivider } from '../primitives/divider.ts';
 import { renderDurationConstraint } from '../primitives/duration-constraint.ts';
+import type { Theme } from '../shared/theme.ts';
 
-export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Renderer>) {
+export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Renderer>, theme?: Theme) {
   const cells = [];
   cells.push('<mxCell id="0"/>');
   cells.push('<mxCell id="1" parent="0"/>');
@@ -39,18 +40,18 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
 
   // Fragments (rendered before participants so lifelines appear on top of frame fills)
   for (const frag of layout.fragments || []) {
-    cells.push(...renderFragment(frag));
+    cells.push(...renderFragment({ ...frag, theme }));
   }
 
   // Participants
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
     if (!lp) continue;
-    cells.push(...renderParticipant(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign, actorStyle: model.actorStyle }));
+    cells.push(...renderParticipant(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign, actorStyle: model.actorStyle, theme }));
 
     // Destroy marker (X cross) at the destroy row position on the lifeline
     if (lp.isDestroyed && lp.destroyY != null) {
-      cells.push(renderDestroyMarker(p.id + '_destroy', lp.centerX, lp.destroyY));
+      cells.push(renderDestroyMarker(p.id + '_destroy', lp.centerX, lp.destroyY, undefined, undefined, theme));
     }
   }
 
@@ -59,7 +60,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     for (const p of model.participants) {
       const lp = layout.participants[p.id];
       if (!lp) continue;
-      cells.push(...renderFootbox(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign, actorStyle: model.actorStyle }));
+      cells.push(...renderFootbox(p, lp, { stereotypePosition: model.stereotypePosition, participantAlign: model.participantAlign, actorStyle: model.actorStyle, theme }));
     }
   }
 
@@ -76,17 +77,17 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   const sortedActs = [...(layout.activations || [])].sort((a, b) => (a.depth ?? 0) - (b.depth ?? 0));
   for (const act of sortedActs) {
     const pc = participantCellMap[act.participant];
-    cells.push(...renderActivationBar(act, pc ? { x: pc.cellX, y: pc.cellY } : undefined));
+    cells.push(...renderActivationBar(act, pc ? { x: pc.cellX, y: pc.cellY } : undefined, theme));
   }
 
   // Dividers
   for (const divider of layout.dividers || []) {
-    cells.push(...renderDivider(divider));
+    cells.push(...renderDivider({ ...divider, theme }));
   }
 
   // Duration constraints (teoz {tag} <-> {tag} : label)
   for (const dc of layout.durationConstraints || []) {
-    cells.push(...renderDurationConstraint(dc));
+    cells.push(...renderDurationConstraint({ ...dc, theme }));
   }
 
   // Notes

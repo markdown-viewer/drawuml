@@ -6,7 +6,6 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
-import { CLASS_FILL, COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -19,7 +18,7 @@ class UsecaseRenderer extends RichRenderer {
   }
 
   protected buildStyle(): string {
-    const base = `whiteSpace=wrap;html=1;fillColor=${CLASS_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;verticalAlign=middle;`;
+    const base = `whiteSpace=wrap;html=1;fillColor=${this.theme.classFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
     if (this.isBusiness) {
       // Business usecase: ellipse with a diagonal slash (lineEllipse extension)
       return `shape=lineEllipse;line=diagonal;` + base;

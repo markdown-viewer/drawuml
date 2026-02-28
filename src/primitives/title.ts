@@ -11,7 +11,7 @@ import { measureText } from '@markdown-viewer/text-measure';
 import { Content } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
-import { DEFAULT_FONT_FAMILY, TITLE_FONT_SIZE } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -23,14 +23,14 @@ class TitleRenderer extends Renderer {
   private htmlLabel: string;
   private textHeight = 0;
 
-  constructor(id: string, text: string, opts?: { fontSize?: number }) {
-    super(id);
-    this.fontSize = opts?.fontSize ?? TITLE_FONT_SIZE;
+  constructor(id: string, text: string, opts?: { fontSize?: number; theme?: Theme }) {
+    super(id, opts?.theme);
+    this.fontSize = opts?.fontSize ?? this.theme.titleFontSize;
     this.htmlLabel = Content.inline(text).html;
   }
 
   protected doMeasure() {
-    const m = measureText(this.htmlLabel, this.fontSize, DEFAULT_FONT_FAMILY, 'bold', 'normal', true);
+    const m = measureText(this.htmlLabel, this.fontSize, this.theme.fontFamily, 'bold', 'normal', true);
     this.textHeight = Math.ceil(m.height);
     // Total height includes bottom gap so layout engines don't need a separate constant
     return { width: Math.ceil(m.width), height: this.textHeight + TITLE_BOTTOM_GAP };
@@ -50,6 +50,6 @@ class TitleRenderer extends Renderer {
 /** Register title renderer into global registry. */
 export function registerTitleRenderer(): void {
   registerRenderer('title', (desc: RenderDescriptor) => {
-    return new TitleRenderer(desc.id, desc.label || '');
+    return new TitleRenderer(desc.id, desc.label || '', { theme: desc.theme });
   });
 }

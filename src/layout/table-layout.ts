@@ -1,5 +1,5 @@
 import { measureText } from '@markdown-viewer/text-measure';
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE, TITLE_MIN_WIDTH, TITLE_PAD_X, TITLE_PAD_Y } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 import { unescapePlantUml } from '../shared/puml-unescape.ts';
 import { createRenderer } from '../primitives/index.ts';
 import { ICON_MIN_WIDTH, ICON_HEIGHT, buildParticipantLabel, measureBracketBody } from '../primitives/participant.ts';
@@ -21,15 +21,21 @@ function getRowCount(model) {
   return rows.length > 0 ? Math.max(...rows) : 0;
 }
 
-export function sequenceTableLayout(model) {
+export function sequenceTableLayout(model, options?: { theme?: Theme }) {
+  const theme = options?.theme;
+  const fontSize = theme?.fontSize ?? 12;
+  const fontFamily = theme?.fontFamily ?? 'Arial';
+  const titleMinWidth = theme?.titleMinWidth ?? 100;
+  const titlePadX = theme?.titlePadX ?? 20;
+  const titlePadY = theme?.titlePadY ?? 10;
   const minGap = 20; // medium gap (nesting indent, lifeline-to-frame, self-ref drop, etc.)
   const mediumPad = 10; // medium padding (note overlap margin, fragment bottom pad)
   const marginX = model.mainframe ? minGap : 0;
   let marginTop = 0;
-  const minParticipantWidth = TITLE_MIN_WIDTH;
+  const minParticipantWidth = titleMinWidth;
   const tabHeight = 20; // unified tab/label-bar height (mainframe, fragment, box)
   const unitGap = 30;  // universal vertical gap between layout units
-  const labelPadding = TITLE_PAD_X; // extra padding around label text
+  const labelPadding = titlePadX; // extra padding around label text
   const smallPad = 5; // small single-side padding (note gap, box pad, activation nest offset, etc.)
   const extBoundaryGap = 60; // gap between last participant and external boundary arrows
 
@@ -37,7 +43,7 @@ export function sequenceTableLayout(model) {
   const renderers = new Map<string, Renderer>();
   let titleLayout = null;
   if (model.title) {
-    const titleRenderer = createRenderer('title', { id: 'diagram-title', label: model.title });
+    const titleRenderer = createRenderer('title', { id: 'diagram-title', label: model.title, theme });
     renderers.set('diagram-title', titleRenderer);
     const { width, height } = titleRenderer.measure();
     titleLayout = {
@@ -56,8 +62,8 @@ export function sequenceTableLayout(model) {
 
   // Measure text width (always as HTML since all text goes through pumlToHtml)
   // Apply unescapePlantUml so measurement matches rendering pipeline (\n → newline, etc.)
-  const measureLabel = (text) => measureText(unescapePlantUml(text), DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true).width + labelPadding;
-  const measureHtmlWidth = (html) => measureText(unescapePlantUml(html), DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true).width;
+  const measureLabel = (text) => measureText(unescapePlantUml(text), fontSize, fontFamily, 'normal', 'normal', true).width + labelPadding;
+  const measureHtmlWidth = (html) => measureText(unescapePlantUml(html), fontSize, fontFamily, 'normal', 'normal', true).width;
 
   const maxRowIndex = Math.max(getRowCount(model) - 1, 0);
 
@@ -92,8 +98,8 @@ export function sequenceTableLayout(model) {
       return { geomWidth: w, visualWidth: w, iconHeight };
     }
     const w = Math.max(minParticipantWidth, labelW);
-    const textH = measureText(displayLabel, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true).height;
-    const boxPadding = TITLE_PAD_Y; // vertical padding inside box
+    const textH = measureText(displayLabel, fontSize, fontFamily, 'normal', 'normal', true).height;
+    const boxPadding = titlePadY; // vertical padding inside box
     const iconHeight = Math.max(baseH, textH + boxPadding);
     return { geomWidth: w, visualWidth: w, iconHeight };
   });
@@ -106,7 +112,7 @@ export function sequenceTableLayout(model) {
     const noteId = `note${idx + 1}`;
     const rawLines = (n.text || '').split('\n');
     const noteType = n.noteType || 'note';
-    const r = createRenderer('note', { id: noteId, lines: rawLines, noteType, color: n.color });
+    const r = createRenderer('note', { id: noteId, lines: rawLines, noteType, color: n.color, theme });
     renderers.set(noteId, r);
     const { width: w, height: h } = r.measure();
     return { width: w, height: h, row: n.row ?? 0 };
@@ -375,7 +381,7 @@ export function sequenceTableLayout(model) {
     if (d.type === 'ellipsis') continue; // invisible spacer, no own height
     const row = d.row ?? 0;
     const labelH = d.label
-      ? measureText(unescapePlantUml(d.label), DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true).height
+      ? measureText(unescapePlantUml(d.label), fontSize, fontFamily, 'normal', 'normal', true).height
       : 0;
     const halfH = Math.max(smallPad, Math.ceil(labelH / 2));
     dividerHalfHeightByRow[row] = Math.max(dividerHalfHeightByRow[row] || 0, halfH);
@@ -396,7 +402,7 @@ export function sequenceTableLayout(model) {
   const timedDropByRow = {};
   for (const msg of model.messages) {
     const rawLabel = (msg.numberPrefix || '') + (msg.label || '');
-    const labelH = rawLabel ? measureText(unescapePlantUml(rawLabel), DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true).height : 0;
+    const labelH = rawLabel ? measureText(unescapePlantUml(rawLabel), fontSize, fontFamily, 'normal', 'normal', true).height : 0;
     const row = msg.row;
     msgLabelHeightByRow[row] = Math.max(msgLabelHeightByRow[row] || 0, labelH);
 
@@ -1035,7 +1041,7 @@ export function sequenceTableLayout(model) {
     // For group/partition, the tab shows the label text, not the keyword
     const isGroupLike = f.type === 'group';
     const tabLabel = isGroupLike ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
-    const tabTextW = measureText(tabLabel || f.type, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', true).width;
+    const tabTextW = measureText(tabLabel || f.type, fontSize, fontFamily, 'normal', 'normal', true).width;
     const tabWidth = tabTextW + 24; // spacingLeft(8) + spacingRight(8) + extra(8)
 
     return {
@@ -1197,7 +1203,7 @@ export function sequenceTableLayout(model) {
     const y = marginTop - tabHeight;
     const h = height - y - smallPad; // extend to near bottom
     const boxId = `box${idx + 1}`;
-    const boxRenderer = createRenderer('box', { id: boxId, label: box.label, color: box.color, fixedHeight: tabHeight });
+    const boxRenderer = createRenderer('box', { id: boxId, label: box.label, color: box.color, fixedHeight: tabHeight, theme });
     renderers.set(boxId, boxRenderer);
     return { id: boxId, x, y, width: w, height: h };
   }).filter(Boolean);
@@ -1205,7 +1211,7 @@ export function sequenceTableLayout(model) {
   // Mainframe layout: wraps the entire diagram with uniform internal padding
   let mainframeLayout = undefined;
   if (model.mainframe) {
-    const frameRenderer = createRenderer('frame', { id: 'mainframe', label: model.mainframe, fixedHeight: tabHeight });
+    const frameRenderer = createRenderer('frame', { id: 'mainframe', label: model.mainframe, fixedHeight: tabHeight, theme });
     renderers.set('mainframe', frameRenderer);
     const mfY = titleLayout ? titleLayout.height + smallPad : 0;
     // Compute tight content bounds for uniform padding

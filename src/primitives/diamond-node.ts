@@ -5,7 +5,7 @@
 
 import { mxVertex } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
-import { DEFAULT_FILL, COLOR_DARK } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 import type { SemanticNode } from '../model/class-model.ts';
@@ -16,9 +16,6 @@ import type { SemanticNode } from '../model/class-model.ts';
 
 const DIAMOND_SIZE = 24;  // PlantUML: 24x24 polygon
 
-const DIAMOND_STYLE = 'rhombus;whiteSpace=wrap;html=1;'
-  + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`;
-
 // ---------------------------------------------------------------------------
 // Renderer class
 // ---------------------------------------------------------------------------
@@ -26,8 +23,8 @@ const DIAMOND_STYLE = 'rhombus;whiteSpace=wrap;html=1;'
 class DiamondNodeRenderer extends Renderer {
   private node: { id: string };
 
-  constructor(node: { id: string }) {
-    super(node.id);
+  constructor(node: { id: string; theme?: Theme }) {
+    super(node.id, node.theme);
     this.node = node;
   }
 
@@ -40,8 +37,10 @@ class DiamondNodeRenderer extends Renderer {
     const dh = DIAMOND_SIZE;
     const dx = box.x + Math.round((box.width - dw) / 2);
     const dy = box.y + Math.round((box.height - dh) / 2);
+    const style = 'rhombus;whiteSpace=wrap;html=1;'
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`;
     return [mxVertex({
-      id: this.node.id, value: '', style: DIAMOND_STYLE,
+      id: this.node.id, value: '', style,
       parent: this.parentId || '1',
       x: dx, y: dy, width: dw, height: dh,
     })];

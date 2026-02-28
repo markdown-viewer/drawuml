@@ -4,7 +4,6 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
-import { DEFAULT_FILL, DEFAULT_FONT_SIZE, COLOR_DARK } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -30,12 +29,12 @@ class ActivityNodeRenderer extends RichRenderer {
   protected buildStyle(): string {
     if (this.isOctagon) {
       return 'shape=mxgraph.basic.octagon;whiteSpace=wrap;html=1;'
-        + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`
-        + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;verticalAlign=middle;`;
+        + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+        + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
     }
     return 'rounded=1;whiteSpace=wrap;html=1;'
-      + `fillColor=${DEFAULT_FILL};strokeColor=${COLOR_DARK};strokeWidth=0.5;`
-      + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${COLOR_DARK};align=center;verticalAlign=middle;`
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+      + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`
       + `arcSize=${ARC_SIZE};`;
   }
 

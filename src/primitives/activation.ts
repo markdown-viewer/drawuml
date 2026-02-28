@@ -4,14 +4,13 @@
 
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor, darkenColor } from '../shared/color-utils.ts';
-import { CLASS_FILL, DESTROY_STROKE } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Destroy marker
 // ---------------------------------------------------------------------------
 
 const DESTROY_CROSS_SIZE = 9;
-const DESTROY_STYLE = `shape=umlDestroy;strokeColor=${DESTROY_STROKE};strokeWidth=2;`;
 
 /**
  * Render a destroy marker (X cross) to a DrawIO mxCell XML string.
@@ -23,18 +22,21 @@ export function renderDestroyMarker(
   cy: number,
   parentId?: string,
   parentGeom?: { x: number; y: number },
+  theme?: Theme,
 ): string {
   const s = DESTROY_CROSS_SIZE;
+  const destroyStroke = theme?.destroyStroke ?? '#181818';
+  const destroyStyle = `shape=umlDestroy;strokeColor=${destroyStroke};strokeWidth=2;`;
   if (parentId && parentGeom) {
     const relX = cx - s - parentGeom.x;
     const relY = cy - s - parentGeom.y;
     return mxVertex({
-      id, value: '', style: DESTROY_STYLE, parent: parentId,
+      id, value: '', style: destroyStyle, parent: parentId,
       x: relX, y: relY, width: s * 2, height: s * 2,
     });
   }
   return mxVertex({
-    id, value: '', style: DESTROY_STYLE,
+    id, value: '', style: destroyStyle,
     parent: '1',
     x: cx - s, y: cy - s, width: s * 2, height: s * 2,
   });
@@ -45,8 +47,8 @@ export function renderDestroyMarker(
 // ---------------------------------------------------------------------------
 
 /** Generate DrawIO style for an activation bar. */
-export function activationBarStyle(fillColor?: string): string {
-  const fill = normalizeColor(fillColor) || CLASS_FILL;
+export function activationBarStyle(fillColor?: string, theme?: Theme): string {
+  const fill = normalizeColor(fillColor) || theme?.classFill || '#FFFFFF';
   const stroke = darkenColor(fill);
   return [
     'html=1',
@@ -79,9 +81,10 @@ export function renderActivationBar(
     destroyed?: boolean;
   },
   parentGeom?: { x: number; y: number },
+  theme?: Theme,
 ): string[] {
   const cells: string[] = [];
-  const style = activationBarStyle(act.color);
+  const style = activationBarStyle(act.color, theme);
 
   if (parentGeom) {
     const relX = act.x - parentGeom.x;
@@ -108,6 +111,7 @@ export function renderActivationBar(
       cy,
       parentGeom ? act.participant : undefined,
       parentGeom,
+      theme,
     ));
   }
 

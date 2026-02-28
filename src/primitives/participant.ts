@@ -7,7 +7,7 @@ import { mxVertex } from '../shared/xml-utils.ts';
 import { darkenColor } from '../shared/color-utils.ts';
 import { Content, richTextStyle } from '../shared/content.ts';
 import { buildLabelHtml } from './label.ts';
-import { COLOR_DARK } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -176,7 +176,7 @@ export function measureBracketBody(bracketLines: string[]): { width: number; hei
 export function renderParticipant(
   p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
-  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string },
+  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
   const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width);
 
@@ -185,8 +185,9 @@ export function renderParticipant(
     const content = Content.bracketBody(p.bracketLines);
     const cells: string[] = [];
     const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle });
+    const colorDark = opts?.theme?.colorDark ?? '#181818';
     const fillColor = containerStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
-    const strokeColor = containerStyleStr.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
+    const strokeColor = containerStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
     cells.push(mxVertex({
       id: p.id, value: '',
       style: containerStyleStr,
@@ -227,7 +228,7 @@ export function renderParticipant(
 export function renderFootbox(
   p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
-  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string },
+  opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
   const cfg = PARTICIPANT_CONFIG[p.type] || PARTICIPANT_CONFIG.participant;
   const footY = layout.y + layout.height;
@@ -240,8 +241,9 @@ export function renderFootbox(
     const footId = p.id + '_foot';
     const cells: string[] = [];
     const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle });
+    const colorDark = opts?.theme?.colorDark ?? '#181818';
     const fillColor = footStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
-    const strokeColor = footStyleStr.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
+    const strokeColor = footStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
     cells.push(mxVertex({
       id: footId, value: '',
       style: footStyleStr,

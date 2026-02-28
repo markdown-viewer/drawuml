@@ -11,7 +11,6 @@ import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
 import { parseNodeStyle } from '../../shared/color-utils.ts';
-import { DEFAULT_FONT_SIZE, DEFAULT_FILL, COLOR_DARK } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
@@ -39,10 +38,10 @@ class ActorRenderer extends IconRenderer {
     this.labelHtml = Content.inline(this.label).html;
 
     // Parse inline style if present
-    let fill = DEFAULT_FILL;
-    let stroke = COLOR_DARK;
+    let fill = this.theme.defaultFill;
+    let stroke = this.theme.colorDark;
     let lineStyle = '';
-    let textColor = COLOR_DARK;
+    let textColor = this.theme.colorDark;
     if (desc.style) {
       const parsed = parseNodeStyle(desc.style);
       if (parsed.fillColor) fill = parsed.fillColor;
@@ -74,7 +73,7 @@ class ActorRenderer extends IconRenderer {
       + `${lineStyleStr}`
       + (isBusiness ? 'business=1;' : '')
       + actorStyleAttr
-      + `fontSize=${DEFAULT_FONT_SIZE};fontColor=${this.textColor};align=center;`;
+      + `fontSize=${this.theme.fontSize};fontColor=${this.textColor};align=center;`;
 
     // Center the stick figure within the box
     const cx = box.x + Math.round((box.width - ACTOR_WIDTH) / 2);

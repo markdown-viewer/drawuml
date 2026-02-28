@@ -10,7 +10,6 @@ import { Renderer } from '../renderer.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
-import { DEFAULT_FONT_SIZE, COLOR_DARK } from '../../shared/theme.ts';
 import { lookupIcon, resolveShapeRef } from '../../shared/icon-registry.ts';
 import type { IconRecord } from '../../shared/icon-registry.ts';
 
@@ -75,10 +74,10 @@ export class MxgraphIconRenderer extends IconRenderer {
       'verticalLabelPosition=bottom',
       'verticalAlign=top',
       'align=center',
-      `fontSize=${DEFAULT_FONT_SIZE}`,
+      `fontSize=${this.theme.fontSize}`,
       defaultFill,
-      `strokeColor=${COLOR_DARK}`,
-      `fontColor=${COLOR_DARK}`,
+      `strokeColor=${this.theme.colorDark}`,
+      `fontColor=${this.theme.colorDark}`,
       dataStyle,
     ].filter(Boolean).join(';') + ';';
 

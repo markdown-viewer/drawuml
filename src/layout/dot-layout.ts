@@ -14,6 +14,7 @@ import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
 import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions } from './post-process.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Node size estimation
@@ -289,18 +290,19 @@ export interface DotLayoutResult {
  * Lay out a SemanticModel using viz.js DOT engine.
  * Returns layout coordinates and pre-built renderers for generation.
  */
-export async function dotLayout(model: SemanticModel, options?: { ortho?: boolean }): Promise<DotLayoutResult> {
+export async function dotLayout(model: SemanticModel, options?: { ortho?: boolean; theme?: Theme }): Promise<DotLayoutResult> {
   const useOrtho = options?.ortho ?? false;
+  const theme = options?.theme;
 
   // 1. Create renderers for each node
-  const renderers = createRenderers(model);
+  const renderers = createRenderers(model, { theme });
 
   // 2. Build renderer tree (groups hold child renderers)
-  const rootRenderers = buildRendererTree(model, renderers);
+  const rootRenderers = buildRendererTree(model, renderers, { theme });
 
   // 3. Generate DOT string from LayoutGraphNode IR
   const rootNodes = rootRenderers.map(r => r.buildLayoutGraph());
-  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers);
+  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers, theme);
 
   // Inject splines=ortho for swimlane diagrams when requested
   // Skip ortho for LR mode — Graphviz hangs with splines=ortho + rankdir=LR + cross-cluster edges

@@ -28,7 +28,9 @@ import { creoleInline } from './creole-inline.ts';
 import { parseCreoleBlocks } from './creole-parser.ts';
 import { renderCreoleToHtml } from './creole-render.ts';
 import type { BodyLine } from '../model/class-model.ts';
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from './theme.ts';
+// Default font metrics for text measurement (local constants to avoid theme.ts dependency)
+const DEFAULT_FONT_FAMILY = 'Arial';
+const DEFAULT_FONT_SIZE = 12;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types

@@ -16,7 +16,7 @@ export abstract class IconRenderer extends Renderer {
   protected desc: RenderDescriptor;
 
   constructor(desc: RenderDescriptor) {
-    super(desc.id);
+    super(desc.id, desc.theme);
     this.desc = desc;
   }
 

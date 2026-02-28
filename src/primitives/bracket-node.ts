@@ -20,7 +20,6 @@ import { mxVertex } from '../shared/xml-utils.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import { RichBodyRenderer } from './renderer.ts';
 import { RichRenderer } from './shapes/rich-renderer.ts';
-import { DEFAULT_FILL, COLOR_DARK, RECT_ARC_SIZE } from '../shared/theme.ts';
 import { createRenderer, hasRenderer, registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -49,7 +48,7 @@ function extractShapeFragment(fullStyle: string): string {
     const key = p.split('=')[0];
     return !COMMON_STYLE_KEYS.has(key);
   });
-  return parts.length > 0 ? parts.join(';') + ';' : `rounded=1;absoluteArcSize=1;arcSize=${RECT_ARC_SIZE};`;
+  return parts.length > 0 ? parts.join(';') + ';' : 'rounded=1;absoluteArcSize=1;arcSize=4;';
 }
 
 // ---------------------------------------------------------------------------
@@ -71,12 +70,12 @@ function sepStyle(): string {
 }
 
 /** Generate container style string for a bracket body node mxCell. */
-function containerStyle(shapeFragment: string, topOffset: number, nodeStyle?: string | null): string {
+function containerStyle(shapeFragment: string, topOffset: number, defaultFill: string, colorDark: string, nodeStyle?: string | null): string {
   const parsed = parseNodeStyle(nodeStyle);
   const base = [
     'html=1', 'whiteSpace=wrap', 'container=1',
     shapeFragment.replace(/;$/, ''),
-    `fillColor=${DEFAULT_FILL}`, `strokeColor=${COLOR_DARK}`, 'strokeWidth=0.5',
+    `fillColor=${defaultFill}`, `strokeColor=${colorDark}`, 'strokeWidth=0.5',
     'align=left', 'verticalAlign=top',
     'spacingLeft=10', 'spacingRight=10', `spacingTop=${6 + topOffset}`, 'spacingBottom=6',
     'overflow=hidden',
@@ -117,12 +116,12 @@ class BracketNodeRenderer extends RichBodyRenderer {
   private _extraPadX: number;
 
   constructor(desc: RenderDescriptor) {
-    super(desc.id);
+    super(desc.id, desc.theme);
     const ctype = (desc.stereotype || '').toLowerCase();
     this.content = Content.richBody((desc.bodyLines || []).map(l => typeof l === 'string' ? l : l.text));
 
     // Get shape info from the corresponding RichRenderer
-    let shapeFragment = `rounded=1;absoluteArcSize=1;arcSize=${RECT_ARC_SIZE};`;
+    let shapeFragment = `rounded=1;absoluteArcSize=1;arcSize=${this.theme.rectArcSize};`;
     let contentYOffset = 0;
     let extraPadY = 0;
     let extraPadX = 0;
@@ -140,9 +139,9 @@ class BracketNodeRenderer extends RichBodyRenderer {
     this._contentYOffset = contentYOffset;
     this._extraPadY = extraPadY;
     this._extraPadX = extraPadX;
-    this.style = containerStyle(shapeFragment, contentYOffset, desc.style);
-    this.fillColor = this.style.match(/fillColor=([^;]*)/)?.[1] || DEFAULT_FILL;
-    this.strokeColor = this.style.match(/strokeColor=([^;]*)/)?.[1] || COLOR_DARK;
+    this.style = containerStyle(shapeFragment, contentYOffset, this.theme.defaultFill, this.theme.colorDark, desc.style);
+    this.fillColor = this.style.match(/fillColor=([^;]*)/)?.[1] || this.theme.defaultFill;
+    this.strokeColor = this.style.match(/strokeColor=([^;]*)/)?.[1] || this.theme.colorDark;
   }
 
   protected doMeasure() {

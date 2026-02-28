@@ -5,13 +5,12 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class QueueRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=cylinder3;size=10;direction=south;fontSize=${DEFAULT_FONT_SIZE};align=center;verticalAlign=middle;spacingRight=10;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};whiteSpace=wrap;container=1;collapsible=0;`;
+    return `shape=cylinder3;size=10;direction=south;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;spacingRight=10;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};whiteSpace=wrap;container=1;collapsible=0;`;
   }
   // Extra width accounts for the cylinder end caps
   protected get extraPadX(): number { return 20; }

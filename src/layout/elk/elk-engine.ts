@@ -39,26 +39,28 @@ export interface ElkLayoutResult {
   renderers: Map<string, Renderer>;
 }
 
+import type { Theme } from '../../shared/theme.ts';
+
 /**
  * Lay out a SemanticModel using the ELK layered algorithm.
  * Returns layout coordinates and pre-built renderers for generation.
  */
-export async function elkLayout(model: SemanticModel): Promise<ElkLayoutResult> {
+export async function elkLayout(model: SemanticModel, options?: { theme?: Theme }): Promise<ElkLayoutResult> {
   // Swimlane diagrams: fallback to DOT layout with ortho edges + edge fix
   const hasSwimlanes = (model.groups || []).some(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
   );
   if (hasSwimlanes) {
-    return dotLayout(model, { ortho: true });
+    return dotLayout(model, { ortho: true, theme: options?.theme });
   }
 
   const elk = getElk();
 
   // 1. Create renderers for each node
-  const renderers = createRenderers(model);
+  const renderers = createRenderers(model, { theme: options?.theme });
 
   // 2. Build renderer tree (groups hold child renderers)
-  const rootRenderers = buildRendererTree(model, renderers);
+  const rootRenderers = buildRendererTree(model, renderers, { theme: options?.theme });
 
   // 3. Build LayoutGraphNode IR
   const rootNodes = rootRenderers.map(r => r.buildLayoutGraph());

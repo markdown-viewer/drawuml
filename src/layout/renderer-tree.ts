@@ -12,6 +12,7 @@ import type { NodeDescriptor } from '../primitives/registry.ts';
 import { resolveGroupShape } from '../primitives/group.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { ConcurrentRegionRenderer } from '../primitives/state-node.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer creation
@@ -23,7 +24,8 @@ import { ConcurrentRegionRenderer } from '../primitives/state-node.ts';
  * Skinparam-derived flags (visibility icons, activity shape, actor style,
  * component style) are applied here so callers don't repeat the logic.
  */
-export function createRenderers(model: SemanticModel): Map<string, Renderer> {
+export function createRenderers(model: SemanticModel, options?: { theme?: Theme }): Map<string, Renderer> {
+  const theme = options?.theme;
   const visIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   const activityShape = model.skinparams?.activityShape;
   const actorStyle = model.skinparams?.actorStyle;
@@ -32,7 +34,7 @@ export function createRenderers(model: SemanticModel): Map<string, Renderer> {
   const renderers = new Map<string, Renderer>();
 
   for (const node of model.nodes) {
-    const desc: NodeDescriptor = { ...node };
+    const desc: NodeDescriptor = { ...node, theme };
     if (!visIcons) desc.visibilityIcons = false;
     if (activityShape) desc.activityShape = activityShape;
     if (actorStyle) desc.actorStyle = actorStyle;
@@ -44,11 +46,11 @@ export function createRenderers(model: SemanticModel): Map<string, Renderer> {
   }
 
   for (const note of model.notes || []) {
-    renderers.set(note.id, createRenderer('note', { id: note.id, lines: note.text.split('\n'), color: note.color }));
+    renderers.set(note.id, createRenderer('note', { id: note.id, lines: note.text.split('\n'), color: note.color, theme }));
   }
 
   // Global renderers (title, legend) via factory
-  createGlobalRenderers(model).forEach((r, id) => renderers.set(id, r));
+  createGlobalRenderers(model, { theme }).forEach((r, id) => renderers.set(id, r));
 
   return renderers;
 }
@@ -64,7 +66,9 @@ export function createRenderers(model: SemanticModel): Map<string, Renderer> {
 export function buildRendererTree(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
+  options?: { theme?: Theme },
 ): Renderer[] {
+  const theme = options?.theme;
   const groups = model.groups || [];
   if (groups.length === 0) {
     // No groups — all node renderers are roots (preserving document order)
@@ -86,7 +90,7 @@ export function buildRendererTree(
       }
     } else {
       const shape = resolveGroupShape(g.type, g.stereotype, globalPkgStyle, g.id);
-      const gr = createNodeRenderer({ id: g.id, label: g.label, stereotype: shape, color: g.color, style: g.style });
+      const gr = createNodeRenderer({ id: g.id, label: g.label, stereotype: shape, color: g.color, style: g.style, theme });
       groupRenderers.set(g.id, gr);
       renderers.set(g.id, gr);
     }

@@ -13,7 +13,6 @@ import { mxVertex, escapeXml } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
-import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '../shared/theme.ts';
 import type { ContentBox } from '../shared/content.ts';
 import type { LayoutGraphNode, LayoutPort } from '../layout/layout-graph.ts';
 
@@ -55,7 +54,7 @@ class MapNodeRenderer extends Renderer {
   private _titleH = 0;
 
   constructor(node: NodeDescriptor) {
-    super(node.id);
+    super(node.id, node.theme);
     this.node = node;
     this.entries = (node.mapEntries || []) as MapEntry[];
     const titleHtml = buildTitleHtml(node);
@@ -73,8 +72,8 @@ class MapNodeRenderer extends Renderer {
     let maxKeyW = 0;
     let maxValW = 0;
     for (const entry of this.entries) {
-      const km = measureText(entry.key, DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
-      const vm = measureText(entry.value || '', DEFAULT_FONT_SIZE, DEFAULT_FONT_FAMILY, 'normal', 'normal', false);
+      const km = measureText(entry.key, this.theme.fontSize, this.theme.fontFamily, 'normal', 'normal', false);
+      const vm = measureText(entry.value || '', this.theme.fontSize, this.theme.fontFamily, 'normal', 'normal', false);
       maxKeyW = Math.max(maxKeyW, Math.ceil(km.width));
       maxValW = Math.max(maxValW, Math.ceil(vm.width));
     }
@@ -94,7 +93,7 @@ class MapNodeRenderer extends Renderer {
   render(box: ContentBox) {
     const cells: string[] = [];
     const size = this.measure();
-    const style = classNodeStyle(this.node, this._titleH);
+    const style = classNodeStyle(this.node, this._titleH, this.theme);
 
     // Swimlane container
     cells.push(mxVertex({

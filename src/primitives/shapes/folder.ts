@@ -9,7 +9,6 @@ import { Content } from '../../shared/content.ts';
 import { escapeXml } from '../../shared/xml-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
 import { Renderer } from '../renderer.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -23,7 +22,7 @@ class FolderRenderer extends RichRenderer {
 
   protected buildStyle(): string {
     const tabWidth = Math.max(this.label.length * 8 + 16, 50);
-    return `shape=folder;fontStyle=1;tabWidth=${tabWidth};tabHeight=20;tabPosition=left;tabFill=1;fontSize=${DEFAULT_FONT_SIZE};align=left;spacingLeft=6;verticalAlign=top;spacingTop=-4;swimlaneHead=0;fillColor=none;strokeColor=${COLOR_DARK};fontColor=${COLOR_DARK};swimlaneBody=1;collapsible=0;container=1;`;
+    return `shape=folder;fontStyle=1;tabWidth=${tabWidth};tabHeight=20;tabPosition=left;tabFill=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=6;verticalAlign=top;spacingTop=-4;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
   }
 
   // Folder tab height (tabHeight=20); content starts below the tab

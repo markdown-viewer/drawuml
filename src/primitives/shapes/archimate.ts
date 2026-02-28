@@ -14,7 +14,7 @@ import { RichRenderer } from './rich-renderer.ts';
 import { Content } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { parseNodeStyle } from '../../shared/color-utils.ts';
-import { COLOR_DARK, DEFAULT_FONT_SIZE, RECT_ARC_SIZE } from '../../shared/theme.ts';
+
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
@@ -294,16 +294,16 @@ class ArchimateRenderer extends RichRenderer {
     const parts = [
       shape,
       'whiteSpace=wrap', 'html=1',
-      `fontStyle=1`, `fontSize=${DEFAULT_FONT_SIZE}`,
+      `fontStyle=1`, `fontSize=${this.theme.fontSize}`,
       'align=center', 'verticalAlign=middle',
       'spacingTop=2',
-      `fillColor=none`, `strokeColor=${COLOR_DARK}`, `fontColor=${COLOR_DARK}`,
+      `fillColor=none`, `strokeColor=${this.theme.colorDark}`, `fontColor=${this.theme.colorDark}`,
       'collapsible=0', 'container=1',
     ].filter(Boolean);
     // Add standard rounded corners for plain-rect and dashed-rect frames;
     // skip shapes that already define rounded or use a non-rect shape.
     if (!shape.includes('rounded') && !shape.includes('shape=')) {
-      parts.push(`rounded=1`, `absoluteArcSize=1`, `arcSize=${RECT_ARC_SIZE}`);
+      parts.push(`rounded=1`, `absoluteArcSize=1`, `arcSize=${this.theme.rectArcSize}`);
     }
     return parts.join(';') + ';';
   }
@@ -327,7 +327,7 @@ class ArchimateRenderer extends RichRenderer {
         : box.width - iw - 8;
       // Resolve icon stroke color from inline style override
       const parsedStyle = parseNodeStyle(this.desc.style);
-      const iconStroke = parsedStyle?.strokeColor || COLOR_DARK;
+      const iconStroke = parsedStyle?.strokeColor || this.theme.colorDark;
       cells.push(mxVertex({
         id: `${this.id}__icon`,
         value: '',
@@ -362,12 +362,12 @@ class FolderArchimateRenderer extends ArchimateRenderer {
     const shape = this.shapeStyle || '';
     const parts = [
       shape,
-      `rounded=1`, `absoluteArcSize=1`, `arcSize=${RECT_ARC_SIZE}`,
+      `rounded=1`, `absoluteArcSize=1`, `arcSize=${this.theme.rectArcSize}`,
       'whiteSpace=wrap', 'html=1',
-      `fontStyle=1`, `fontSize=${DEFAULT_FONT_SIZE}`,
+      `fontStyle=1`, `fontSize=${this.theme.fontSize}`,
       'align=center', 'verticalAlign=middle',
       'spacingTop=2',
-      `fillColor=${this.folderFill}`, `strokeColor=${COLOR_DARK}`, `fontColor=${COLOR_DARK}`,
+      `fillColor=${this.folderFill}`, `strokeColor=${this.theme.colorDark}`, `fontColor=${this.theme.colorDark}`,
       'collapsible=0', 'container=1',
     ].filter(Boolean);
     return parts.join(';') + ';';
@@ -398,17 +398,17 @@ class JunctionRenderer extends ArchimateRenderer {
 
   override render(box: ContentBox): string[] {
     const fill   = this.shapeStyle.match(/fillColor=([^;]+)/)?.[1] ?? '#FFFFFF';
-    const stroke = this.shapeStyle.match(/strokeColor=([^;]+)/)?.[1] ?? COLOR_DARK;
+    const stroke = this.shapeStyle.match(/strokeColor=([^;]+)/)?.[1] ?? this.theme.colorDark;
     const style = [
       'ellipse',
       `fillColor=${fill}`,
       `strokeColor=${stroke}`,
-      `fontColor=${COLOR_DARK}`,
+      `fontColor=${this.theme.colorDark}`,
       'verticalLabelPosition=bottom',
       'verticalAlign=top',
       'align=center',
       'html=1',
-      `fontSize=${DEFAULT_FONT_SIZE}`,
+      `fontSize=${this.theme.fontSize}`,
     ].join(';') + ';';
     // Center the circle horizontally; place at top of the DOT bounding box.
     const cx = box.x + Math.round((box.width - JUNCTION_SIZE) / 2);

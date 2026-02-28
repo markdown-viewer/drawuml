@@ -5,7 +5,6 @@
 
 import { richTextStyle } from '../../shared/content.ts';
 import { RichRenderer } from './rich-renderer.ts';
-import { COLOR_DARK, LEGEND_FILL, TITLE_PAD_X } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -13,7 +12,6 @@ import type { RenderDescriptor } from '../registry.ts';
 // Constants
 // ---------------------------------------------------------------------------
 
-const LEGEND_PADDING_X = TITLE_PAD_X;
 const LEGEND_PADDING_Y = 16;
 const LEGEND_MIN_WIDTH = 40;
 
@@ -21,8 +19,8 @@ const LEGEND_MIN_WIDTH = 40;
 // Style
 // ---------------------------------------------------------------------------
 
-function legendStyle(): string {
-  return `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=5;spacingRight=5;fillColor=${LEGEND_FILL};strokeColor=${COLOR_DARK};`;
+function legendStyle(legendFill: string, colorDark: string): string {
+  return `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=5;spacingRight=5;fillColor=${legendFill};strokeColor=${colorDark};`;
 }
 
 /** Text row style inside legend. */
@@ -56,7 +54,7 @@ class LegendRenderer extends RichRenderer {
 
   protected getRichBodyMetrics(): Record<string, number> {
     return {
-      paddingX: LEGEND_PADDING_X,
+      paddingX: this.theme.titlePadX,
       paddingY: LEGEND_PADDING_Y,
       minWidth: LEGEND_MIN_WIDTH,
     };
@@ -66,7 +64,7 @@ class LegendRenderer extends RichRenderer {
   protected get richBodyStyleComplete(): boolean { return true; }
 
   protected buildStyle(): string {
-    return legendStyle();
+    return legendStyle(this.theme.legendFill, this.theme.colorDark);
   }
 
   // Legend doesn't use deployment shape color override — colors are fixed

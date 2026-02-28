@@ -11,7 +11,7 @@ import { Content } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor, darkenColor } from '../shared/color-utils.ts';
 import { Renderer } from './renderer.ts';
-import { LEGEND_FILL, LABEL_FONT_SIZE } from '../shared/theme.ts';
+import type { Theme } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -20,6 +20,7 @@ export interface BoxRendererOpts {
   label?: string;
   color?: string;
   labelHeight?: number;
+  theme?: Theme;
 }
 
 class BoxRenderer extends Renderer {
@@ -29,8 +30,8 @@ class BoxRenderer extends Renderer {
   private labelHeight: number;
 
   constructor(id: string, opts?: BoxRendererOpts) {
-    super(id);
-    const fill = opts?.color ? normalizeColor(opts.color) : LEGEND_FILL;
+    super(id, opts?.theme);
+    const fill = opts?.color ? normalizeColor(opts.color) : this.theme.legendFill;
     this.fillColor = fill;
     this.strokeColor = darkenColor(fill);
     this.htmlLabel = opts?.label ? Content.inline(opts.label).html : '';
@@ -51,7 +52,7 @@ class BoxRenderer extends Renderer {
       x: box.x, y: box.y, width: box.width, height: box.height,
     }));
     if (this.htmlLabel) {
-      const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${LABEL_FONT_SIZE};fontStyle=1;`;
+      const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${this.theme.labelFontSize};fontStyle=1;`;
       cells.push(mxVertex({
         id: this.id + '_label', value: this.htmlLabel, style: labelStyle,
         parent: this.parentId || '1',
@@ -69,6 +70,7 @@ export function registerBoxRenderer(): void {
       label: desc.label,
       color: desc.color,
       labelHeight: desc.fixedHeight,
+      theme: desc.theme,
     });
   });
 }

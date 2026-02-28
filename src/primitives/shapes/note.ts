@@ -11,7 +11,6 @@
 import { richTextStyle } from '../../shared/content.ts';
 import { normalizeColor, darkenColor } from '../../shared/color-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
-import { CONTENT_PAD_X, CONTENT_PAD_Y } from '../../shared/theme.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -23,10 +22,10 @@ const NOTE_H_PAD_EXTRA = 8;      // extra horizontal padding beyond spacing
 const NOTE_MIN_WIDTH = 30;
 
 /** Horizontal padding per note shape type (spacingLeft + spacingRight + extra). */
-function noteHPadding(noteType: string): number {
+function noteHPadding(noteType: string, contentPadX: number): number {
   if (noteType === 'hnote') return 15 + 10 + NOTE_H_PAD_EXTRA;  // hexagon
   if (noteType === 'rnote') return 5 + 0 + NOTE_H_PAD_EXTRA;    // rounded rect
-  return CONTENT_PAD_X;                                          // default note
+  return contentPadX;                                           // default note
 }
 
 // ---------------------------------------------------------------------------
@@ -83,8 +82,8 @@ class NoteNodeRenderer extends RichRenderer {
 
   protected getRichBodyMetrics(): Record<string, number> {
     return {
-      paddingX: noteHPadding(this.noteType),
-      paddingY: CONTENT_PAD_Y,
+      paddingX: noteHPadding(this.noteType, this.theme.contentPadX),
+      paddingY: this.theme.contentPadY,
       minWidth: NOTE_MIN_WIDTH,
     };
   }
