@@ -116,8 +116,16 @@ interface DotAdapterContext {
   groupById: Map<string, SemanticGroup>;
   /** Greedy bin-packing for orphan nodes into rows */
   buildRowPacking: (nodeIds: string[], indent: string, maxRowWidth: number, maxPerRow: number) => string[];
-  /** DOT nodesep value in pixels */
-  dotNodesepPx: number;
+  /** Nodesep value in pixels */
+  nodesepPx: number;
+  /** Font size for region/lane cluster labels (matches ConcurrentRegionRenderer) */
+  smallFontSize: number;
+  /** Font size for cluster labels (matches layoutFontSize) */
+  layoutFontSize: number;
+  /** Group container inner padding (DOT cluster margin) */
+  groupPadding: number;
+  /** Inter-group spacing (DOT outer protection margin) */
+  groupSpacing: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +158,7 @@ function buildNodeDotLines(
     // Outer container - invisible wrapper
     lines.push(`${indent}subgraph "cluster_${gn.id}_p0" {`);
     lines.push(`${indent}  label=""`);
-    lines.push(`${indent}  margin="8"`);
+    lines.push(`${indent}  margin="${ctx.groupSpacing}"`);
     const inner = indent + '  ';
     lines.push(`${inner}subgraph "cluster_${gn.id}" {`);
     lines.push(`${inner}  label=""`);
@@ -165,8 +173,9 @@ function buildNodeDotLines(
       lines.push(`${inner2}  margin="0"`);
       lines.push(`${inner2}  subgraph "cluster_${regionChild.id}" {`);
       lines.push(`${inner2}    label="${regionLabel}"`);
+      lines.push(`${inner2}    fontsize=${ctx.smallFontSize}`);
       lines.push(`${inner2}    style=rounded`);
-      lines.push(`${inner2}    margin="20"`);
+      lines.push(`${inner2}    margin="${ctx.groupPadding}"`)
       // Lane's leaf nodes
       if (regionChild.children) {
         for (const leaf of regionChild.children) {
@@ -186,8 +195,8 @@ function buildNodeDotLines(
 
   // Outer protection subgraph (mirrors PlantUML's "p0" wrapper)
   const outerMargin = ctx.groupsWithExternalEdge.has(gn.id)
-    ? ctx.dotNodesepPx
-    : 8;
+    ? ctx.nodesepPx
+    : ctx.groupSpacing;
   lines.push(`${indent}subgraph "cluster_${gn.id}_p0" {`);
   lines.push(`${indent}  label=""`);
   lines.push(`${indent}  margin="${outerMargin}"`);
@@ -196,11 +205,17 @@ function buildNodeDotLines(
   const label = gn.label ?? '';
   lines.push(`${inner}subgraph "cluster_${gn.id}" {`);
   lines.push(`${inner}  label="${label}"`);
+  // Per-cluster fontsize: derive from renderer's groupTopPadding so titlebar
+  // shapes get a larger label area than non-titlebar shapes.
+  const renderer = ctx.renderers.get(gn.id);
+  const titleArea = renderer ? renderer.groupTopPadding - ctx.groupPadding : 0;
+  const fs = Math.max(1, Math.round((titleArea - 8) / 1.2));
+  lines.push(`${inner}  fontsize=${fs}`);
   lines.push(`${inner}  style=rounded`);
   // Concurrent region parents need zero inner margin — regions fill the full area.
   // Detection: child IDs containing '__conc_region__'.
   const hasConcRegion = gn.children?.some(c => c.id.includes('__conc_region__'));
-  lines.push(`${inner}  margin="${hasConcRegion ? 0 : 20}"`);
+  lines.push(`${inner}  margin="${hasConcRegion ? 0 : ctx.groupPadding}"`);
 
   // Invisible proxy node for compound edges targeting this group
   if (ctx.groupsNeedingProxy.has(gn.id)) {
@@ -269,12 +284,14 @@ export function layoutGraphToDot(
   theme?: Theme,
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
-  const dotNodesepPx = theme?.dotNodesepPx ?? 30;
-  const dotRanksepPx = theme?.dotRanksepPx ?? 40;
-  const dotMaxRowWidth = theme?.dotMaxRowWidth ?? 800;
-  const dotFontSize = theme?.dotFontSize ?? 10;
-  const nodesepInch = pxToInch(dotNodesepPx);
-  const ranksepInch = pxToInch(dotRanksepPx);
+  const nodesepPx = theme?.nodesepPx ?? 30;
+  const ranksepPx = theme?.ranksepPx ?? 40;
+  const maxRowWidth = theme?.maxRowWidth ?? 800;
+  const layoutFontSize = theme?.layoutFontSize ?? 10;
+  const dotMinH = (Math.round((theme?.fontSize ?? 12) * 25 / 12) / PX_PER_INCH).toFixed(6);
+  const dotMinW = (Math.round((theme?.fontSize ?? 12) * 40 / 12) / PX_PER_INCH).toFixed(6);
+  const nodesepInch = pxToInch(nodesepPx);
+  const ranksepInch = pxToInch(ranksepPx);
 
   // --- Compound edge analysis ---
 
@@ -362,7 +379,7 @@ export function layoutGraphToDot(
     connectedNodes.add(e.to);
   }
 
-  function buildRowPacking(nodeIds: string[], indent: string, maxRowWidth = dotMaxRowWidth, maxPerRow = 0): string[] {
+  function buildRowPacking(nodeIds: string[], indent: string, maxRowWidth_ = maxRowWidth, maxPerRow = 0): string[] {
     const orphans = nodeIds.filter(id => !connectedNodes.has(id));
     if (orphans.length <= 1) return [];
     const rows: string[][] = [];
@@ -372,8 +389,8 @@ export function layoutGraphToDot(
     for (const id of orphans) {
       const r = renderers.get(id);
       const w = r ? r.measure().width : 160;
-      const needed = currentRow.length > 0 ? w + dotNodesepPx : w;
-      const widthExceeded = currentRow.length > 0 && currentWidth + needed > maxRowWidth;
+      const needed = currentRow.length > 0 ? w + nodesepPx : w;
+      const widthExceeded = currentRow.length > 0 && currentWidth + needed > maxRowWidth_;
       const countExceeded = maxPerRow > 0 && currentRow.length >= maxPerRow;
       if (currentRow.length > 0 && (widthExceeded || countExceeded)) {
         rows.push(currentRow);
@@ -444,6 +461,10 @@ export function layoutGraphToDot(
 
   // --- Build adapter context ---
 
+  const smallFontSize = theme?.smallFontSize ?? 10;
+  const groupPadding = theme?.groupPadding ?? 20;
+  const groupSpacing = theme?.groupSpacing ?? 8;
+
   const ctx: DotAdapterContext = {
     portNodes,
     groupsNeedingProxy,
@@ -452,7 +473,11 @@ export function layoutGraphToDot(
     renderers,
     groupById,
     buildRowPacking,
-    dotNodesepPx,
+    nodesepPx,
+    smallFontSize,
+    layoutFontSize,
+    groupPadding,
+    groupSpacing,
   };
 
   // --- Node + group DOT blocks (walk IR tree) ---
@@ -491,7 +516,9 @@ export function layoutGraphToDot(
     }
     if (!isHorizontal) {
       const edgeLength = edge.length || 2;
-      attrs += `,minlen=${edgeLength - 1}`;
+      if (edgeLength > 1) {
+        attrs += `,minlen=${edgeLength - 1}`;
+      }
     }
 
     const dotFrom = isInverted ? toSpec : fromSpec;
@@ -593,8 +620,8 @@ export function layoutGraphToDot(
   ranksep=${ranksepInch}
   remincross=true
   searchsize=500${hasSwimlanes ? '\n  newrank=true' : ''}
-  edge [fontsize=${dotFontSize},labelfontsize=${dotFontSize}]
-  node [fontsize=${dotFontSize},height=0.35,width=0.55]
+  edge [fontsize=${layoutFontSize},labelfontsize=${layoutFontSize}]
+  node [fontsize=${layoutFontSize},height=${dotMinH},width=${dotMinW}]
 ${nodeGroupLines.join('\n')}
 ${edgeLines.join('\n')}
 ${noteLines.join('\n')}

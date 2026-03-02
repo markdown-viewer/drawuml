@@ -16,7 +16,8 @@ export type { RenderDescriptor, NodeDescriptor, ElementDescriptor } from './regi
 
 // ── Registration calls — import each module to trigger registration ──────────
 import { registerCircleRenderer } from './icons/circle.ts';
-import { registerDiamondNodeRenderer } from './diamond-node.ts';
+import { registerDiamondRenderer } from './icons/diamond.ts';
+import { registerStateIconRenderers } from './icons/state-icons.ts';
 import { registerClassNodeRenderer } from './class-node.ts';
 import { registerMapNodeRenderer } from './map-node.ts';
 import { registerStateNodeRenderers } from './state-node.ts';
@@ -56,7 +57,8 @@ import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
 registerCircleRenderer();
-registerDiamondNodeRenderer();
+registerDiamondRenderer();
+registerStateIconRenderers();
 registerClassNodeRenderer();
 registerMapNodeRenderer();
 registerStateNodeRenderers();
@@ -169,22 +171,14 @@ export {
   buildTitleHtml,
   computeTitleH,
   classNodeStyle,
-  textRowStyle,
-  separatorStyle,
-  ROW_HEIGHT,
-  SEPARATOR_HEIGHT,
 } from './class-node.ts';
 
-// Note primitives
-export {
-  noteStyle,
-} from './shapes/note.ts';
+export { separatorStyle } from '../shared/content.ts';
 
 // Sequence diagram primitives
 export {
   PARTICIPANT_CONFIG,
-  ICON_MIN_WIDTH,
-  ICON_HEIGHT,
+  getScaledParticipantConfig,
   buildParticipantLabel,
   participantCellGeom,
   participantStyle,

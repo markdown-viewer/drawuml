@@ -1,7 +1,8 @@
 // Icon registry for mxgraph shapes.
 // Provides a typed lookup over the data generated from docs/shape-defaults.json.
 
-import { iconData, IconRecord, IconVariant } from './icon-data.ts';
+import { iconData } from './icon-data.ts';
+import type { IconRecord, IconVariant } from './icon-data.ts';
 
 export type { IconRecord, IconVariant };
 

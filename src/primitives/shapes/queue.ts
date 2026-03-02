@@ -5,15 +5,18 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class QueueRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=cylinder3;size=10;direction=south;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;spacingRight=10;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};whiteSpace=wrap;container=1;collapsible=0;`;
+    return `shape=cylinder3;size=${this.theme.capHeight};direction=south;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;spacingRight=${this.theme.capHeight};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;container=1;collapsible=0;`;
   }
-  // Extra width accounts for the cylinder end caps
-  protected get extraPadX(): number { return 20; }
+  // Extra width for the cylinder end caps
+  protected shapePadding(): ShapePadding {
+    return { left: this.theme.capHeight * 2, right: this.theme.capHeight * 2 };
+  }
 }
 
 export function registerQueueShape(): void {

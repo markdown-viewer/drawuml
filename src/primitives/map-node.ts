@@ -15,22 +15,21 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 import type { LayoutGraphNode, LayoutPort } from '../layout/layout-graph.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
-// Constants
+// Scaled metrics helpers
 // ---------------------------------------------------------------------------
 
-/** Row height for each map entry. */
-const MAP_ROW_HEIGHT = 26;
+/** Row height for each map entry — scales with fontSize. */
+function mapRowHeight(theme: Theme): number {
+  return Math.round(theme.fontSize * 26 / 12);
+}
 
-/** Horizontal padding inside each cell. */
-const CELL_PAD_X = 6;
-
-/** Extra horizontal gap between columns (for the vertical divider). */
-const COL_GAP = 4;
-
-/** Top padding above the first map row (below the title separator). */
-const BODY_TOP_PAD = 0;
+/** Horizontal padding inside each cell — scales with fontSize. */
+function cellPadX(theme: Theme): number {
+  return Math.round(theme.fontSize / 2);
+}
 
 // ---------------------------------------------------------------------------
 // Map entry type
@@ -58,14 +57,19 @@ class MapNodeRenderer extends Renderer {
     this.node = node;
     this.entries = (node.mapEntries || []) as MapEntry[];
     const titleHtml = buildTitleHtml(node);
-    this.titleContent = Content.inline(titleHtml);
+    this.titleContent = Content.inline(titleHtml, { fontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily });
   }
 
   protected doMeasure() {
+    const rowH = mapRowHeight(this.theme);
+    const padX = cellPadX(this.theme);
+    const paddingX = Math.round(this.theme.fontSize * 40 / 12); // title horizontal padding
+    const titlePadY = Math.round(this.theme.fontSize);            // title vertical padding
+
     // Title dimensions
     const titleSize = this.titleContent.measure();
-    const titleW = titleSize.width + 40; // paddingX like class nodes
-    const titleH = (titleSize.height || 12) + 12; // titlePaddingY
+    const titleW = titleSize.width + paddingX;
+    const titleH = (titleSize.height || this.theme.fontSize) + titlePadY;
     this._titleH = titleH;
 
     // Measure key and value columns
@@ -78,13 +82,13 @@ class MapNodeRenderer extends Renderer {
       maxValW = Math.max(maxValW, Math.ceil(vm.width));
     }
 
-    const keyColW = maxKeyW + CELL_PAD_X * 2;
-    const valColW = maxValW + CELL_PAD_X * 2;
+    const keyColW = maxKeyW + padX * 2;
+    const valColW = maxValW + padX * 2;
     this._keyColWidth = keyColW;
 
-    const bodyW = keyColW + valColW + COL_GAP;
+    const bodyW = keyColW + valColW + this.theme.mapColGap;
     const totalW = Math.max(titleW, bodyW);
-    const bodyH = this.entries.length * MAP_ROW_HEIGHT + BODY_TOP_PAD;
+    const bodyH = this.entries.length * rowH;
     const totalH = titleH + bodyH;
 
     return { width: totalW, height: totalH };
@@ -94,6 +98,14 @@ class MapNodeRenderer extends Renderer {
     const cells: string[] = [];
     const size = this.measure();
     const style = classNodeStyle(this.node, this._titleH, this.theme);
+    const rowH = mapRowHeight(this.theme);
+    const padX = cellPadX(this.theme);
+    const sw = this.theme.strokeWidth;
+    const fs = this.theme.fontSize;
+    const ff = this.theme.fontFamily;
+
+    // Common font/stroke suffix for partialRectangle cells
+    const fontStyle = `fontSize=${fs};fontFamily=${ff};strokeWidth=${sw};`;
 
     // Swimlane container
     cells.push(mxVertex({
@@ -108,7 +120,7 @@ class MapNodeRenderer extends Renderer {
     }));
 
     // Map entry rows as partialRectangle cells
-    let y = this._titleH + BODY_TOP_PAD;
+    let y = this._titleH;
     const entries = this.entries;
     const keyColW = this._keyColWidth;
 
@@ -127,18 +139,18 @@ class MapNodeRenderer extends Renderer {
           'fillColor=none',
           'align=center',
           'verticalAlign=middle',
-          'spacingLeft=4',
-          'spacingRight=4',
+          `spacingLeft=${padX}`,
+          `spacingRight=${padX}`,
           'whiteSpace=wrap',
           'overflow=hidden',
           'rotatable=0',
           'points=[[0,0.5],[1,0.5]]',
           'portConstraint=eastwest',
-        ].join(';') + ';';
+        ].join(';') + ';' + fontStyle;
 
         cells.push(
           `<mxCell id="${escapeXml(rowId)}" value="${escapeXml(entry.key)}" style="${rowStyle}" vertex="1" parent="${escapeXml(this.node.id)}">`
-          + `<mxGeometry y="${y}" width="${box.width}" height="${MAP_ROW_HEIGHT}" as="geometry"/>`
+          + `<mxGeometry y="${y}" width="${box.width}" height="${rowH}" as="geometry"/>`
           + `</mxCell>`
         );
       } else {
@@ -150,19 +162,19 @@ class MapNodeRenderer extends Renderer {
           'fillColor=none',
           'align=left',
           'verticalAlign=middle',
-          `spacingLeft=${keyColW + CELL_PAD_X}`,
-          `spacingRight=${CELL_PAD_X}`,
+          `spacingLeft=${keyColW + padX}`,
+          `spacingRight=${padX}`,
           'whiteSpace=wrap',
           'overflow=hidden',
           'rotatable=0',
           'points=[[0,0.5],[1,0.5]]',
           'portConstraint=eastwest',
           'dropTarget=0',
-        ].join(';') + ';';
+        ].join(';') + ';' + fontStyle;
 
         cells.push(
           `<mxCell id="${escapeXml(rowId)}" value="${escapeXml(entry.value)}" style="${rowStyle}" vertex="1" parent="${escapeXml(this.node.id)}">`
-          + `<mxGeometry y="${y}" width="${box.width}" height="${MAP_ROW_HEIGHT}" as="geometry"/>`
+          + `<mxGeometry y="${y}" width="${box.width}" height="${rowH}" as="geometry"/>`
           + `</mxCell>`
         );
 
@@ -175,24 +187,24 @@ class MapNodeRenderer extends Renderer {
           'fillColor=none',
           'align=center',
           'verticalAlign=middle',
-          `spacingLeft=${CELL_PAD_X}`,
-          `spacingRight=${CELL_PAD_X}`,
+          `spacingLeft=${padX}`,
+          `spacingRight=${padX}`,
           'whiteSpace=wrap',
           'overflow=hidden',
           'rotatable=0',
           'points=[]',
           'portConstraint=eastwest',
           'part=1',
-        ].join(';') + ';';
+        ].join(';') + ';' + fontStyle;
 
         cells.push(
           `<mxCell id="${escapeXml(keyId)}" value="${escapeXml(entry.key)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(rowId)}">`
-          + `<mxGeometry width="${keyColW}" height="${MAP_ROW_HEIGHT}" as="geometry"/>`
+          + `<mxGeometry width="${keyColW}" height="${rowH}" as="geometry"/>`
           + `</mxCell>`
         );
       }
 
-      y += MAP_ROW_HEIGHT;
+      y += rowH;
     }
 
     return cells;
@@ -204,17 +216,18 @@ class MapNodeRenderer extends Renderer {
   override buildLayoutGraph(): LayoutGraphNode {
     const node = super.buildLayoutGraph();
     const titleH = this._titleH || (this.measure() && this._titleH);
+    const rowH = mapRowHeight(this.theme);
     const ports: LayoutPort[] = [];
-    let y = titleH + BODY_TOP_PAD;
+    let y = titleH;
 
     for (const entry of this.entries) {
       ports.push({
         id: `${this.id}::${entry.key}`,
         width: node.width,
-        height: MAP_ROW_HEIGHT,
+        height: rowH,
         y,
       });
-      y += MAP_ROW_HEIGHT;
+      y += rowH;
     }
 
     if (ports.length > 0) node.ports = ports;

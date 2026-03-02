@@ -7,15 +7,16 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class ActionRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=singleArrow;arrowWidth=1;arrowSize=0.12;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
+    return `shape=singleArrow;arrowWidth=1;arrowSize=0.12;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
   }
-  // Extra right padding for the arrow tip
-  protected get extraPadX(): number { return 15; }
+  // Extra padding for the arrow tip
+  protected shapePadding(): ShapePadding { return { left: this.theme.actionPadH, right: this.theme.actionPadH }; }
 }
 
 export function registerActionShape(): void {

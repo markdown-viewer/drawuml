@@ -5,15 +5,17 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class HexagonRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=15;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
+    const size = Math.round(this.theme.cornerClip * 1.5);
+    return `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=${size};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
   }
-  // Extra horizontal padding for hexagon pointed sides (size=15 each side)
-  protected get extraPadX(): number { return 30; }
+  // Extra horizontal padding for hexagon pointed sides
+  protected shapePadding(): ShapePadding { const size = Math.round(this.theme.cornerClip * 1.5); return { left: size * 2, right: size * 2 }; }
 }
 
 export function registerHexagonShape(): void {

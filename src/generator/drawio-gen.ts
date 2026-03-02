@@ -88,6 +88,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   }
 
   // Edges
+  const defaultStrokeWidth = options?.theme?.strokeWidth ?? 1;
   for (const edge of model.edges) {
     let style: string;
     if (edge.arrow) {
@@ -104,7 +105,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (engine !== 'elk') {
       style += 'curved=1;';
     } else {
-      style += 'edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=5;';
+      style += `edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=${options?.theme?.arcSize ?? 4};`;
     }
 
     // Merge bracket style from arrowMeta.color or bodyToken bracket content
@@ -126,8 +127,11 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (es.thickness) style += `strokeWidth=${es.thickness};`;
     if (es.lineStyle === 'dashed') style += 'dashed=1;';
     else if (es.lineStyle === 'dotted') style += 'dashed=1;dashPattern=1 2;';
-    else if (es.lineStyle === 'bold') style += 'strokeWidth=2;';
+    else if (es.lineStyle === 'bold') style += `strokeWidth=${defaultStrokeWidth * 2};`;
     else if (es.lineStyle === 'plain') { /* default solid — no extra style */ }
+
+    // Apply default strokeWidth for edges (scaled from theme)
+    if (!es.thickness && es.lineStyle !== 'bold' && !style.includes('strokeWidth=')) style += `strokeWidth=${defaultStrokeWidth};`;
 
     // Resolve source/target — use field-level port id when available
     const sourceId = edge.fromPort ? `${edge.from}::${edge.fromPort}` : edge.from;
@@ -158,12 +162,12 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // layout endpoints and add constraints so drawio2svg pins the connection
     // to the field cell's left/right border.
     if (hasPort && points && points.length >= 2) {
-      const sides = computePortEdgeSides(points, edge, layout);
+      const sides = computePortEdgeSides(points, edge, layout, renderers, options?.theme?.edgeSnapPx);
       if (sides.exitX != null) {
-        style += `exitX=${sides.exitX};exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;`;
+        style += `exitX=${sides.exitX};exitY=${sides.exitY};exitDx=0;exitDy=0;`;
       }
       if (sides.entryX != null) {
-        style += `entryX=${sides.entryX};entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;`;
+        style += `entryX=${sides.entryX};entryY=${sides.entryY};entryDx=0;entryDy=0;`;
       }
       // Strip endpoints that are handled by constraints; keep the rest
       const startIdx = sides.exitX != null ? 1 : 0;
@@ -187,14 +191,14 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         const sp = points[0];
         const exitX = Math.max(0, Math.min(1, (sp.x - srcNode.x) / srcNode.width));
         const exitY = Math.max(0, Math.min(1, (sp.y - srcNode.y) / srcNode.height));
-        style += `exitX=${+exitX.toFixed(4)};exitY=${+exitY.toFixed(4)};exitDx=0;exitDy=0;exitPerimeter=0;`;
+        style += `exitX=${+exitX.toFixed(4)};exitY=${+exitY.toFixed(4)};exitDx=0;exitDy=0;`;
         points = points.slice(1); // strip source endpoint, now constrained
       }
       if (tgtNode) {
         const ep = points[points.length - 1];
         const entryX = Math.max(0, Math.min(1, (ep.x - tgtNode.x) / tgtNode.width));
         const entryY = Math.max(0, Math.min(1, (ep.y - tgtNode.y) / tgtNode.height));
-        style += `entryX=${+entryX.toFixed(4)};entryY=${+entryY.toFixed(4)};entryDx=0;entryDy=0;entryPerimeter=0;`;
+        style += `entryX=${+entryX.toFixed(4)};entryY=${+entryY.toFixed(4)};entryDx=0;entryDy=0;`;
         points = points.slice(0, -1); // strip target endpoint, now constrained
       }
     }
@@ -296,22 +300,29 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       // positioned labels are emitted as standalone absolute-position cells below.
       cardFrom: layoutCardFromPos ? undefined : edge.cardFrom,
       cardTo: layoutCardToPos ? undefined : edge.cardTo,
+      fontSize: options?.theme?.fontSize,
+      fontFamily: options?.theme?.fontFamily,
     }));
-    // Edge center label at ELK-computed absolute position
+    // Edge center label at layout-computed absolute position
     if (edge.label && layoutLabelPos) {
-      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label });
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme: options?.theme });
       const m = lr.measure();
       const w = layoutLabelSize?.width || m.width;
       const h = layoutLabelSize?.height || m.height;
+      // Adjust label position to maintain gap from edge line
+      const adjustedPos = adjustLabelAwayFromEdge(
+        layoutLabelPos, { width: w, height: h },
+        layoutEdge?.points, options?.theme?.edgeLabelGap ?? 4,
+      );
       cells.push(...lr.render({
-        x: layoutLabelPos.x - Math.round(w / 2),
-        y: layoutLabelPos.y - Math.round(h / 2),
+        x: adjustedPos.x - Math.round(w / 2),
+        y: adjustedPos.y - Math.round(h / 2),
         width: w, height: h,
       }));
     }
     // Cardinality labels at Graphviz-computed taillabel/headlabel positions
     if (edge.cardFrom && layoutCardFromPos) {
-      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom });
+      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme: options?.theme });
       const m = cfr.measure();
       cells.push(...cfr.render({
         x: layoutCardFromPos.x - Math.round(m.width / 2),
@@ -320,7 +331,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       }));
     }
     if (edge.cardTo && layoutCardToPos) {
-      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo });
+      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme: options?.theme });
       const m = ctr.measure();
       cells.push(...ctr.render({
         x: layoutCardToPos.x - Math.round(m.width / 2),
@@ -346,7 +357,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (!noteLayout || !targetLayout) continue;
     const edgeId = `__note_edge_${note.id}`;
     const noteLinkColor = options?.theme?.noteLinkColor ?? '#AEAE8F';
-    const style = `endArrow=none;dashed=1;strokeColor=${noteLinkColor};`;
+    const style = `endArrow=none;dashed=1;strokeColor=${noteLinkColor};strokeWidth=${defaultStrokeWidth};`;
     // Resolve member-level target: match "A::counter" to field cell id "A::int counter"
     let edgeTarget = note.target;
     if (note.memberTarget) {
@@ -392,6 +403,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       style: fullStyle,
       source: note.id,
       target: edgeTarget,
+      fontSize: options?.theme?.fontSize,
+      fontFamily: options?.theme?.fontFamily,
     }));
   }
 
@@ -410,7 +423,6 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
  * Only assign a side constraint when the endpoint is within EDGE_SNAP_PX
  * of the node's left or right border; otherwise return null (no constraint).
  */
-const EDGE_SNAP_PX = 10;
 
 /** Clamp a value to [0, 1] and round to 4 decimal places for exit/entry constraints. */
 function clamp01(v: number): number {
@@ -421,9 +433,14 @@ function computePortEdgeSides(
   points: { x: number; y: number }[],
   edge: any,
   layout: any,
-): { exitX: number | null; entryX: number | null } {
+  renderers?: Map<string, Renderer>,
+  edgeSnapPx?: number,
+): { exitX: number | null; exitY: number; entryX: number | null; entryY: number } {
+  const EDGE_SNAP_PX = edgeSnapPx ?? 10;
   let exitX: number | null = null;
+  let exitY: number = 0.5;
   let entryX: number | null = null;
+  let entryY: number = 0.5;
 
   const srcNode = layout.nodes[edge.from];
   if (srcNode) {
@@ -433,6 +450,11 @@ function computePortEdgeSides(
     if (distLeft <= EDGE_SNAP_PX) exitX = 0;
     else if (distRight <= EDGE_SNAP_PX) exitX = 1;
     // else: endpoint is in the interior — don't constrain
+
+    // Compute precise exitY relative to the field row cell
+    if (exitX != null && edge.fromPort && renderers) {
+      exitY = computePortRelativeY(sp.y, edge.from, edge.fromPort, srcNode, renderers);
+    }
   }
 
   const tgtNode = layout.nodes[edge.to];
@@ -442,7 +464,99 @@ function computePortEdgeSides(
     const distRight = Math.abs(ep.x - (tgtNode.x + tgtNode.width));
     if (distLeft <= EDGE_SNAP_PX) entryX = 0;
     else if (distRight <= EDGE_SNAP_PX) entryX = 1;
+
+    // Compute precise entryY relative to the field row cell
+    if (entryX != null && edge.toPort && renderers) {
+      entryY = computePortRelativeY(ep.y, edge.to, edge.toPort, tgtNode, renderers);
+    }
   }
 
-  return { exitX, entryX };
+  return { exitX, exitY, entryX, entryY };
 }
+
+/**
+ * Compute the relative Y position of an edge endpoint within a port (field row).
+ *
+ * Uses the renderer's port definitions to find the field row's absolute Y bounds,
+ * then returns the endpoint's relative Y within that row (0 = top, 1 = bottom).
+ * Falls back to 0.5 (center) if the port info is unavailable.
+ */
+function computePortRelativeY(
+  endpointY: number,
+  parentId: string,
+  portName: string,
+  parentNode: { x: number; y: number; width: number; height: number },
+  renderers: Map<string, Renderer>,
+): number {
+  const renderer = renderers.get(parentId);
+  if (!renderer) return 0.5;
+  const layoutGraph = renderer.buildLayoutGraph();
+  if (!layoutGraph.ports) return 0.5;
+  const portId = `${parentId}::${portName}`;
+  const port = layoutGraph.ports.find(p => p.id === portId);
+  if (!port || port.y == null) return 0.5;
+  const portAbsY = parentNode.y + port.y;
+  const relY = (endpointY - portAbsY) / port.height;
+  return clamp01(relY);
+}
+
+// ---------------------------------------------------------------------------
+// Edge label gap enforcement
+// ---------------------------------------------------------------------------
+
+/**
+ * Adjust a label center position so the label box maintains a minimum gap
+ * from the nearest edge segment.
+ *
+ * For a vertical segment at x=Ex with label to the right: ensure
+ * label-left >= Ex + gap.  For label to the left: ensure label-right <= Ex - gap.
+ * Horizontal segments are handled analogously.
+ */
+function adjustLabelAwayFromEdge(
+  labelCenter: { x: number; y: number },
+  labelSize: { width: number; height: number },
+  edgePoints: { x: number; y: number }[] | undefined,
+  gap: number,
+): { x: number; y: number } {
+  if (!edgePoints || edgePoints.length < 2) return labelCenter;
+
+  // Find the edge segment that vertically spans the label center
+  let edgeX: number | undefined;
+  for (let i = 0; i < edgePoints.length - 1; i++) {
+    const p1 = edgePoints[i], p2 = edgePoints[i + 1];
+    const minY = Math.min(p1.y, p2.y);
+    const maxY = Math.max(p1.y, p2.y);
+    if (labelCenter.y >= minY - 1 && labelCenter.y <= maxY + 1) {
+      if (Math.abs(p2.y - p1.y) < 1) {
+        edgeX = (p1.x + p2.x) / 2;
+      } else {
+        const t = (labelCenter.y - p1.y) / (p2.y - p1.y);
+        edgeX = p1.x + t * (p2.x - p1.x);
+      }
+      break;
+    }
+  }
+  if (edgeX === undefined) return labelCenter;
+
+  const halfW = labelSize.width / 2;
+  const labelLeft = labelCenter.x - halfW;
+  const labelRight = labelCenter.x + halfW;
+
+  let newX = labelCenter.x;
+  if (labelCenter.x >= edgeX) {
+    // Label is to the right of edge line
+    const minLeft = edgeX + gap;
+    if (labelLeft < minLeft) {
+      newX = minLeft + halfW;
+    }
+  } else {
+    // Label is to the left of edge line
+    const maxRight = edgeX - gap;
+    if (labelRight > maxRight) {
+      newX = maxRight - halfW;
+    }
+  }
+
+  return { x: Math.round(newX), y: labelCenter.y };
+}
+

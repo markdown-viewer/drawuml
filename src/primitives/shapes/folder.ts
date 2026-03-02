@@ -5,10 +5,11 @@
  * Package keeps the label in the folder tab; stereotype shown as body content.
  */
 
+import { measureText } from '@markdown-viewer/text-measure';
 import { Content } from '../../shared/content.ts';
 import { escapeXml } from '../../shared/xml-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
-import { Renderer } from '../renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -21,16 +22,13 @@ class FolderRenderer extends RichRenderer {
   }
 
   protected buildStyle(): string {
-    const tabWidth = Math.max(this.label.length * 8 + 16, 50);
-    return `shape=folder;fontStyle=1;tabWidth=${tabWidth};tabHeight=20;tabPosition=left;tabFill=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=6;verticalAlign=top;spacingTop=-4;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
+    const tabWidth = Math.max(Math.ceil(measureText(this.label, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', false).width) + this.theme.fontSize, this.theme.tabMinWidth);
+    return `shape=folder;html=1;whiteSpace=wrap;fontStyle=1;tabWidth=${tabWidth};tabHeight=${this.theme.titleBarHeight};tabPosition=left;tabFill=1;labelInHeader=1;boundedLbl=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=${Math.round(this.theme.fontSize / 2)};verticalAlign=middle;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
   }
 
-  // Folder tab height (tabHeight=20); content starts below the tab
-  protected get topPadY(): number { return 20; }
-
-  // Fixed title area: always add tab height (label sits inside the tab)
-  // +2 compensates for visual gap difference vs non-fixed shapes (text ~18px < GROUP_TITLE_HEIGHT 20px)
-  override get groupTopPadding(): number { return Renderer.GROUP_BASE_PAD + this.topPadY + 2; }
+  // Folder has a fixed titlebar (tab area)
+  protected shapePadding(): ShapePadding { return {}; }
+  protected override get hasTitlebar(): boolean { return true; }
 
   // Package: label always in folder tab (frame value)
   protected getFrameValue(): string {

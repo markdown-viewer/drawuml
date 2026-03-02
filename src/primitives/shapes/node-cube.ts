@@ -5,19 +5,16 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class NodeCubeRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=cube;whiteSpace=wrap;size=10;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=6;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    return `shape=cube;whiteSpace=wrap;size=${this.theme.cornerClip};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=6;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
-  // Extra width for 3D right face (size=10); symmetric, no label x-shift needed
-  protected get extraPadX(): number { return 10; }
-  // Top face height (size=10); reserves top area, pushes label down
-  protected get topPadY(): number { return 10; }
-  // Shift label right to avoid 3D left face overlap
-  protected get contentXOffset(): number { return 10; }
+  // 3D cube: top face + left face overlap (left offset for label)
+  protected shapePadding(): ShapePadding { return { top: this.theme.cornerClip, left: this.theme.cornerClip }; }
 }
 
 export function registerNodeCubeShape(): void {

@@ -11,83 +11,22 @@
 
 import { Content } from '../shared/content.ts';
 import { escapeXml, mxVertex } from '../shared/xml-utils.ts';
-import { measureText } from '@markdown-viewer/text-measure';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
-import { textRowStyle, separatorStyle } from './class-node.ts';
+import { RichRenderer } from './shapes/rich-renderer.ts';
+
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import type { Theme } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
-import type { LayoutGraphNode, LayoutLabel } from '../layout/layout-graph.ts';
+import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const START_DIAMETER = 28;
-const END_OUTER = 22;
-
-const FORK_WIDTH = 80;
-const FORK_HEIGHT = 6;
-
-const CHOICE_SIZE = 24;
-
-const FLOW_FINAL_SIZE = 22;
-const HISTORY_SIZE = 22;
-const CHOICE_LABEL_GAP = 4; // gap between label and diamond
-
-// ---------------------------------------------------------------------------
-// Start / End renderers
-// ---------------------------------------------------------------------------
-
-class StateStartRenderer extends Renderer {
-  private node: { id: string };
-  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
-
-  protected doMeasure() {
-    return { width: START_DIAMETER, height: START_DIAMETER };
-  }
-
-  render(box: ContentBox) {
-    const d = START_DIAMETER;
-    const x = box.x + Math.round((box.width - d) / 2);
-    const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: `shape=startState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=1;`, parent: this.parentId || '1', x, y, width: d, height: d })];
-  }
-}
-
-class StateEndRenderer extends Renderer {
-  private node: { id: string };
-  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
-
-  protected doMeasure() {
-    return { width: END_OUTER, height: END_OUTER };
-  }
-
-  render(box: ContentBox) {
-    const d = END_OUTER;
-    const x = box.x + Math.round((box.width - d) / 2);
-    const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: `shape=endState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=1;`, parent: this.parentId || '1', x, y, width: d, height: d })];
-  }
-}
-
-class FlowFinalRenderer extends Renderer {
-  private node: { id: string };
-  constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
-
-  protected doMeasure() {
-    return { width: FLOW_FINAL_SIZE, height: FLOW_FINAL_SIZE };
-  }
-
-  render(box: ContentBox) {
-    const d = FLOW_FINAL_SIZE;
-    const x = box.x + Math.round((box.width - d) / 2);
-    const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: `shape=flowFinal;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=1;`, parent: this.parentId || '1', x, y, width: d, height: d })];
-  }
-}
+// (State pseudo-node sizes derived from theme: iconSize,
+//  stateForkWidth, stateForkHeight.)
 
 // ---------------------------------------------------------------------------
 // Fork / Join renderer
@@ -98,15 +37,15 @@ class StateForkJoinRenderer extends Renderer {
   constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
-    return { width: FORK_WIDTH, height: FORK_HEIGHT };
+    return { width: this.theme.stateForkWidth, height: this.theme.stateForkHeight };
   }
 
   render(box: ContentBox) {
-    const w = FORK_WIDTH;
-    const h = FORK_HEIGHT;
+    const w = this.theme.stateForkWidth;
+    const h = this.theme.stateForkHeight;
     const x = box.x + Math.round((box.width - w) / 2);
     const y = box.y + Math.round((box.height - h) / 2);
-    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=6;strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
+    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=${this.theme.stateForkHeight};strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
   }
 }
 
@@ -114,122 +53,40 @@ class StateForkJoinRenderer extends Renderer {
 // Choice renderer
 // ---------------------------------------------------------------------------
 
-class StateChoiceRenderer extends Renderer {
-  private node: RenderDescriptor;
-  private label: string;
-  private labelWidth: number;
-  private labelHeight: number;
+class StateChoiceRenderer extends RichRenderer {
+  get isCluster(): boolean { return false; }
 
-  constructor(node: RenderDescriptor) {
-    super(node.id, node.theme);
-    this.node = node;
-    this.label = node.label || '';
-    if (this.label) {
-      const meas = measureText(this.label, this.theme.smallFontSize, this.theme.fontFamily, 'normal', 'normal', true);
-      this.labelWidth = Math.ceil(meas.width);
-      this.labelHeight = Math.ceil(meas.height);
-    } else {
-      this.labelWidth = 0;
-      this.labelHeight = 0;
-    }
+  // Hexagon side extent in pixels (computed in doMeasure for 45° angle)
+  private _hexSize = 12;
+
+  /** When label is present, use hexagon; otherwise use rhombus (diamond). */
+  protected buildStyle(): string {
+    const hasText = !!this.label;
+    const shape = hasText
+      ? `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=${this._hexSize};whiteSpace=wrap;html=1;`
+      : `rhombus;whiteSpace=wrap;html=1;`;
+    const s = shape
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
+      + `fontSize=${this.theme.fontSize};fontFamily=${this.theme.fontFamily};`;
+    return Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2).style;
   }
+
+  // Shape style is complete — no fragment extraction needed
+  protected get richBodyStyleComplete(): boolean { return true; }
 
   protected doMeasure() {
-    // Label is rendered as an overlay and does NOT participate in DOT layout.
-    // Only the diamond itself occupies layout space.
-    return { width: CHOICE_SIZE, height: CHOICE_SIZE };
-  }
-
-  graphicCenterOffset() {
-    // No offset — the diamond is always at the DOT node center.
-    return { dx: 0, dy: 0 };
-  }
-
-  /**
-   * Build layout graph node with optional external label.
-   */
-  override buildLayoutGraph(): LayoutGraphNode {
-    const node = super.buildLayoutGraph();
-    if (this.label) {
-      const labels: LayoutLabel[] = [{
-        text: this.label,
-        width: this.labelWidth,
-        height: this.labelHeight,
-        placement: 'OUTSIDE H_RIGHT V_TOP H_PRIORITY',
-      }];
-      node.labels = labels;
+    const choiceSize = this.theme.iconSize;
+    const hasText = !!this.label;
+    if (!hasText) {
+      // No text → rhombus; fixed square for 45° diamond
+      return { width: choiceSize, height: choiceSize };
     }
-    return node;
-  }
-
-  render(box: ContentBox) {
-    const d = CHOICE_SIZE;
-    const cells: string[] = [];
-
-    // Diamond centered in box
-    const dx = box.x + Math.round((box.width - d) / 2);
-    const dy = box.y + Math.round((box.height - d) / 2);
-
-    if (this.label) {
-      let labelX: number;
-      let labelY: number;
-      if (box.xlabelPos) {
-        // Use Graphviz auto-positioned xlabel center to place the label cell.
-        labelX = Math.round(box.xlabelPos.x - this.labelWidth / 2);
-        labelY = Math.round(box.xlabelPos.y - this.labelHeight / 2);
-      } else {
-        // Fallback: label floats at the upper-left of the diamond.
-        labelX = dx - this.labelWidth - CHOICE_LABEL_GAP;
-        labelY = dy - this.labelHeight - CHOICE_LABEL_GAP;
-      }
-      const choiceLabelStyle = `text;html=1;align=left;verticalAlign=top;`
-        + `fontSize=${this.theme.smallFontSize};fontColor=${this.theme.colorDark};`
-        + `resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;`;
-      cells.push(mxVertex({
-        id: `${this.node.id}__label`,
-        value: this.label,
-        style: choiceLabelStyle,
-        parent: this.parentId || '1',
-        x: labelX, y: labelY, width: this.labelWidth, height: this.labelHeight,
-      }));
-    }
-
-    const choiceStyle = `rhombus;whiteSpace=wrap;html=1;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`;
-    cells.push(mxVertex({ id: this.node.id, value: '', style: Renderer.applyInlineStyle(choiceStyle, this.node.style).style, parent: this.parentId || '1', x: dx, y: dy, width: d, height: d }));
-
-    return cells;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// History pseudo-state renderer — circle with H or H* label
-// ---------------------------------------------------------------------------
-
-class StateHistoryRenderer extends Renderer {
-  private node: RenderDescriptor;
-  private label: string;
-
-  constructor(node: RenderDescriptor) {
-    super(node.id, node.theme);
-    this.node = node;
-    this.label = node.label || 'H';
-  }
-
-  protected doMeasure() {
-    return { width: HISTORY_SIZE, height: HISTORY_SIZE };
-  }
-
-  render(box: ContentBox) {
-    const d = HISTORY_SIZE;
-    const x = box.x + Math.round((box.width - d) / 2);
-    const y = box.y + Math.round((box.height - d) / 2);
-    return [mxVertex({
-      id: this.node.id,
-      value: this.label,
-      style: `ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;fontSize=${this.theme.smallFontSize};fontStyle=1;`,
-      parent: this.parentId || '1',
-      x, y, width: d, height: d,
-    })];
+    const base = super.doMeasure();
+    const h = Math.max(choiceSize, base.height);
+    // For 45° side angle: horizontal extent of each point = height / 2
+    this._hexSize = Math.round(h / 2);
+    const w = Math.max(choiceSize, base.width + this._hexSize * 2);
+    return { width: w, height: h };
   }
 }
 
@@ -400,17 +257,15 @@ export class ConcurrentRegionRenderer extends Renderer {
   get clusterLabel(): string { return this.regionLabel; }
 
   // Uniform padding on all sides inside each region lane.
-  // No label: all sides equal; with label: top adds startSize.
-  private static readonly REGION_PAD = 23;
-
   override get groupTopPadding(): number {
-    return ConcurrentRegionRenderer.REGION_PAD + (this.regionLabel ? 20 : 0);
+    const headerSize = this.regionLabel ? Math.round(this.theme.titleBarHeight * 20 / 26) : 0;
+    return this.theme.groupPadding + headerSize;
   }
 
   override buildLayoutGraph() {
     const node = super.buildLayoutGraph();
     if (node.padding) {
-      const p = ConcurrentRegionRenderer.REGION_PAD;
+      const p = this.theme.groupPadding;
       node.padding.left = p;
       node.padding.right = p;
       node.padding.bottom = p;
@@ -427,14 +282,15 @@ export class ConcurrentRegionRenderer extends Renderer {
     const parentCellId = this.parentId || '1';
     // Render as a standard DrawIO swimlane lane with visible borders.
     // Adjacent lanes naturally form visual separators.
-    // LR mode: horizontal=0 puts the label on the left side, startSize=40.
-    const startSize = this.regionLabel ? (this._isHorizontalLane ? 40 : 20) : 0;
+    // LR mode: horizontal=0 puts the label on the left side (double header).
+    const headerH = Math.round(this.theme.titleBarHeight * 20 / 26);
+    const startSize = this.regionLabel ? (this._isHorizontalLane ? headerH * 2 : headerH) : 0;
     const fill = this.regionColor || 'none';
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
-      + `strokeWidth=0.5;fillColor=${fill};strokeColor=${this.theme.colorDark};`
-      + `fontStyle=0;fontSize=11;`;
+      + `strokeWidth=${this.theme.strokeWidth};fillColor=${fill};strokeColor=${this.theme.colorDark};`
+      + `fontStyle=0;fontSize=${this.theme.smallFontSize};`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
       `<mxCell id="${escapeXml(this.id)}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(parentCellId)}">`
@@ -476,15 +332,17 @@ export class ConcurrentRegionRenderer extends Renderer {
 function stateNodeStyle(startSize: number, theme: Theme, style?: string | null): string {
   const parsed = parseNodeStyle(style);
   const base = [
-    'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', 'arcSize=10',
+    'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', `arcSize=${theme.largeArcSize}`,
     'align=center', 'verticalAlign=middle',
     'childLayout=stackLayout', 'horizontal=1',
     `startSize=${startSize}`,
     'horizontalStack=0', 'resizeParent=1', 'resizeLast=0',
     'collapsible=0', 'marginBottom=0',
-    'strokeWidth=0.5',
+    `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
   ];
+  if (theme.fontSize) base.push(`fontSize=${theme.fontSize}`);
+  if (theme.fontFamily) base.push(`fontFamily=${theme.fontFamily}`);
   if (parsed) {
     if (parsed.fillColor) {
       base.push(`fillColor=${parsed.fillColor}`);
@@ -494,7 +352,7 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push('strokeWidth=2');
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${theme.strokeWidth * 2}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
@@ -502,19 +360,19 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
 }
 
 class StateNodeRenderer extends SwimlaneRenderer {
-  private nodeLabel: string;
+  private _nodeLabel: string;
   private nodeStyle?: string | null;
 
   constructor(node: RenderDescriptor) {
     super(node.id, node.theme);
-    this.nodeLabel = node.label ?? '';
+    this._nodeLabel = node.label ?? '';
     this.nodeStyle = node.style;
     const titleHtml = Content.inline(node.label ?? '').html;
     this.initContent(titleHtml, { bodyLines: node.bodyLines });
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
-    if (ctx.lines.length === 0) return { emptyBodyPad: 10 };
+    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme?.emptyBodyPad ?? 10 };
     return {};
   }
 
@@ -522,21 +380,20 @@ class StateNodeRenderer extends SwimlaneRenderer {
     return stateNodeStyle(titleHeight, this.theme, this.nodeStyle);
   }
 
-  protected getRowStyle() { return textRowStyle(); }
-  protected getSeparatorStyle() { return separatorStyle(); }
+  protected getChildStyleOpts() { return { portConstraint: true as const }; }
 
-  get clusterLabel(): string { return this.nodeLabel; }
+  get clusterLabel(): string { return this._nodeLabel; }
 
-  // State title bar (startSize=26) is a fixed title area
+  // State title bar is a fixed title area
   // +2 compensates for visual gap difference vs non-fixed shapes
-  override get groupTopPadding(): number { return Renderer.GROUP_BASE_PAD + 26 + 2; }
+  override get groupTopPadding(): number { return this.theme.groupPadding + this.theme.titleBarHeight + 2; }
 
   /**
    * Render: composite state → group container; leaf → swimlane.
    */
   render(box: ContentBox): string[] {
     if (this.children.length > 0) {
-      const labelHtml = Content.inline(this.nodeLabel).html;
+      const labelHtml = Content.inline(this._nodeLabel).html;
       const parentCellId = this.parentId || '1';
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
       const style = stateGroupStyle(this.theme, this.nodeStyle, hasConcurrentRegions);
@@ -577,9 +434,8 @@ class StateNodeRenderer extends SwimlaneRenderer {
     }
     regionInfos.sort((a, b) => a.elkBox.x - b.elkBox.x);
 
-    // Lane vertical extent: from title bottom (startSize=26) to container bottom
-    const STATE_START_SIZE = 26;
-    const laneY = STATE_START_SIZE;
+    // Lane vertical extent: from title bottom to container bottom
+    const laneY = this.theme.titleBarHeight;
     const laneH = box.height - laneY;
 
     // Proportional-width lanes filling the container:
@@ -625,18 +481,20 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
   const base = noRounding ? [
     'swimlane', 'html=1', 'rounded=0',
     'align=center', 'verticalAlign=top',
-    'startSize=26',
+    `startSize=${theme.titleBarHeight}`,
     'collapsible=0', 'marginBottom=0',
-    'strokeWidth=0.5',
+    `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
   ] : [
-    'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', 'arcSize=10',
+    'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', `arcSize=${theme.largeArcSize}`,
     'align=center', 'verticalAlign=top',
-    'startSize=26',
+    `startSize=${theme.titleBarHeight}`,
     'collapsible=0', 'marginBottom=0',
-    'strokeWidth=0.5',
+    `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
   ];
+  if (theme.fontSize) base.push(`fontSize=${theme.fontSize}`);
+  if (theme.fontFamily) base.push(`fontFamily=${theme.fontFamily}`);
   if (parsed) {
     if (parsed.fillColor) {
       base.push(`fillColor=${parsed.fillColor}`);
@@ -646,7 +504,7 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push('strokeWidth=2');
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${theme.strokeWidth * 2}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
@@ -659,13 +517,9 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
 
 /** Register all state-node renderers into global registry. */
 export function registerStateNodeRenderers(): void {
-  registerRenderer('state_start', (desc: RenderDescriptor) => new StateStartRenderer(desc));
-  registerRenderer('state_end', (desc: RenderDescriptor) => new StateEndRenderer(desc));
-  registerRenderer('state_flow_final', (desc: RenderDescriptor) => new FlowFinalRenderer(desc));
   registerRenderer('state_fork', (desc: RenderDescriptor) => new StateForkJoinRenderer(desc));
   registerRenderer('state_join', (desc: RenderDescriptor) => new StateForkJoinRenderer(desc));
   registerRenderer('state_choice', (desc: RenderDescriptor) => new StateChoiceRenderer(desc));
-  registerRenderer('state_history', (desc: RenderDescriptor) => new StateHistoryRenderer(desc));
   registerRenderer('state', (desc: RenderDescriptor) => new StateNodeRenderer(desc));
   registerRenderer('swimlane_container', (desc: RenderDescriptor) => new SwimlaneContainerRenderer(desc.id, desc.theme));
 }

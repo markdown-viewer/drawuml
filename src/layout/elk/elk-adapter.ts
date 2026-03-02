@@ -11,6 +11,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup } from '../../model/ind
 import { NodeType } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { LabelRenderer } from '../../primitives/shapes/label.ts';
+import type { Theme } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // ELK JSON type definitions (subset used by this adapter)
@@ -67,6 +68,28 @@ const RANKDIR_TO_ELK_DIRECTION: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// ELK spacing — helper to extract layout spacing strings from theme
+// ---------------------------------------------------------------------------
+
+function elkSpacing(theme?: Theme) {
+  const groupSpacing = theme?.groupSpacing ?? 8;
+  return {
+    nodeNode: String(theme?.nodesepPx ?? 12),
+    nodeNodeBetweenLayers: String(theme?.ranksepPx ?? 40),
+    edgeEdge: String(theme?.edgeEdgePx ?? 8),
+    edgeEdgeBetweenLayers: String(theme?.edgeEdgePx ?? 8),
+    edgeNode: String(theme?.nodesepPx ?? 10),
+    edgeNodeBetweenLayers: String(theme?.nodesepPx ?? 20),
+    nodeSelfLoop: String(theme?.nodesepPx ?? 10),
+    // Reduced spacing for root level when groups are present —
+    // groups already have internal padding, so inter-group gaps
+    // should be smaller than inter-node gaps.
+    groupNodeNode: String(groupSpacing),
+    groupNodeNodeBetweenLayers: String(groupSpacing),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -78,12 +101,14 @@ export function layoutGraphToElkSimple(
   root: LayoutGraphNode[],
   model: SemanticModel,
   renderers: Map<string, Renderer>,
+  theme?: Theme,
 ): ElkNode {
   const rankdir = model.rankdir || 'TB';
   const elkDirection = RANKDIR_TO_ELK_DIRECTION[rankdir] || 'DOWN';
+  const es = elkSpacing(theme);
 
   // Collect edges — use node-level endpoints only (no ports)
-  const allEdges = collectEdges(model, renderers);
+  const allEdges = collectEdges(model, renderers, theme);
   const simpleEdges: ElkEdge[] = allEdges.map(e => ({
     id: e.id,
     sources: [e.sources[0].includes('::') ? e.sources[0].split('::')[0] : e.sources[0]],
@@ -118,13 +143,23 @@ export function layoutGraphToElkSimple(
   // disconnected nodes in rows instead of a single long strip.
   const hasGroups = (model.groups || []).length > 0;
 
+  // When groups are present, use reduced root-level spacing —
+  // groups already have internal padding, so inter-group gaps
+  // should be smaller than inter-node gaps.
+  const rootNodeNode = hasGroups ? es.groupNodeNode : es.nodeNode;
+  const rootBetweenLayers = hasGroups ? es.groupNodeNodeBetweenLayers : es.nodeNodeBetweenLayers;
+
   const layoutOptions: Record<string, string | number> = {
     'elk.algorithm': 'layered',
     'elk.direction': elkDirection,
     'elk.edgeRouting': 'ORTHOGONAL',
-    'elk.spacing.nodeNode': '12',
-    'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-    'elk.spacing.edgeNode': '10',
+    'elk.spacing.nodeNode': rootNodeNode,
+    'elk.layered.spacing.nodeNodeBetweenLayers': rootBetweenLayers,
+    'elk.spacing.edgeNode': es.edgeNode,
+    'elk.spacing.edgeEdge': es.edgeEdge,
+    'elk.spacing.nodeSelfLoop': es.nodeSelfLoop,
+    'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
+    'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
     // Post-layout compaction removes unnecessary vertical gaps
     'elk.layered.compaction.postCompaction.strategy': 'LEFT',
@@ -140,6 +175,7 @@ export function layoutGraphToElkSimple(
     edges: [],
   };
 
+  addCompoundEdgeProxies(elkRoot, simpleEdges, model);
   distributeEdges(elkRoot, simpleEdges);
   boostStartPathPriority(elkRoot, model);
   return elkRoot;
@@ -157,12 +193,14 @@ export function layoutGraphToElk(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
   nodePositions?: Map<string, { cx: number; cy: number }>,
+  theme?: Theme,
 ): ElkNode {
   const rankdir = model.rankdir || 'TB';
   const elkDirection = RANKDIR_TO_ELK_DIRECTION[rankdir] || 'DOWN';
+  const es = elkSpacing(theme);
 
   // Collect all edges — both semantic edges and field-note edges
-  const allEdges = collectEdges(model, renderers);
+  const allEdges = collectEdges(model, renderers, theme);
 
   // Build dual-port assignment: each used field port gets EAST+WEST variants
   // so edges can connect from either side, reducing routing congestion.
@@ -184,7 +222,7 @@ export function layoutGraphToElk(
   for (const g of model.groups || []) groupMap.set(g.id, g);
 
   // Map LayoutGraphNode tree to ELK children
-  const children: ElkNode[] = root.map(n => mapNode(n, renderers, portVariants, groupMap, elkDirection));
+  const children: ElkNode[] = root.map(n => mapNode(n, renderers, portVariants, groupMap, elkDirection, es));
 
   // Add note nodes (notes are not part of the LayoutGraphNode tree but may
   // be referenced by edges, e.g. "note ... as N2" with "Object .. N2")
@@ -210,21 +248,28 @@ export function layoutGraphToElk(
   // disconnected nodes in rows instead of a single long strip.
   const hasGroups = (model.groups || []).length > 0;
 
+  // When groups are present, use reduced root-level spacing —
+  // groups already have internal padding, so inter-group gaps
+  // should be smaller than inter-node gaps.
+  const rootNodeNode = hasGroups ? es.groupNodeNode : es.nodeNode;
+  const rootBetweenLayers = hasGroups ? es.groupNodeNodeBetweenLayers : es.nodeNodeBetweenLayers;
+
   const layoutOptions: Record<string, string | number> = {
     'elk.algorithm': 'layered',
     'elk.direction': elkDirection,
     'elk.edgeRouting': 'ORTHOGONAL',
-    // Spacing — tighter than defaults to reduce unnecessary whitespace
-    'elk.spacing.nodeNode': '12',
-    'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-    'elk.spacing.edgeNode': '10',
-    'elk.spacing.edgeEdge': '8',
-    'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
+    // Spacing — scaled by theme.strokeWidth to accommodate wider edges
+    'elk.spacing.nodeNode': rootNodeNode,
+    'elk.layered.spacing.nodeNodeBetweenLayers': rootBetweenLayers,
+    'elk.spacing.edgeNode': es.edgeNode,
+    'elk.spacing.edgeEdge': es.edgeEdge,
+    'elk.spacing.nodeSelfLoop': es.nodeSelfLoop,
+    'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
     // Keep edge channels centered between layers so bend points
     // don't hug the node boundary (avoids cramped arrow decorations).
-    'elk.layered.spacing.edgeNodeBetweenLayers': '20',
-    // Reduced edge-label spacing (default 5) to keep labeled edges compact
-    'elk.spacing.edgeLabel': '2',
+    'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
+    // Edge-label gap — scaled with font size
+    'elk.spacing.edgeLabel': String(theme?.edgeLabelGap ?? 4),
     // Post-layout compaction removes unnecessary vertical gaps
     'elk.layered.compaction.postCompaction.strategy': 'LEFT',
     // Node placement & alignment
@@ -249,6 +294,10 @@ export function layoutGraphToElk(
     children,
     edges: [],
   };
+
+  // Handle compound edges between ancestor-descendant groups.
+  // Must be called before distributeEdges so proxy nodes exist in the tree.
+  addCompoundEdgeProxies(elkRoot, allEdges, model);
 
   // Place each edge at its lowest common ancestor container.
   // Build node-id → ancestor-path map, then distribute edges.
@@ -278,6 +327,7 @@ function mapNode(
   portVariants: Map<string, Array<{ variantId: string; side: string }>>,
   groupMap: Map<string, SemanticGroup>,
   elkDirection: string,
+  es: ReturnType<typeof elkSpacing>,
 ): ElkNode {
   const elk: ElkNode = {
     id: gn.id,
@@ -295,51 +345,53 @@ function mapNode(
         // ELK cannot do cross-region layering with perpendicular direction,
         // so we flatten all region children into this container and let
         // ELK compute correct top-to-bottom ordering. Post-processing
-        // (rearrangeSwimlanes with engine='elk') will assign X columns.
+        // (rearrangeSwimlanes) will assign X columns.
         const flatChildren: ElkNode[] = [];
         for (const regionNode of gn.children) {
           if (regionNode.children) {
             for (const leaf of regionNode.children) {
-              flatChildren.push(mapNode(leaf, renderers, portVariants, groupMap, elkDirection));
+              flatChildren.push(mapNode(leaf, renderers, portVariants, groupMap, elkDirection, es));
             }
           }
         }
         elk.children = flatChildren;
         elk.layoutOptions = {
           'elk.padding': '[top=0,left=0,bottom=0,right=0]',
-          'elk.spacing.nodeNode': '12',
-          'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-          'elk.spacing.edgeNode': '10',
-          'elk.spacing.edgeEdge': '8',
-          'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
-          'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+          'elk.spacing.nodeNode': es.nodeNode,
+          'elk.layered.spacing.nodeNodeBetweenLayers': es.nodeNodeBetweenLayers,
+          'elk.spacing.edgeNode': es.edgeNode,
+          'elk.spacing.edgeEdge': es.edgeEdge,
+          'elk.spacing.nodeSelfLoop': es.nodeSelfLoop,
+          'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
+          'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
         };
       } else {
         // ── State concurrent regions — perpendicular direction ──
         const perpDir = (elkDirection === 'DOWN' || elkDirection === 'UP') ? 'RIGHT' : 'DOWN';
-        elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection));
+        elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection, es));
         elk.layoutOptions = {
           'elk.direction': perpDir,
           'elk.spacing.nodeNode': '0',
           'elk.layered.spacing.nodeNodeBetweenLayers': '0',
-          'elk.padding': '[top=26,left=0,bottom=0,right=0]',
+          'elk.padding': `[top=${gn.padding?.top ?? theme?.titleBarHeight ?? 26},left=0,bottom=0,right=0]`,
         };
       }
     } else {
       // ── Normal container ───────────────────────────────────────────
-      elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection));
+      elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection, es));
 
       // Container padding + spacing.
       if (gn.padding) {
         const p = gn.padding;
         elk.layoutOptions = {
           'elk.padding': `[top=${p.top},left=${p.left},bottom=${p.bottom},right=${p.right}]`,
-          'elk.spacing.nodeNode': '12',
-          'elk.layered.spacing.nodeNodeBetweenLayers': '40',
-          'elk.spacing.edgeNode': '10',
-          'elk.spacing.edgeEdge': '8',
-          'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
-          'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+          'elk.spacing.nodeNode': es.nodeNode,
+          'elk.layered.spacing.nodeNodeBetweenLayers': es.nodeNodeBetweenLayers,
+          'elk.spacing.edgeNode': es.edgeNode,
+          'elk.spacing.edgeEdge': es.edgeEdge,
+          'elk.spacing.nodeSelfLoop': es.nodeSelfLoop,
+          'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
+          'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
         };
       }
     }
@@ -349,48 +401,29 @@ function mapNode(
     delete elk.height;
   }
 
-  // For leaf nodes with graphicCenterOffset (icon above/beside title),
-  // shrink ELK node to icon-only dimensions and add the title area
-  // as an external label with actual text.  ELK routes edges to the
-  // icon center and auto-computes margin for the label via
-  // NodeMarginCalculator.
+  // For leaf nodes with graphicSize (icon + external label),
+  // shrink ELK node to icon-only dimensions and add an external label
+  // so ELK's NodeMarginCalculator reserves space for the label area.
+  // This ensures edges route to the icon boundary, not the full box.
   if (!gn.children?.length) {
     const r = renderers.get(gn.id);
     if (r) {
-      const off = r.graphicCenterOffset();
-      const label = r.nodeLabel;
-      if (off.dy !== 0 && label) {
-        const iconH = (gn.height ?? 0) + 2 * off.dy;
-        if (iconH > 0) {
-          const labelH = (gn.height ?? 0) - iconH;
-          elk.height = iconH;
+      const gs = r.graphicSize();
+      if (gs) {
+        const fullW = gn.width ?? 0;
+        const fullH = gn.height ?? 0;
+        elk.width = gs.width;
+        elk.height = gs.height;
+        const label = r.nodeLabel;
+        if (label) {
           if (!elk.labels) elk.labels = [];
           elk.labels.push({
             text: label,
-            width: gn.width ?? 0,
-            height: labelH,
+            width: fullW,
+            height: Math.max(0, fullH - gs.height),
             layoutOptions: {
-              'elk.nodeLabels.placement': off.dy < 0
-                ? 'OUTSIDE V_BOTTOM H_CENTER'
-                : 'OUTSIDE V_TOP H_CENTER',
-            },
-          });
-        }
-      }
-      if (off.dx !== 0 && label) {
-        const iconW = (gn.width ?? 0) + 2 * off.dx;
-        if (iconW > 0) {
-          const labelW = (gn.width ?? 0) - iconW;
-          elk.width = iconW;
-          if (!elk.labels) elk.labels = [];
-          elk.labels.push({
-            text: label,
-            width: labelW,
-            height: gn.height ?? 0,
-            layoutOptions: {
-              'elk.nodeLabels.placement': off.dx < 0
-                ? 'OUTSIDE H_RIGHT V_CENTER'
-                : 'OUTSIDE H_LEFT V_CENTER',
+              // Icon at top, label below (standard IconRenderer layout)
+              'elk.nodeLabels.placement': 'OUTSIDE V_BOTTOM H_CENTER',
             },
           });
         }
@@ -447,6 +480,73 @@ function mapNode(
   }
 
   return elk;
+}
+
+// ---------------------------------------------------------------------------
+// Compound edge proxy — handle ancestor↔descendant group edges
+// ---------------------------------------------------------------------------
+
+/**
+ * When an edge connects an ancestor group to a descendant group, ELK cannot
+ * route it correctly because the source contains the target (or vice versa).
+ * Similar to DOT's proxy node mechanism, we:
+ * 1. Add a tiny proxy node inside the ancestor group
+ * 2. Redirect the edge endpoint from the ancestor to the proxy
+ *
+ * This ensures the edge is placed at the correct level and ELK treats
+ * both endpoints as siblings within the ancestor container.
+ */
+function addCompoundEdgeProxies(
+  elkRoot: ElkNode,
+  edges: ElkEdge[],
+  model: SemanticModel,
+): void {
+  const groupById = new Map<string, SemanticGroup>();
+  for (const g of model.groups || []) groupById.set(g.id, g);
+
+  const groupIds = new Set(groupById.keys());
+
+  function isAncestorGroup(ancestorId: string, descendantId: string): boolean {
+    let cur = groupById.get(descendantId);
+    while (cur && cur.parentId) {
+      if (cur.parentId === ancestorId) return true;
+      cur = groupById.get(cur.parentId);
+    }
+    return false;
+  }
+
+  const nodeMap = buildNodeMap(elkRoot);
+
+  for (const edge of edges) {
+    const srcId = edge.sources[0].includes('::') ? edge.sources[0].split('::')[0] : edge.sources[0];
+    const tgtId = edge.targets[0].includes('::') ? edge.targets[0].split('::')[0] : edge.targets[0];
+
+    if (!groupIds.has(srcId) || !groupIds.has(tgtId)) continue;
+
+    if (isAncestorGroup(srcId, tgtId)) {
+      // Source is ancestor of target — add proxy inside source
+      const proxyId = `__proxy_${srcId}`;
+      const srcNode = nodeMap.get(srcId);
+      if (srcNode) {
+        if (!srcNode.children) srcNode.children = [];
+        if (!srcNode.children.find(c => c.id === proxyId)) {
+          srcNode.children.push({ id: proxyId, width: 1, height: 1 });
+        }
+        edge.sources = [proxyId];
+      }
+    } else if (isAncestorGroup(tgtId, srcId)) {
+      // Target is ancestor of source — add proxy inside target
+      const proxyId = `__proxy_${tgtId}`;
+      const tgtNode = nodeMap.get(tgtId);
+      if (tgtNode) {
+        if (!tgtNode.children) tgtNode.children = [];
+        if (!tgtNode.children.find(c => c.id === proxyId)) {
+          tgtNode.children.push({ id: proxyId, width: 1, height: 1 });
+        }
+        edge.targets = [proxyId];
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -623,6 +723,7 @@ function boostStartPathPriority(elkRoot: ElkNode, model: SemanticModel): void {
 function collectEdges(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
+  theme?: Theme,
 ): ElkEdge[] {
   const elkEdges: ElkEdge[] = [];
 
@@ -646,7 +747,7 @@ function collectEdges(
 
     // Edge label — use LabelRenderer for proper multi-line measurement
     if (edge.label) {
-      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label });
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme });
       const m = lr.measure();
       elkEdge.labels = [{
         text: edge.label,
@@ -694,7 +795,7 @@ function mapNodeSimple(gn: LayoutGraphNode, renderers: Map<string, Renderer>, gr
           'elk.direction': perpDir,
           'elk.spacing.nodeNode': '0',
           'elk.layered.spacing.nodeNodeBetweenLayers': '0',
-          'elk.padding': '[top=26,left=0,bottom=0,right=0]',
+          'elk.padding': `[top=${gn.padding?.top ?? renderers.values().next().value?.theme?.titleBarHeight ?? 26},left=0,bottom=0,right=0]`,
         };
       }
     } else {
@@ -712,36 +813,25 @@ function mapNodeSimple(gn: LayoutGraphNode, renderers: Map<string, Renderer>, gr
     delete elk.height;
   }
 
-  // Shrink nodes with graphicCenterOffset to icon-only dimensions (same as mapNode)
+  // Shrink nodes with graphicSize to icon-only dimensions (same as mapNode)
   if (!gn.children?.length) {
     const r = renderers.get(gn.id);
     if (r) {
-      const off = r.graphicCenterOffset();
-      const label = r.nodeLabel;
-      if (off.dy !== 0 && label) {
-        const iconH = gn.height + 2 * off.dy;
-        if (iconH > 0) {
-          elk.height = iconH;
+      const gs = r.graphicSize();
+      if (gs) {
+        const fullW = gn.width;
+        const fullH = gn.height;
+        elk.width = gs.width;
+        elk.height = gs.height;
+        const label = r.nodeLabel;
+        if (label) {
           if (!elk.labels) elk.labels = [];
           elk.labels.push({
-            text: label, width: gn.width, height: gn.height - iconH,
+            text: label,
+            width: fullW,
+            height: Math.max(0, fullH - gs.height),
             layoutOptions: {
-              'elk.nodeLabels.placement': off.dy < 0
-                ? 'OUTSIDE V_BOTTOM H_CENTER' : 'OUTSIDE V_TOP H_CENTER',
-            },
-          });
-        }
-      }
-      if (off.dx !== 0 && label) {
-        const iconW = gn.width + 2 * off.dx;
-        if (iconW > 0) {
-          elk.width = iconW;
-          if (!elk.labels) elk.labels = [];
-          elk.labels.push({
-            text: label, width: gn.width - iconW, height: gn.height,
-            layoutOptions: {
-              'elk.nodeLabels.placement': off.dx < 0
-                ? 'OUTSIDE H_RIGHT V_CENTER' : 'OUTSIDE H_LEFT V_CENTER',
+              'elk.nodeLabels.placement': 'OUTSIDE V_BOTTOM H_CENTER',
             },
           });
         }

@@ -10,7 +10,7 @@
  * Generate the DrawIO edge style string for a sequence message arrow.
  * Input `msg` should carry arrowStyle, exitX, entryX, fromRelY, toRelY.
  */
-export function messageStyle(msg: any): string {
+export function messageStyle(msg: any, strokeWidth?: number): string {
   const arrowStyle = msg && msg.arrowStyle ? msg.arrowStyle : null;
   const dashed = arrowStyle && arrowStyle.lineStyle === 'dashed' ? 1 : 0;
 
@@ -106,6 +106,9 @@ export function messageStyle(msg: any): string {
     `entryX=${Number.isFinite(msg?.entryX) ? msg.entryX.toFixed(1) : '0.5'}`,
     `entryY=${Number.isFinite(msg?.toRelY) ? msg.toRelY.toFixed(4) : '0.5'}`,
   ];
+
+  // Stroke width from theme
+  if (strokeWidth != null) parts.push(`strokeWidth=${strokeWidth}`);
 
   // Arrow color from [#color] syntax
   if (arrowStyle && arrowStyle.color) {

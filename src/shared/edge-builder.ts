@@ -45,6 +45,10 @@ export interface EdgeCellSpec {
   cardFrom?: string;
   /** Raw PlantUML text — cardinality marker at target end. */
   cardTo?: string;
+  /** Font size for label / cardinality text (from theme). */
+  fontSize?: number;
+  /** Font family for label / cardinality text (from theme). */
+  fontFamily?: string;
 }
 
 /**
@@ -56,10 +60,14 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   const cells: string[] = [];
 
   // Process label through Content pipeline
-  const htmlLabel = spec.label ? Content.inline(spec.label).html : '';
+  const fontOpts = { fontSize: spec.fontSize, fontFamily: spec.fontFamily };
+  const htmlLabel = spec.label ? Content.inline(spec.label, fontOpts).html : '';
   const value = htmlLabel ? escapeXml(htmlLabel) : '';
   let style = spec.style;
   if (htmlLabel && !style.includes('html=1')) style += 'html=1;';
+  // Inject font settings into edge style when provided
+  if (spec.fontSize && !style.includes('fontSize=')) style += `fontSize=${spec.fontSize};`;
+  if (spec.fontFamily && !style.includes('fontFamily=')) style += `fontFamily=${spec.fontFamily};`;
 
   const parent = spec.parent || '1';
   const srcAttr = spec.source != null ? ` source="${escapeXml(spec.source)}"` : '';
@@ -106,18 +114,19 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   }
 
   // Sub-labels (cardinality markers at edge endpoints)
+  const cardFontStyle = (spec.fontSize ? `fontSize=${spec.fontSize};` : '') + (spec.fontFamily ? `fontFamily=${spec.fontFamily};` : '');
   if (spec.cardFrom) {
-    const cardHtml = escapeXml(Content.inline(spec.cardFrom).html);
+    const cardHtml = escapeXml(Content.inline(spec.cardFrom, fontOpts).html);
     cells.push(
-      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
+      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
       + `<mxGeometry x="-1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );
   }
   if (spec.cardTo) {
-    const cardHtml = escapeXml(Content.inline(spec.cardTo).html);
+    const cardHtml = escapeXml(Content.inline(spec.cardTo, fontOpts).html);
     cells.push(
-      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
+      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
       + `<mxGeometry x="1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );

@@ -6,6 +6,7 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -18,7 +19,7 @@ class UsecaseRenderer extends RichRenderer {
   }
 
   protected buildStyle(): string {
-    const base = `whiteSpace=wrap;html=1;fillColor=${this.theme.classFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
+    const base = `whiteSpace=wrap;html=1;fillColor=${this.theme.classFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
     if (this.isBusiness) {
       // Business usecase: ellipse with a diagonal slash (lineEllipse extension)
       return `shape=lineEllipse;line=diagonal;` + base;
@@ -26,9 +27,20 @@ class UsecaseRenderer extends RichRenderer {
     return `ellipse;` + base;
   }
 
-  // Ellipse needs generous padding for visual balance
-  protected get extraPadX(): number { return 30; }
-  protected get extraPadY(): number { return 12; }
+  // Ellipse padding computed from inscribed rectangle geometry:
+  // For text rect inscribed in an ellipse, ellipse size = textRect * √2.
+  // The extra space on each side = textRect * (√2 - 1) / 2, minus half fontSize for tighter fit.
+  protected shapePadding(contentSize?: { width: number; height: number }): ShapePadding {
+    if (!contentSize) return {};
+    const factor = (Math.SQRT2 - 1) / 2;
+    const halfChar = this.theme.fontSize / 2;
+    return {
+      left: Math.ceil(contentSize.width * factor - halfChar),
+      right: Math.ceil(contentSize.width * factor - halfChar),
+      top: Math.ceil(contentSize.height * factor - halfChar),
+      bottom: Math.ceil(contentSize.height * factor - halfChar),
+    };
+  }
 
   // Usecase is always a leaf, never a container
   get isCluster(): boolean { return false; }

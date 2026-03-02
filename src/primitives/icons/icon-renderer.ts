@@ -5,7 +5,7 @@
  * actor, boundary, control, entity, circle, and mxgraph-icon nodes.
  *
  * Subclasses provide icon dimensions and implement render(). The base class
- * handles doMeasure(), graphicCenterOffset(), and nodeLabel.
+ * handles doMeasure(), graphicSize(), and nodeLabel.
  */
 
 import { Renderer } from '../renderer.ts';
@@ -20,21 +20,35 @@ export abstract class IconRenderer extends Renderer {
     this.desc = desc;
   }
 
-  // ── Subclass-provided icon geometry ────────────────────────────────────────
+  // ── Icon geometry (base aspect ratio + auto-scaled to iconSize) ────────────
 
-  /** Icon graphic width (px). */
-  protected abstract get iconWidth(): number;
-  /** Icon graphic height (px). */
-  protected abstract get iconHeight(): number;
+  /** Base icon width ratio. Override for non-square icons (e.g. actor 3:4). */
+  protected get baseIconWidth(): number { return 16; }
+  /** Base icon height ratio. Override for non-square icons (e.g. actor 3:4). */
+  protected get baseIconHeight(): number { return 16; }
+
+  /**
+   * Scale factor: ensures the narrow side equals theme.iconSize.
+   * Subclasses only define aspect ratio via baseIconWidth/baseIconHeight;
+   * the base class normalises so min(iconWidth, iconHeight) === iconSize.
+   */
+  protected get iconScale(): number {
+    return this.theme.iconSize / Math.min(this.baseIconWidth, this.baseIconHeight);
+  }
+
+  /** Computed icon width (baseIconWidth × iconScale). Override for non-scaled icons. */
+  protected get iconWidth(): number { return Math.round(this.baseIconWidth * this.iconScale); }
+  /** Computed icon height (baseIconHeight × iconScale). Override for non-scaled icons. */
+  protected get iconHeight(): number { return Math.round(this.baseIconHeight * this.iconScale); }
 
   // ── Configurable layout constants (override to customize) ──────────────────
 
   /** Gap between icon bottom and label top (px). */
-  protected get iconGap(): number { return 4; }
+  protected get iconGap(): number { return this.theme.iconGap; }
   /** Horizontal padding added to label width (px). */
-  protected get paddingX(): number { return 20; }
+  protected get paddingX(): number { return this.theme.iconPadX; }
   /** Minimum label height — single-line floor (px). */
-  protected get minLabelHeight(): number { return 18; }
+  protected get minLabelHeight(): number { return this.theme.iconMinLabelH; }
 
   // ── Label ──────────────────────────────────────────────────────────────────
 
@@ -42,10 +56,10 @@ export abstract class IconRenderer extends Renderer {
 
   /**
    * Measure label dimensions. Override for custom font/size.
-   * Default uses Content.inline() with DEFAULT_FONT_SIZE.
+   * Default uses Content.inline() with theme fontSize.
    */
   protected measureLabel(): { width: number; height: number } {
-    return Content.inline(this.label).measure();
+    return Content.inline(this.label, { fontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily }).measure();
   }
 
   // ── Layout interface ───────────────────────────────────────────────────────
@@ -55,6 +69,10 @@ export abstract class IconRenderer extends Renderer {
   get nodeLabel(): string { return this.label; }
 
   protected doMeasure() {
+    // Icon-only nodes (no label): return icon dimensions without label area
+    if (!this.label) {
+      return { width: this.iconWidth, height: this.iconHeight };
+    }
     const size = this.measureLabel();
     const labelH = Math.max(Math.ceil(size.height), this.minLabelHeight);
     const labelW = Math.ceil(size.width) + this.paddingX;
@@ -64,8 +82,9 @@ export abstract class IconRenderer extends Renderer {
     };
   }
 
-  graphicCenterOffset() {
-    const h = this.measure().height;
-    return { dx: 0, dy: this.iconHeight / 2 - h / 2 };
+  graphicSize() {
+    // Only report graphic offset when there is a label below the icon
+    if (!this.label) return null;
+    return { width: this.iconWidth, height: this.iconHeight };
   }
 }

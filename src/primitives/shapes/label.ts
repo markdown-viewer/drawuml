@@ -22,11 +22,13 @@ export class LabelRenderer extends RichRenderer {
   // Use block-level Creole for multi-line label support
   protected buildContent(): Content {
     if (this.hasRichBody) return super.buildContent();
-    return Content.block(this.label);
+    return Content.block(this.label, { bodyFontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily });
   }
 
-  // No min-width or padding for borderless text labels
+  // No min-width or padding for borderless text labels;
+  // richBody mode delegates to base class for proper contentPad sizing.
   protected doMeasure() {
+    if (this.hasRichBody) return super.doMeasure();
     const size = this.content.measure();
     return { width: size.width, height: size.height };
   }

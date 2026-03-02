@@ -269,7 +269,7 @@ export function parseActivityDiagram(
 
   function flushActivity(): void {
     if (!activityAccum) return;
-    const label = activityAccum.lines.join('\\n');
+    const label = activityAccum.lines.join('\n');
     const nodeId = createActionNode(label, activityAccum.color);
     connectCursorsTo(nodeId);
     cursors = [nodeId];

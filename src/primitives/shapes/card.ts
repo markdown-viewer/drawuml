@@ -6,17 +6,22 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class CardRenderer extends RichRenderer {
+  protected shapePadding(): ShapePadding { return {}; }
+  protected override get hasTitlebar(): boolean { return true; }
+
   protected buildStyle(): string {
     // Use plain rectangle when card has title only (no body content and no children)
     const hasContent = this.desc.bodyLines && this.desc.bodyLines.length > 0;
     if (!hasContent && !this.isCluster) {
-      return `shape=mxgraph.basic.rect;rounded=1;absoluteArcSize=1;arcSize=${this.theme.rectArcSize};fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+      return `shape=mxgraph.basic.rect;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
     }
-    return `shape=mxgraph.archimate.businessObject;size=20;rounded=1;absoluteArcSize=1;arcSize=${this.theme.rectArcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=-2;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    // Swimlane with startSize gives a proper title bar header, matching state/class node pattern
+    return `swimlane;startSize=${this.theme.titleBarHeight};swimlaneLine=1;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
 }
 

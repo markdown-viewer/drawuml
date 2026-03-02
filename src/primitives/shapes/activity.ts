@@ -4,18 +4,9 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const ARC_SIZE = 25;
-
-// Extra padding for octagon shape to prevent text clipped by cut corners
-const OCTAGON_EXTRA_H = 14;
-const OCTAGON_EXTRA_V = 6;
 
 // ---------------------------------------------------------------------------
 // Renderer class
@@ -29,17 +20,18 @@ class ActivityNodeRenderer extends RichRenderer {
   protected buildStyle(): string {
     if (this.isOctagon) {
       return 'shape=mxgraph.basic.octagon;whiteSpace=wrap;html=1;'
-        + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+        + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
         + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
     }
-    return 'rounded=1;whiteSpace=wrap;html=1;'
-      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+    return 'rounded=1;absoluteArcSize=1;whiteSpace=wrap;html=1;'
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`
-      + `arcSize=${ARC_SIZE};`;
+      + `arcSize=${this.theme.largeArcSize};`;
   }
 
-  protected get extraPadX(): number { return this.isOctagon ? OCTAGON_EXTRA_H : 0; }
-  protected get extraPadY(): number { return this.isOctagon ? OCTAGON_EXTRA_V : 0; }
+  protected shapePadding(): ShapePadding {
+    return this.isOctagon ? { left: this.theme.octagonExtraH, right: this.theme.octagonExtraH, top: this.theme.octagonExtraV, bottom: this.theme.octagonExtraV } : {};
+  }
 }
 
 /** Register activity-node renderer into global registry. */

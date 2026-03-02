@@ -14,13 +14,6 @@ import { lookupIcon, resolveShapeRef } from '../../shared/icon-registry.ts';
 import type { IconRecord } from '../../shared/icon-registry.ts';
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-// Default icon dimensions when the shapeKey is not found in icon-data.
-const DEFAULT_ICON_SIZE = 48;
-
-// ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
 
@@ -35,10 +28,15 @@ export class MxgraphIconRenderer extends IconRenderer {
     this.iconRecord = this.shapeKey ? lookupIcon(this.shapeKey) : undefined;
   }
 
-  protected get iconWidth(): number { return this.iconRecord?.w ?? DEFAULT_ICON_SIZE; }
-  protected get iconHeight(): number { return this.iconRecord?.h ?? DEFAULT_ICON_SIZE; }
-  protected override get paddingX(): number { return 16; }
-  protected override get minLabelHeight(): number { return 20; }
+  // Use icon-data dimensions as aspect-ratio base; scale via mxgraphIconSize
+  protected override get baseIconWidth(): number { return this.iconRecord?.w ?? this.theme.defaultIconSize; }
+  protected override get baseIconHeight(): number { return this.iconRecord?.h ?? this.theme.defaultIconSize; }
+  // Normalise the *wide* side to mxgraphIconSize so the icon fits within bounds
+  protected override get iconScale(): number {
+    return this.theme.mxgraphIconSize / Math.max(this.baseIconWidth, this.baseIconHeight);
+  }
+  protected override get paddingX(): number { return this.theme.mxIconPadX; }
+  protected override get minLabelHeight(): number { return this.theme.mxIconMinLabelH; }
 
   // Override: padding applies to icon width too
   protected override doMeasure(): { width: number; height: number } {
@@ -78,11 +76,12 @@ export class MxgraphIconRenderer extends IconRenderer {
       defaultFill,
       `strokeColor=${this.theme.colorDark}`,
       `fontColor=${this.theme.colorDark}`,
+      `strokeWidth=${this.theme.strokeWidth}`,
       dataStyle,
     ].filter(Boolean).join(';') + ';';
 
     // Apply user inline style overrides (parseNodeStyle handles #fill ##stroke etc.)
-    const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor);
+    const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor, this.theme.strokeWidth * 2);
     style = styledStyle;
 
     // Center icon horizontally within the DOT-allocated box

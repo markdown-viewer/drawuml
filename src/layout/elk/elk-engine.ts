@@ -11,7 +11,7 @@ import type { LayoutResult } from '../../model/index.ts';
 import type { SemanticModel } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from '../renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, rearrangeSwimlanes } from '../post-process.ts';
+import { snapPortNodes, alignFieldNotes, positionTitle, rearrangeSwimlanes, separateOverlappingEdges } from '../post-process.ts';
 import { layoutGraphToElk, layoutGraphToElkSimple } from './elk-adapter.ts';
 import { extractElkLayout } from './elk-extractor.ts';
 import { dotLayout } from '../dot-layout.ts';
@@ -66,7 +66,7 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   const rootNodes = rootRenderers.map(r => r.buildLayoutGraph());
 
   // 4. Pass 1 — run ELK without port constraints to get node positions
-  const simpleGraph = layoutGraphToElkSimple(rootNodes, model, renderers);
+  const simpleGraph = layoutGraphToElkSimple(rootNodes, model, renderers, options?.theme);
   const pass1Result = await elk.layout(simpleGraph);
 
   // Extract node center positions from pass 1
@@ -74,7 +74,7 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   collectNodePositions(pass1Result, 0, 0, nodePositions);
 
   // 5. Pass 2 — build ELK graph with position-aware port assignment
-  const elkGraph = layoutGraphToElk(rootNodes, model, renderers, nodePositions);
+  const elkGraph = layoutGraphToElk(rootNodes, model, renderers, nodePositions, options?.theme);
 
   // 6. Collect group IDs for edge group detection
   const groupIds = new Set<string>();
@@ -90,12 +90,16 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   // 8. Extract layout result
   const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
-  // 9. Swimlane column rearrangement (if activity swimlanes present)
-  rearrangeSwimlanes(layout, model, 'elk');
+  // 9. Enforce minimum edge-edge spacing (ELK doesn't guarantee it for cross-hierarchy edges)
+  const theme = options?.theme;
+  separateOverlappingEdges(layout, theme?.edgeEdgePx ?? 8);
 
-  // 10. Post-processing (shared with DOT engine)
-  snapPortNodes(layout, model, renderers);
-  alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
+  // 10. Swimlane column rearrangement (if activity swimlanes present)
+  rearrangeSwimlanes(layout, model, theme);
+
+  // 11. Post-processing (shared with DOT engine)
+  snapPortNodes(layout, model, renderers, theme);
+  alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
   positionTitle(layout, renderers);
 
   return { layout, renderers };

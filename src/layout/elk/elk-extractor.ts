@@ -38,8 +38,8 @@ export function extractElkLayout(
   collectNodes(elkResult, 0, 0, nodes, groups, groupIds, renderers);
 
   // Extract edges — no endpoint offset needed because the ELK adapter
-  // already uses icon-only node dimensions for nodes with graphicCenterOffset,
-  // so ELK routes edges directly to the icon center.
+  // uses icon-only node dimensions with margins for nodes with graphicSize,
+  // so ELK routes edges directly to the icon boundary.
   const layoutEdges = extractEdges(elkResult, edges, groupIds);
 
   // Post-process: simplify minor orthogonal bends caused by ELK's
@@ -97,10 +97,21 @@ function collectNodes(
       const nodeW = knownSize ? knownSize.width : w;
       const nodeH = knownSize ? knownSize.height : h;
 
+      // When graphicSize is set, ELK placed the icon-only node.
+      // Expand back to the full bounding box (icon + label) for rendering.
+      const gs = r ? r.graphicSize() : null;
+      let nodeX = absX;
+      let nodeY = absY;
+      if (gs && knownSize) {
+        const marginLeft = Math.round((knownSize.width - gs.width) / 2);
+        // Icon is at top, label below — no top margin adjustment needed
+        nodeX -= marginLeft;
+      }
+
       const layoutNode: LayoutNode = {
         id: child.id,
-        x: Math.round(absX),
-        y: Math.round(absY),
+        x: Math.round(nodeX),
+        y: Math.round(nodeY),
         width: Math.round(nodeW),
         height: Math.round(nodeH),
       };
@@ -117,9 +128,8 @@ function collectNodes(
       }
 
       // NOTE: Unlike DOT (which gives center coords and needs offset to derive
-      // top-left), ELK gives top-left coords directly.  Do NOT apply
-      // graphicCenterOffset here — it is only needed for edge endpoints
-      // (to shift from bounding-box center to icon center).
+      // top-left), ELK gives top-left coords directly.  When graphicSize is
+      // set, the position is adjusted above to account for margins.
 
       nodes[child.id] = layoutNode;
     }

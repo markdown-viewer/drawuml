@@ -6,10 +6,9 @@
  * This file provides:
  *   - classContent(node) — create a Content object for a class node
  *   - classNodeStyle(node, startSize) — generate DrawIO swimlane style
- *   - textRowStyle / separatorStyle — generate DrawIO child row/separator styles
  */
 
-import { Content, CLASS_ROW_HEIGHT, CLASS_SEPARATOR_HEIGHT, CLASS_BODY_PADDING_Y, TITLED_SEPARATOR_HEIGHT } from '../shared/content.ts';
+import { Content } from '../shared/content.ts';
 import { buildLabelHtml } from './label.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import { SwimlaneRenderer } from './renderer.ts';
@@ -17,16 +16,15 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
-import type { LayoutGraphNode, LayoutPort } from '../layout/layout-graph.ts';
+import type { LayoutGraphNode } from '../layout/layout-graph.ts';
+import type { Theme } from '../shared/theme.ts';
 
 // Re-export layout constants for consumers (e.g. DOT port-label building)
-export { CLASS_ROW_HEIGHT as ROW_HEIGHT, CLASS_SEPARATOR_HEIGHT as SEPARATOR_HEIGHT } from '../shared/content.ts';
+
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const TITLE_FONT_SIZE = 12;   // container font size for title area
 
 /** Spot character and background color per entity stereotype/type. */
 const SPOT_MAP: Record<string, { char: string; color: string }> = {
@@ -58,7 +56,7 @@ const SPOT_TYPES = new Set(Object.keys(SPOT_MAP));
  * Build HTML for the title area of a class node.
  * Delegates to shared buildLabelHtml with class-specific spot/italic resolution.
  */
-export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string } }): string {
+export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string }; theme?: { fontSize: number; fontFamily: string } }): string {
   const stype = node.stereotype || node.type || '';
   // Custom spot from <<(X,color)>> overrides the default SPOT_MAP lookup.
   const spotInfo = node.hideCircle ? undefined : (node.spot || SPOT_MAP[stype]);
@@ -69,6 +67,7 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
     stereotypeLabel: node.stereotypeLabel,
     spot: spotInfo ? { char: spotInfo.char, color: spotInfo.color } : undefined,
     italic: ITALIC_TYPES.has(stype),
+    fontSize: node.theme?.fontSize,
   });
 }
 
@@ -80,8 +79,8 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
  * FinalizeBody callback for entities that skip auto-separator
  * (e.g. object, state). Returns emptyBodyPad for empty body.
  */
-function skipAutoSeparator(ctx: FinalizeBodyCtx): Partial<Record<string, any>> {
-  if (ctx.lines.length === 0) return { emptyBodyPad: 10 };
+function skipAutoSeparator(ctx: FinalizeBodyCtx, theme?: Theme): Partial<Record<string, any>> {
+  if (ctx.lines.length === 0) return { emptyBodyPad: theme?.emptyBodyPad ?? 10 };
   return {};
 }
 
@@ -101,6 +100,7 @@ export function classContent(node: {
   hideFields?: boolean;
   hideMethods?: boolean;
   spot?: { char: string; color: string };
+  theme?: Theme;
 }): Content {
   const entityType = node.stereotype || node.type || '';
   const skipAutoSep = entityType === 'object';
@@ -111,6 +111,9 @@ export function classContent(node: {
     visibilityIcons: node.visibilityIcons,
     hideFields: node.hideFields,
     hideMethods: node.hideMethods,
+    fontSize: node.theme?.fontSize,
+    fontFamily: node.theme?.fontFamily,
+    theme: node.theme,
     finalizeBody: skipAutoSep ? skipAutoSeparator : undefined,
   });
 }
@@ -120,7 +123,7 @@ export function classContent(node: {
 // ---------------------------------------------------------------------------
 
 /** Compute title bar height for a class node. */
-export function computeTitleH(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean }): number {
+export function computeTitleH(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; theme?: Theme }): number {
   return classContent({ id: '', ...node }).measure().titleHeight!;
 }
 
@@ -129,7 +132,7 @@ export function computeTitleH(node: { label: string; stereotype?: string | null;
 // ---------------------------------------------------------------------------
 
 /** Generate swimlane style string for a class node mxCell. */
-export function classNodeStyle(node: { stereotype?: string | null; type?: string; label: string; stereotypeLabel?: string; style?: string | null; hideCircle?: boolean }, startSize?: number, theme?: { rectArcSize: number; classFill: string }): string {
+export function classNodeStyle(node: { stereotype?: string | null; type?: string; label: string; stereotypeLabel?: string; style?: string | null; hideCircle?: boolean }, startSize?: number, theme?: { arcSize: number; classFill: string; strokeWidth: number; fontSize?: number; fontFamily?: string }): string {
   const stype = node.stereotype || node.type || '';
   const resolvedSize = startSize ?? computeTitleH(node);
   const parsed = parseNodeStyle(node.style);
@@ -149,10 +152,14 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     'marginBottom=0',
     'rounded=1',
     'absoluteArcSize=1',
-    `arcSize=${theme?.rectArcSize ?? 4}`,
+    `arcSize=${theme?.arcSize ?? 4}`,
     'shadow=0',
-    'strokeWidth=1',
+    `strokeWidth=${theme?.strokeWidth ?? 1}`,
   ];
+
+  // Font size / family
+  if (theme?.fontSize) base.push(`fontSize=${theme.fontSize}`);
+  if (theme?.fontFamily) base.push(`fontFamily=${theme.fontFamily}`);
 
   if (ITALIC_TYPES.has(stype)) base.push('fontStyle=2');
   else base.push('fontStyle=0');
@@ -168,7 +175,7 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push('strokeWidth=2');
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${(theme?.strokeWidth ?? 1) * 2}`);
   }
 
   // Default white fill when no custom fill specified
@@ -177,44 +184,6 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
   }
 
   return base.join(';') + ';';
-}
-
-/** Style string for attribute/method text rows inside a class swimlane. */
-export function textRowStyle(strokeColor?: string, lineStyle?: string): string {
-  const parts = [
-    'text', 'html=1', 'strokeColor=none', 'fillColor=none',
-    'align=left', 'verticalAlign=middle',
-    'spacingLeft=4', 'spacingRight=4',
-    'whiteSpace=wrap', 'overflow=hidden', 'rotatable=0',
-    'points=[[0,0.5],[1,0.5]]', 'portConstraint=eastwest',
-  ];
-  if (strokeColor) parts.push(`strokeColor=${strokeColor}`);
-  if (lineStyle === 'dashed') parts.push('dashed=1');
-  else if (lineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
-  else if (lineStyle === 'bold') parts.push('strokeWidth=2');
-  return parts.join(';') + ';';
-}
-
-/** Style string for the separator line between attributes and methods. */
-export function separatorStyle(strokeColor?: string, lineStyle?: string): string {
-  const parts = [
-    'line',
-    'strokeWidth=1',
-    'align=left',
-    'verticalAlign=middle',
-    'spacingTop=-1',
-    'spacingLeft=3',
-    'spacingRight=3',
-    'rotatable=0',
-    'labelPosition=right',
-    'points=[]',
-    'portConstraint=eastwest',
-  ];
-  if (strokeColor) parts.push(`strokeColor=${strokeColor}`);
-  if (lineStyle === 'dashed') parts.push('dashed=1');
-  else if (lineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
-  else if (lineStyle === 'bold') parts.push('strokeWidth=2');
-  return parts.join(';') + ';';
 }
 
 // ---------------------------------------------------------------------------
@@ -244,19 +213,20 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
-    return this.skipAutoSep ? skipAutoSeparator(ctx) : null;
+    return this.skipAutoSep ? skipAutoSeparator(ctx, this.theme) : null;
   }
 
   protected getContainerStyle(titleHeight: number) {
     return classNodeStyle(this.node, titleHeight, this.theme);
   }
 
-  protected getRowStyle() {
-    return textRowStyle(this.childStroke, this.childLineStyle);
-  }
-
-  protected getSeparatorStyle() {
-    return separatorStyle(this.childStroke, this.childLineStyle);
+  protected getChildStyleOpts() {
+    return {
+      childStroke: this.childStroke,
+      childLineStyle: this.childLineStyle,
+      portConstraint: true as const,
+      spacingX: this.theme.classRowSpacingX,
+    };
   }
 
   /**
@@ -264,40 +234,17 @@ class ClassNodeRenderer extends SwimlaneRenderer {
    */
   override buildLayoutGraph(): LayoutGraphNode {
     const node = super.buildLayoutGraph();
-    const blocks = this.content.blocks;
-    const measured = this.content.measure();
-    const ports: LayoutPort[] = [];
-    let y = 0;
-    let bodyStarted = false;
+    const pp = this.content.portPositions();
 
-    for (const b of blocks) {
-      if (b.kind === 'title') {
-        y += measured.titleHeight!;
-      } else {
-        if (!bodyStarted && CLASS_BODY_PADDING_Y > 0) {
-          y += CLASS_BODY_PADDING_Y;
-          bodyStarted = true;
-        }
-        if (b.kind === 'separator') {
-          y += b.title ? TITLED_SEPARATOR_HEIGHT : CLASS_SEPARATOR_HEIGHT;
-        } else if (b.kind === 'row') {
-          const rowContent = Content.text(b.html);
-          const rowSize = rowContent.measure();
-          const h = (rowSize.height || CLASS_ROW_HEIGHT) + CLASS_BODY_PADDING_Y;
-          const portName = b.id ? b.id.split('::').slice(1).join('::') : '';
-          if (portName) {
-            ports.push({ id: `${this.id}::${portName}`, width: node.width, height: h, y });
-          }
-          y += h;
-        } else if (b.kind === 'rich') {
-          const richContent = Content.text(b.html);
-          const richSize = richContent.measure();
-          y += richSize.height || CLASS_ROW_HEIGHT;
-        }
-      }
+    if (pp.length > 0) {
+      node.ports = pp.map(p => ({
+        id: p.id,
+        width: node.width,
+        height: p.height,
+        y: p.y,
+      }));
     }
 
-    if (ports.length > 0) node.ports = ports;
     return node;
   }
 }

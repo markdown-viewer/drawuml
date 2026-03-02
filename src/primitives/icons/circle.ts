@@ -16,13 +16,6 @@ import type { RenderDescriptor, NodeDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const CIRCLE_DIAMETER = 16;    // PlantUML: rx=8, ry=8
-const CIRCLE_TEXT_GAP = 16;    // gap between circle and text below
-
-// ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
 
@@ -38,10 +31,8 @@ class CircleRenderer extends IconRenderer {
     this.textWidth = Math.ceil(meas.width);
   }
 
-  protected get iconWidth(): number { return CIRCLE_DIAMETER; }
-  protected get iconHeight(): number { return CIRCLE_DIAMETER; }
-  protected override get iconGap(): number { return CIRCLE_TEXT_GAP; }
-  protected override get paddingX(): number { return 40; }
+  protected override get iconGap(): number { return this.theme.circleTextGap; }
+  protected override get paddingX(): number { return this.theme.circlePadX; }
 
   // Override: circle uses titleFontSize for measurement
   protected override measureLabel() {
@@ -59,25 +50,27 @@ class CircleRenderer extends IconRenderer {
   }
 
   render(box: ContentBox) {
-    const cx = box.x + Math.round((box.width - CIRCLE_DIAMETER) / 2);
+    const d = this.iconWidth;
+    const cx = box.x + Math.round((box.width - d) / 2);
     const cy = box.y;
     // Use actual text width as labelWidth to prevent wrapping without over-expanding
-    const labelWidth = Math.max(this.textWidth + 4, CIRCLE_DIAMETER);
+    const labelWidth = Math.max(this.textWidth + 4, d);
     let s = 'ellipse;whiteSpace=wrap;html=1;aspect=fixed;'
-      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.titleFontSize};fontColor=${this.theme.colorDark};`
       + 'verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;align=center;'
       + `labelWidth=${labelWidth};`;
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
       id: this.desc.id, value: buildLabelHtml({
         label: this.labelHtml,
         stereotypeLabel: this.desc.stereotypeLabel || undefined,
+        fontSize: this.theme.fontSize,
       }), style: s,
       parent: this.parentId || '1',
-      x: cx, y: cy, width: CIRCLE_DIAMETER, height: CIRCLE_DIAMETER,
+      x: cx, y: cy, width: d, height: d,
     })];
   }
 }

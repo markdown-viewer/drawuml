@@ -71,7 +71,7 @@ export function wrapMxfile(cells: string[], options?: {
  * The generated cell uses the parent shape as its parent and occupies
  * the full container area so the text is centred inside the shape.
  */
-export function mxContentLabel(parentId: string, label: string, width: number, height: number, fontStyle: string = '', yOffset: number = 0, xOffset: number = 0): string {
+export function mxContentLabel(parentId: string, label: string, width: number, height: number, fontStyle: string = '', yOffset: number = 0, xOffset: number = 0, rightPad: number = 0, bottomPad: number = 0): string {
   const style = `text;html=1;align=center;verticalAlign=middle;`
     + `resizable=0;points=[];autosize=0;strokeColor=none;fillColor=none;`
     + fontStyle;
@@ -80,6 +80,6 @@ export function mxContentLabel(parentId: string, label: string, width: number, h
     value: label,
     style,
     parent: parentId,
-    x: xOffset, y: yOffset, width: width - xOffset, height: height - yOffset,
+    x: xOffset, y: yOffset, width: width - xOffset - rightPad, height: height - yOffset - bottomPad,
   });
 }

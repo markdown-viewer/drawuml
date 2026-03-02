@@ -66,15 +66,16 @@ function extractLayout(
     // (e.g. actor, boundary, entity, control, circle), the visual center is
     // above the geometric center; the offset corrects this mismatch so edge
     // routing hits the icon rather than the label area.
-    const offset = r ? r.graphicCenterOffset() : { dx: 0, dy: 0 };
+    const gs = r ? r.graphicSize() : null;
+    const offsetDy = gs ? (gs.height - hPt) / 2 : 0;
 
     nodes[name] = {
       id: name,
       cx, cy,
       width: Math.round(wPt),
       height: Math.round(hPt),
-      x: Math.round(cx - wPt / 2 + offset.dx),
-      y: Math.round(cy - hPt / 2 + offset.dy),
+      x: Math.round(cx - wPt / 2),
+      y: Math.round(cy - hPt / 2 + offsetDy),
     } as any;
     // Store raw xlabel position (Graphviz coords) for conversion after Y-flip
     if (obj.xlp && typeof obj.xlp === 'string') {
@@ -330,20 +331,20 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
 
   // 5a. Swimlane column rearrangement (if activity swimlanes present)
-  rearrangeSwimlanes(layout, model);
+  rearrangeSwimlanes(layout, model, theme);
 
   // 5a2. Fix node spacing, ortho edges, and node collision avoidance for swimlane diagrams
   if (useOrtho) {
-    fixNodeSpacing(layout, model);
+    fixNodeSpacing(layout, model, theme);
     fixOrthoEdges(layout, model);
-    avoidNodeCollisions(layout, model);
+    avoidNodeCollisions(layout, model, theme);
   }
 
   // 5b. Snap port nodes to their parent group boundary
-  snapPortNodes(layout, model, renderers);
+  snapPortNodes(layout, model, renderers, theme);
 
   // 6. Fine-tune field-targeting notes (memberTarget) Y alignment
-  alignFieldNotes(layout.nodes, model.notes || [], model.nodes);
+  alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
 
   // 7. Position title above diagram with negative Y (not via DOT)
   positionTitle(layout, renderers);

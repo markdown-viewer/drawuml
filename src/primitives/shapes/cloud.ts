@@ -5,17 +5,18 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class CloudRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=cloud;whiteSpace=wrap;size=0.5;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    return `shape=cloud;whiteSpace=wrap;size=0.5;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
-  // Procedural cloud (size<1): thin arc border (~0.04*min) + corner radius (~0.15*min).
-  // Content area inset is small; add minimal extra padding for visual comfort.
-  protected get extraPadY(): number { return 6; }
-  protected get extraPadX(): number { return 10; }
+  // Cloud arc border + corner radius inset
+  protected shapePadding(): ShapePadding {
+    return { left: this.theme.cloudPadH, right: this.theme.cloudPadH, top: this.theme.cloudPadV, bottom: this.theme.cloudPadV };
+  }
 }
 
 export function registerCloudShape(): void {

@@ -28,9 +28,8 @@ import { creoleInline } from './creole-inline.ts';
 import { parseCreoleBlocks } from './creole-parser.ts';
 import { renderCreoleToHtml } from './creole-render.ts';
 import type { BodyLine } from '../model/class-model.ts';
-// Default font metrics for text measurement (local constants to avoid theme.ts dependency)
-const DEFAULT_FONT_FAMILY = 'Arial';
-const DEFAULT_FONT_SIZE = 12;
+import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-measure';
+import type { Theme } from './theme.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types
@@ -47,13 +46,15 @@ export type ContentBlock =
 interface ContentMetrics {
   titleFontSize: number;
   bodyFontSize: number;
+  fontFamily: string;
   paddingX: number;
-  paddingY: number;
   titlePaddingY: number;
   /** Vertical padding at top and bottom of the body section (below title). */
   bodyPaddingY: number;
   rowHeight: number;
   separatorHeight: number;
+  /** Height for titled separators (e.g. map/json titled dividers). */
+  titledSeparatorHeight: number;
   minWidth: number;
   minHeight: number;
   /** Extra height added when the content has a title but no body blocks. */
@@ -91,6 +92,27 @@ export interface ChildSkin {
 }
 
 /**
+ * Options controlling how child cell styles are built inside renderChildren.
+ * When Content holds a theme, these options fine-tune the generated styles.
+ */
+export interface ChildStyleOpts {
+  /** Container fill color — used for separator label background */
+  fillColor?: string;
+  /** Container stroke color — used for separator line color */
+  strokeColor?: string;
+  /** Child row/separator stroke color inheritance (class-node skinparam) */
+  childStroke?: string;
+  /** Child row/separator line style inheritance (class-node skinparam) */
+  childLineStyle?: string;
+  /** Append portConstraint=eastwest on row and separator cells (swimlane) */
+  portConstraint?: boolean;
+  /** Row text alignment override (default: 'left') */
+  align?: 'left' | 'center' | 'right';
+  /** Row spacingLeft/spacingRight override */
+  spacingX?: number;
+}
+
+/**
  * Context passed to the finalizeBody callback in Content.classBody().
  * Allows renderers to customize auto-separator behavior per entity type
  * without Content needing to know about specific entity types.
@@ -111,40 +133,57 @@ export interface FinalizeBodyCtx {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const DEFAULTS: ContentMetrics = {
-  titleFontSize: 12,
+  titleFontSize: DEFAULT_FONT_SIZE,
   bodyFontSize: DEFAULT_FONT_SIZE,
+  fontFamily: DEFAULT_FONT_FAMILY,
   paddingX: 0,
-  paddingY: 0,
   titlePaddingY: 0,
   bodyPaddingY: 0,
   rowHeight: 26,
   separatorHeight: 8,
+  titledSeparatorHeight: 20,
   minWidth: 0,
   minHeight: 0,
   emptyBodyPad: 0,
 };
 
-// Exported structural constants for consumers (e.g. DOT port-label building)
-export const CLASS_ROW_HEIGHT = 22;
-export const CLASS_SEPARATOR_HEIGHT = 10;
-export const CLASS_BODY_PADDING_Y = 5;
-export const TITLED_SEPARATOR_HEIGHT = 20;
 
-const CLASS_METRICS: Partial<ContentMetrics> = {
-  titleFontSize: 12,
-  paddingX: 40,
-  titlePaddingY: 12,
-  bodyPaddingY: CLASS_BODY_PADDING_Y,
-  rowHeight: CLASS_ROW_HEIGHT,
-  separatorHeight: CLASS_SEPARATOR_HEIGHT,
-  minWidth: 80,
-};
 
-const RICH_BODY_METRICS: Partial<ContentMetrics> = {
-  paddingX: 22,   // spacingLeft + spacingRight + 2 (drawio2svg subtracts 2 extra)
-  bodyPaddingY: 5, // top/bottom padding — matches separator half-height (10/2)
-  separatorHeight: CLASS_SEPARATOR_HEIGHT,
-};
+/** Build class metrics from theme or use hardcoded defaults. */
+function classMetrics(theme?: Theme): Partial<ContentMetrics> {
+  if (theme) return {
+    paddingX: theme.classPadX,
+    titlePaddingY: theme.fontSize,
+    bodyPaddingY: theme.classBodyPadY,
+    rowHeight: theme.classRowHeight,
+    separatorHeight: theme.classSepHeight,
+    titledSeparatorHeight: theme.titledSepHeight,
+    minWidth: theme.classMinWidth,
+  };
+  return {
+    paddingX: 40,
+    titlePaddingY: 12,
+    bodyPaddingY: 5,
+    rowHeight: 22,
+    separatorHeight: 10,
+    titledSeparatorHeight: 20,
+    minWidth: 80,
+  };
+}
+
+/** Build rich body metrics from theme or use hardcoded defaults. */
+function richBodyMetrics(theme?: Theme): Partial<ContentMetrics> {
+  // paddingX and bodyPaddingY are intentionally omitted (default 0).
+  // RichRenderer.contentPad provides unified four-side content padding.
+  if (theme) return {
+    separatorHeight: theme.classSepHeight,
+    titledSeparatorHeight: theme.titledSepHeight,
+  };
+  return {
+    separatorHeight: 10,
+    titledSeparatorHeight: 20,
+  };
+}
 
 /**
  * Build a DrawIO style string for rich text child cells.
@@ -156,13 +195,55 @@ const RICH_BODY_METRICS: Partial<ContentMetrics> = {
  * result is identical to top alignment.
  * Only `spacingLeft` / `spacingRight` vary per consumer.
  */
-export function richTextStyle(spacingLeft: number, spacingRight: number, align: 'left' | 'center' | 'right' = 'left'): string {
-  return [
+/**
+ * Style string for separator line child mxCells.
+ *
+ * Centralised here so all renderers (class-node, state-node, rich-renderer,
+ * participant) share a single definition.  Optional extras allow swimlane
+ * renderers to append portConstraint and per-entity stroke/lineStyle.
+ */
+export function separatorStyle(opts?: {
+  strokeColor?: string;
+  lineStyle?: string;
+  strokeWidth?: number;
+  fontSize?: number;
+  fontFamily?: string;
+  /** Append portConstraint=eastwest (swimlane class/state nodes). */
+  portConstraint?: boolean;
+}): string {
+  const sw = opts?.strokeWidth ?? 1;
+  const parts = [
+    'line',
+    `strokeWidth=${sw}`,
+    'align=left',
+    'verticalAlign=middle',
+    'spacingTop=-1',
+    'spacingLeft=3',
+    'spacingRight=3',
+    'rotatable=0',
+    'labelPosition=right',
+    'points=[]',
+  ];
+  if (opts?.portConstraint) parts.push('portConstraint=eastwest');
+  if (opts?.strokeColor) parts.push(`strokeColor=${opts.strokeColor}`);
+  if (opts?.lineStyle === 'dashed') parts.push('dashed=1');
+  else if (opts?.lineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
+  else if (opts?.lineStyle === 'bold') parts.push(`strokeWidth=${sw * 2}`);
+  if (opts?.fontSize) parts.push(`fontSize=${opts.fontSize}`);
+  if (opts?.fontFamily) parts.push(`fontFamily=${opts.fontFamily}`);
+  return parts.join(';') + ';';
+}
+
+export function richTextStyle(spacingLeft: number, spacingRight: number, align: 'left' | 'center' | 'right' = 'left', fontSize?: number, fontFamily?: string): string {
+  const parts = [
     'text', 'html=1', 'strokeColor=none', 'fillColor=none',
     `align=${align}`, 'verticalAlign=middle',
     `spacingLeft=${spacingLeft}`, `spacingRight=${spacingRight}`,
     'whiteSpace=wrap', 'overflow=hidden', 'rotatable=0',
-  ].join(';') + ';';
+  ];
+  if (fontSize) parts.push(`fontSize=${fontSize}`);
+  if (fontFamily) parts.push(`fontFamily=${fontFamily}`);
+  return parts.join(';') + ';';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -204,9 +285,12 @@ function adjustSeparatorStyle(
       break;
     case 'solid':
       // Solid (--) renders slightly bolder than default (official uses stroke-width:1 vs 0.5 default)
-      style = style.replace(/strokeWidth=\d+/, 'strokeWidth=1.2');
+      style = style.replace(/strokeWidth=[\d.]+/, (m) => {
+        const v = parseFloat(m.split('=')[1]) || 1;
+        return `strokeWidth=${v * 1.2}`;
+      });
       break;
-    // 'strong' (__) → default strokeWidth=1, plain separator (no change)
+    // 'strong' (__) → default strokeWidth, plain separator (no change)
   }
 
   // Titled separators: center the label on the line with background fill
@@ -474,7 +558,7 @@ function applyMemberModifierStyle(html: string, tag?: string): string {
  * const children = c.renderChildren(nodeId, width, childSkin, size.titleHeight);
  *
  * // Rich note content
- * const c = Content.richBody(rawLines, { paddingX: 23, paddingY: 10, ... });
+ * const c = Content.richBody(rawLines, { minWidth: 30, ... });
  * const size = c.measure();  // {width, height}
  * // Renderer creates note container, then:
  * const children = c.renderChildren(noteId, width, childSkin);
@@ -483,10 +567,57 @@ function applyMemberModifierStyle(html: string, tag?: string): string {
 export class Content {
   private _blocks: ContentBlock[];
   private _m: ContentMetrics;
+  /** Theme reference for child style generation in renderChildren. */
+  private _theme?: Theme;
 
-  private constructor(blocks: ContentBlock[], metrics: Partial<ContentMetrics> = {}) {
+  private constructor(blocks: ContentBlock[], metrics: Partial<ContentMetrics> = {}, theme?: Theme) {
     this._blocks = blocks;
     this._m = { ...DEFAULTS, ...metrics };
+    this._theme = theme;
+  }
+
+  /**
+   * Build the row text style string from theme + child options.
+   * Delegates to richTextStyle / textRowStyle depending on portConstraint.
+   */
+  private _buildRowStyle(co?: ChildStyleOpts): string {
+    const fs = this._m.bodyFontSize;
+    const ff = this._m.fontFamily;
+    if (co?.portConstraint) {
+      // Swimlane row: textRowStyle style with port constraint
+      const sx = co.spacingX ?? 4;
+      const parts = [
+        'text', 'html=1', 'strokeColor=none', 'fillColor=none',
+        `align=${co.align ?? 'left'}`, 'verticalAlign=middle',
+        `spacingLeft=${sx}`, `spacingRight=${sx}`,
+        'whiteSpace=wrap', 'overflow=hidden', 'rotatable=0',
+        'points=[[0,0.5],[1,0.5]]', 'portConstraint=eastwest',
+      ];
+      if (fs) parts.push(`fontSize=${fs}`);
+      if (ff) parts.push(`fontFamily=${ff}`);
+      if (co.childStroke) parts.push(`strokeColor=${co.childStroke}`);
+      if (co.childLineStyle === 'dashed') parts.push('dashed=1');
+      else if (co.childLineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
+      else if (co.childLineStyle === 'bold') parts.push(`strokeWidth=${(this._theme?.strokeWidth ?? 1) * 2}`);
+      return parts.join(';') + ';';
+    }
+    // Rich body row: richTextStyle
+    const sx = co?.spacingX ?? (this._theme?.containerSpacingX ?? 10);
+    return richTextStyle(sx, sx, co?.align ?? 'left', fs, ff);
+  }
+
+  /**
+   * Build the separator style string from theme + child options.
+   */
+  private _buildSepStyle(co?: ChildStyleOpts): string {
+    return separatorStyle({
+      strokeWidth: this._theme?.strokeWidth,
+      fontSize: this._m.bodyFontSize,
+      fontFamily: this._m.fontFamily,
+      strokeColor: co?.childStroke,
+      lineStyle: co?.childLineStyle,
+      portConstraint: co?.portConstraint,
+    });
   }
 
   /** Expose internal blocks for external consumers (e.g. DOT port-label building). */
@@ -515,6 +646,12 @@ export class Content {
     visibilityIcons?: boolean;
     hideFields?: boolean;
     hideMethods?: boolean;
+    /** Font size for title and body text measurement. */
+    fontSize?: number;
+    /** Font family for text measurement. */
+    fontFamily?: string;
+    /** Theme — when provided, class metrics are derived from theme. */
+    theme?: Theme;
     /**
      * Optional callback to customize body finalization (auto-separator behavior).
      * When provided and returns non-null, replaces the default auto-separator logic.
@@ -578,7 +715,7 @@ export class Content {
           i++;
         }
         const tableBlocks = parseCreoleBlocks(tableLines);
-        const html = finalizeHtml(renderCreoleToHtml(tableBlocks));
+        const html = finalizeHtml(renderCreoleToHtml(tableBlocks, opts.fontSize));
         blocks.push({ kind: 'rich', html });
         continue;
       }
@@ -591,7 +728,7 @@ export class Content {
           i++;
         }
         const treeBlocks = parseCreoleBlocks(treeLines);
-        const html = finalizeHtml(renderCreoleToHtml(treeBlocks));
+        const html = finalizeHtml(renderCreoleToHtml(treeBlocks, opts.fontSize));
         blocks.push({ kind: 'rich', html });
         continue;
       }
@@ -613,7 +750,12 @@ export class Content {
     if (opts.finalizeBody) {
       const result = opts.finalizeBody({ blocks, lines, hasSeparator, hideFields: opts.hideFields, hideMethods: opts.hideMethods });
       if (result !== null) {
-        return new Content(blocks, { ...CLASS_METRICS, ...result });
+        // Include font overrides so fontSize/fontFamily are applied
+        // even when finalizeBody returns early.
+        const fo: Partial<ContentMetrics> = { ...result };
+        if (opts.fontSize) { fo.titleFontSize = opts.fontSize; fo.bodyFontSize = opts.fontSize; }
+        if (opts.fontFamily) fo.fontFamily = opts.fontFamily;
+        return new Content(blocks, { ...classMetrics(opts.theme), ...fo });
       }
     }
 
@@ -678,19 +820,25 @@ export class Content {
       }
     }
 
-    return new Content(blocks, CLASS_METRICS);
+    const fontOverrides: Partial<ContentMetrics> = {};
+    if (opts.fontSize) {
+      fontOverrides.titleFontSize = opts.fontSize;
+      fontOverrides.bodyFontSize = opts.fontSize;
+    }
+    if (opts.fontFamily) fontOverrides.fontFamily = opts.fontFamily;
+    return new Content(blocks, { ...classMetrics(opts.theme), ...fontOverrides }, opts.theme);
   }
 
   /**
    * Create content from rich block-level HTML (for notes, etc.).
-   * Accepts optional padding / min-size configuration so that measure()
+   * Accepts optional min-size configuration so that measure()
    * returns container-ready dimensions.
    */
   static rich(html: string, opts?: {
-    paddingX?: number;
-    paddingY?: number;
     minWidth?: number;
     minHeight?: number;
+    bodyFontSize?: number;
+    fontFamily?: string;
   }): Content {
     return new Content([{ kind: 'rich', html }], opts);
   }
@@ -698,9 +846,10 @@ export class Content {
   /**
    * Create content from pre-processed HTML (labels, messages, etc.).
    */
-  static text(html: string, opts?: { fontSize?: number }): Content {
+  static text(html: string, opts?: { fontSize?: number; fontFamily?: string }): Content {
     const metrics: Partial<ContentMetrics> = {};
     if (opts?.fontSize != null) metrics.bodyFontSize = opts.fontSize;
+    if (opts?.fontFamily) metrics.fontFamily = opts.fontFamily;
     return new Content([{ kind: 'rich', html }], metrics);
   }
 
@@ -710,21 +859,21 @@ export class Content {
    * Single-line inline Creole processing.
    * Pipeline: unescapePlantUml → creoleInline → finalizeHtml
    */
-  static inline(raw: string): Content {
+  static inline(raw: string, opts?: { fontSize?: number; fontFamily?: string }): Content {
     const html = finalizeHtml(creoleInline(unescapePlantUml(raw)));
-    return Content.text(html);
+    return Content.text(html, opts);
   }
 
   /**
    * Multi-line block-level Creole processing.
    * Pipeline: unescapePlantUml → parseCreoleBlocks → renderCreoleToHtml → finalizeHtml
    */
-  static block(raw: string): Content {
+  static block(raw: string, opts?: { bodyFontSize?: number; fontFamily?: string }): Content {
     const unescaped = unescapePlantUml(raw);
     const lines = unescaped.split('\n');
     const blocks = parseCreoleBlocks(lines);
-    const html = finalizeHtml(renderCreoleToHtml(blocks));
-    return Content.rich(html);
+    const html = finalizeHtml(renderCreoleToHtml(blocks, opts?.bodyFontSize));
+    return Content.rich(html, opts);
   }
 
   /**
@@ -735,8 +884,8 @@ export class Content {
    * blocks so that render() can draw them as proper DrawIO line mxCells
    * instead of embedding <hr> in HTML.
    */
-  static bracketBody(lines: string[], metrics?: Partial<ContentMetrics>): Content {
-    return Content.richBody(lines, metrics);
+  static bracketBody(lines: string[], metrics?: Partial<ContentMetrics>, theme?: Theme): Content {
+    return Content.richBody(lines, metrics, theme);
   }
 
   /**
@@ -751,22 +900,23 @@ export class Content {
    * The resulting Content produces container + child mxCells in render(),
    * with separators drawn as proper DrawIO `line` elements.
    */
-  static richBody(rawLines: string[], metrics?: Partial<ContentMetrics>): Content {
+  static richBody(rawLines: string[], metrics?: Partial<ContentMetrics>, theme?: Theme): Content {
     const blocks: ContentBlock[] = [];
     const buffer: string[] = [];
     let inCode = false; // track <code> blocks to suppress separator detection
+    const baseFontSize = metrics?.bodyFontSize ?? DEFAULTS.bodyFontSize;
 
     function flushBuffer() {
       if (buffer.length > 0) {
-        const unescaped = buffer.map(l => unescapePlantUml(l));
-        const ast = parseCreoleBlocks(unescaped);
-        const html = finalizeHtml(renderCreoleToHtml(ast));
+        const ast = parseCreoleBlocks(buffer);
+        const html = finalizeHtml(renderCreoleToHtml(ast, baseFontSize));
         blocks.push({ kind: 'rich', html });
         buffer.length = 0;
       }
     }
 
-    for (const line of rawLines) {
+    for (const rawLine of rawLines) {
+      const line = unescapePlantUml(rawLine);
       const trimmed = line.trim();
 
       // Track <code> / </code> boundaries — no separator detection inside code blocks
@@ -785,7 +935,7 @@ export class Content {
       if (sep) {
         flushBuffer();
         const title = sep.title
-          ? finalizeHtml(creoleInline(unescapePlantUml(sep.title)))
+          ? finalizeHtml(creoleInline(sep.title))
           : undefined;
         blocks.push({ kind: 'separator', variant: sep.variant, title });
       } else {
@@ -794,7 +944,7 @@ export class Content {
     }
     flushBuffer();
 
-    return new Content(blocks, { ...RICH_BODY_METRICS, ...metrics });
+    return new Content(blocks, { ...richBodyMetrics(theme), ...metrics }, theme);
   }
 
   // ─── Measure ───────────────────────────────────────────────────────────────
@@ -805,7 +955,7 @@ export class Content {
    * - title: measureText(html, titleFontSize) + paddingX + titlePaddingY
    * - row: measureText(html, bodyFontSize) for width; fixed rowHeight for height
    * - separator: fixed separatorHeight
-   * - rich: measureText(html, bodyFontSize) + paddingX + paddingY
+   * - rich: measureText(html, bodyFontSize) + paddingX
    *
    * Returns { width, height, titleHeight? }.
    * titleHeight is set when the content has a title block (for swimlane startSize).
@@ -818,7 +968,7 @@ export class Content {
     for (const b of this._blocks) {
       switch (b.kind) {
         case 'title': {
-          const m = measureText(b.html, this._m.titleFontSize, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+          const m = measureText(b.html, this._m.titleFontSize, this._m.fontFamily, 'normal', 'normal', true);
           const th = Math.ceil(m.height) + this._m.titlePaddingY;
           width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           titleHeight = th;
@@ -826,22 +976,22 @@ export class Content {
           break;
         }
         case 'row': {
-          const m = measureText(b.html, this._m.bodyFontSize, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
           width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           height += Math.ceil(m.height) + this._m.bodyPaddingY;
           break;
         }
         case 'separator': {
-          const sh = b.title ? TITLED_SEPARATOR_HEIGHT : this._m.separatorHeight;
+          const sh = b.title ? this._m.titledSeparatorHeight : this._m.separatorHeight;
           height += sh;
           if (b.title) {
-            const m = measureText(b.title, this._m.bodyFontSize, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+            const m = measureText(b.title, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
             width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           }
           break;
         }
         case 'rich': {
-          const m = measureText(b.html, this._m.bodyFontSize, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
           width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           height += Math.ceil(m.height);
           break;
@@ -864,6 +1014,58 @@ export class Content {
     return { width, height, titleHeight };
   }
 
+  /**
+   * Compute port positions for row blocks that have an id.
+   * Uses the same layout logic as measure() so y offsets are consistent.
+   */
+  portPositions(): Array<{ id: string; y: number; height: number }> {
+    const ports: Array<{ id: string; y: number; height: number }> = [];
+    let y = 0;
+    let bodyStarted = false;
+
+    for (const b of this._blocks) {
+      switch (b.kind) {
+        case 'title': {
+          const m = measureText(b.html, this._m.titleFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          y += Math.ceil(m.height) + this._m.titlePaddingY;
+          break;
+        }
+        case 'row': {
+          if (!bodyStarted && this._m.bodyPaddingY > 0) {
+            y += this._m.bodyPaddingY;
+            bodyStarted = true;
+          }
+          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const h = Math.ceil(m.height) + this._m.bodyPaddingY;
+          if (b.id) {
+            ports.push({ id: b.id, y, height: h });
+          }
+          y += h;
+          break;
+        }
+        case 'separator': {
+          if (!bodyStarted && this._m.bodyPaddingY > 0) {
+            y += this._m.bodyPaddingY;
+            bodyStarted = true;
+          }
+          y += b.title ? this._m.titledSeparatorHeight : this._m.separatorHeight;
+          break;
+        }
+        case 'rich': {
+          if (!bodyStarted && this._m.bodyPaddingY > 0) {
+            y += this._m.bodyPaddingY;
+            bodyStarted = true;
+          }
+          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          y += Math.ceil(m.height);
+          break;
+        }
+      }
+    }
+
+    return ports;
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   // ─── Render children ────────────────────────────────────────────────────
@@ -873,53 +1075,66 @@ export class Content {
    * container created by the caller.  Title blocks are skipped — the caller
    * is responsible for embedding the title in the container cell.
    *
+   * Style generation is handled internally when the Content holds a theme.
+   * Pass ChildStyleOpts to fine-tune (e.g. portConstraint for swimlanes,
+   * fillColor/strokeColor for separator label backgrounds).
+   *
    * @param parentId — id of the container mxCell
    * @param width    — container width (children are full-width)
-   * @param skin     — child cell styles
+   * @param opts     — child style options (fillColor, strokeColor, portConstraint, etc.)
    * @param startY   — initial y offset (e.g. titleHeight for swimlanes)
+   * @param startX   — initial x offset (e.g. ellipse shape padding)
    */
-  renderChildren(parentId: string, width: number, skin: ChildSkin, startY = 0): string[] {
+  renderChildren(parentId: string, width: number, opts?: ChildStyleOpts, startY = 0, startX = 0): string[] {
+    const rowStyle = this._buildRowStyle(opts);
+    const baseSepStyle = this._buildSepStyle(opts);
+    const fillColor = opts?.fillColor;
+    const strokeColor = opts?.strokeColor;
     const cells: string[] = [];
     let y = startY + this._m.bodyPaddingY;
+    const x = startX || undefined; // omit when 0 for compact XML
 
     for (const b of this._blocks) {
       if (b.kind === 'title') continue;
 
       if (b.kind === 'row') {
-        const m = measureText(b.html, this._m.bodyFontSize, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+        const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
         const h = Math.ceil(m.height) + this._m.bodyPaddingY;
         cells.push(mxVertex({
           id: b.id,
           value: b.html,
-          style: skin.rowStyle,
+          style: rowStyle,
           parent: parentId,
+          x,
           y,
           width,
           height: h,
         }));
         y += h;
       } else if (b.kind === 'separator') {
-        const sepHeight = b.title ? TITLED_SEPARATOR_HEIGHT : this._m.separatorHeight;
+        const sepHeight = b.title ? this._m.titledSeparatorHeight : this._m.separatorHeight;
         const sepStyle = adjustSeparatorStyle(
-          skin.separatorStyle, b.variant, !!b.title,
-          { fillColor: skin.fillColor, strokeColor: skin.strokeColor },
+          baseSepStyle, b.variant, !!b.title,
+          { fillColor, strokeColor },
         );
         cells.push(mxVertex({
           value: b.title || '',
           style: sepStyle,
           parent: parentId,
+          x,
           y,
           width,
           height: sepHeight,
         }));
         y += sepHeight;
       } else if (b.kind === 'rich') {
-        const m = measureText(b.html, this._m.bodyFontSize, DEFAULT_FONT_FAMILY, 'normal', 'normal', true);
+        const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
         const h = Math.ceil(m.height);
         cells.push(mxVertex({
           value: b.html,
-          style: skin.rowStyle,
+          style: rowStyle,
           parent: parentId,
+          x,
           y,
           width,
           height: h,

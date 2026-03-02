@@ -1,11 +1,14 @@
 /**
  * Fragment (combined frame) primitive for sequence diagrams.
  * Handles alt, loop, opt, group, etc. with sections.
+ *
+ * Frame style is delegated to buildUmlFrameStyle() (shared with class-diagram frame).
  */
 
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor } from '../shared/color-utils.ts';
 import { Content } from '../shared/content.ts';
+import { buildUmlFrameStyle } from './shapes/frame.ts';
 import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
@@ -39,7 +42,7 @@ export function renderFragment(frag: {
 
   // For group/partition: tab shows the label text, condition in [brackets] to the right
   // For other types: tab shows the keyword (alt, loop, etc.), label to the right
-  const isGroupLike = frag.type === 'group';
+  const isGroupLike = frag.type === 'group' || frag.type === 'partition';
   let tabText: string;
   let conditionLabel: string;
   if (isGroupLike) {
@@ -59,9 +62,20 @@ export function renderFragment(frag: {
   const tabW = frag.tabWidth || 60;
   const tabH = frag.tabHeight || 20;
 
-  // Build style: apply lineColor as tab fill, fillColor as body background
-  let style = `shape=umlFrame;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=8;spacingTop=-2;corner=7;width=${tabW};height=${tabH};`;
-  if (frag.lineColor) style += `fillColor=${normalizeColor(frag.lineColor)};`;
+  // Build style via shared umlFrame style builder
+  const cornerClip = frag.theme?.cornerClip ?? 10;
+  const fontSize = frag.theme?.fontSize ?? 12;
+  const sw = frag.theme?.strokeWidth ?? 1;
+  const colorDark = frag.theme?.colorDark ?? '#181818';
+  let style = buildUmlFrameStyle({
+    tabWidth: tabW, tabHeight: tabH,
+    fontSize, cornerClip, strokeWidth: sw,
+    fontColor: colorDark, strokeColor: colorDark,
+  });
+  if (frag.lineColor) {
+    const lc = normalizeColor(frag.lineColor);
+    style += `fillColor=${lc};strokeColor=${lc};`;
+  }
   if (frag.fillColor) style += `swimlaneFillColor=${normalizeColor(frag.fillColor)};`;
 
   // Convert raw Creole labels to HTML
@@ -75,14 +89,18 @@ export function renderFragment(frag: {
 
   // Condition label to the right of the tab
   const smallFontSize = frag.theme?.smallFontSize ?? 10;
-  const colorDark = frag.theme?.colorDark ?? '#181818';
   if (conditionLabel) {
     const condHtml = Content.inline(conditionLabel).html;
-    const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=4;spacingTop=-2;fontSize=${smallFontSize};`;
+    const condLines = conditionLabel.split('\n').length;
+    const fragCondMinH = frag.theme?.fragCondMinH ?? 20;
+    const condH = Math.max(fragCondMinH, condLines * Math.round(smallFontSize * 1.4) + 4);
+    const fragLabelSpacingX = frag.theme?.fragLabelSpacingX ?? 4;
+    const fragLabelGap = frag.theme?.fragLabelGap ?? 4;
+    const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${fragLabelSpacingX};spacingTop=-2;fontSize=${smallFontSize};`;
     cells.push(mxVertex({
       id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
       parent: '1',
-      x: frag.x + tabW + 4, y: frag.y, width: frag.width - tabW - 8, height: 20,
+      x: frag.x + tabW + fragLabelGap, y: frag.y, width: frag.width - tabW - fragLabelGap * 2, height: condH,
     }));
   }
 
@@ -106,17 +124,20 @@ export function renderFragment(frag: {
     }
 
     // Section separator: dashed line + label text
-    const lineStyle = `shape=line;strokeWidth=1;strokeColor=${colorDark};dashed=1;dashPattern=5 5;`;
+    const lineStyle = `shape=line;strokeWidth=${frag.theme?.strokeWidth ?? 1};strokeColor=${colorDark};dashed=1;dashPattern=5 5;`;
     cells.push(mxVertex({
       id: frag.id + '_sec_line_' + (i + 1), value: '', style: lineStyle,
       parent: '1',
       x: frag.x, y, width: frag.width, height: 1,
     }));
+    const fragSectionSpacingX = frag.theme?.fragSectionSpacingX ?? 8;
+    const fragSectionH = frag.theme?.fragSectionH ?? 20;
+    const fragLabelGap = frag.theme?.fragLabelGap ?? 4;
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
-      style: `text;align=left;verticalAlign=top;spacingLeft=8;spacingTop=-2;fontSize=${smallFontSize};`,
+      style: `text;align=left;verticalAlign=top;spacingLeft=${fragSectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};`,
       parent: '1',
-      x: frag.x + 4, y: y + 2, width: frag.width - 8, height: 20,
+      x: frag.x + fragLabelGap, y: y + 2, width: frag.width - fragLabelGap * 2, height: fragSectionH,
     }));
   }
 

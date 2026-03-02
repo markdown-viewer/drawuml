@@ -16,13 +16,6 @@ import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const ACTOR_WIDTH = 30;   // stick figure width
-const ACTOR_HEIGHT = 40;  // stick figure height (head + body + legs)
-
-// ---------------------------------------------------------------------------
 // Renderer
 // ---------------------------------------------------------------------------
 
@@ -55,16 +48,16 @@ class ActorRenderer extends IconRenderer {
     this.textColor = textColor;
   }
 
-  protected get iconWidth(): number { return ACTOR_WIDTH; }
-  protected get iconHeight(): number { return ACTOR_HEIGHT; }
+  protected get baseIconWidth(): number { return 30; }  // stick figure width at base iconSize=16
+  protected get baseIconHeight(): number { return 40; } // stick figure height at base iconSize=16
 
   render(box: ContentBox) {
     // Build line style modifiers
     let lineStyleStr = '';
-    let strokeWidth = '0.5';
+    let strokeWidth = this.theme.strokeWidth;
     if (this.lineStyle === 'dashed') lineStyleStr = 'dashed=1;';
     else if (this.lineStyle === 'dotted') lineStyleStr = 'dashed=1;dashPattern=1 2;';
-    else if (this.lineStyle === 'bold') strokeWidth = '2';
+    else if (this.lineStyle === 'bold') strokeWidth = this.theme.strokeWidth * 2;
 
     const isBusiness = this.desc.stereotype === 'actor/';
     const actorStyleAttr = this.desc.actorStyle ? `actorStyle=${this.desc.actorStyle};` : '';
@@ -76,7 +69,7 @@ class ActorRenderer extends IconRenderer {
       + `fontSize=${this.theme.fontSize};fontColor=${this.textColor};align=center;`;
 
     // Center the stick figure within the box
-    const cx = box.x + Math.round((box.width - ACTOR_WIDTH) / 2);
+    const cx = box.x + Math.round((box.width - this.iconWidth) / 2);
     const cy = box.y;
 
     return [mxVertex({
@@ -84,13 +77,14 @@ class ActorRenderer extends IconRenderer {
       value: buildLabelHtml({
         label: this.labelHtml,
         stereotypeLabel: this.desc.stereotypeLabel || undefined,
+        fontSize: this.theme.fontSize,
       }),
       style,
       parent: this.parentId || '1',
       x: cx,
       y: cy,
-      width: ACTOR_WIDTH,
-      height: ACTOR_HEIGHT,
+      width: this.iconWidth,
+      height: this.iconHeight,
     })];
   }
 }

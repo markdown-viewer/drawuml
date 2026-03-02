@@ -9,20 +9,22 @@
 import type { CreoleBlock, CreoleListItem, CreoleTableRow, CreoleTreeItem } from './creole-parser.ts';
 import { creoleInline } from './creole-inline.ts';
 
-// Heading level → approximate font size in px (matching PlantUML visual output)
-const HEADING_SIZES: Record<number, number> = {
-  1: 24,
-  2: 20,
-  3: 16,
-  4: 14,
+// Heading level → offset from base font size (matching PlantUML: base 14 + offset → 18,16,15,14)
+const HEADING_OFFSETS: Record<number, number> = {
+  1: 4,
+  2: 2,
+  3: 1,
+  4: 0,
 };
 
 /**
  * Render an array of CreoleBlocks to HTML string.
  * The output is semantic HTML — callers should pass it through `toDrawioHtml()`
  * for DrawIO-specific normalization.
+ *
+ * @param baseFontSize — base font size for computing heading sizes (default 14)
  */
-export function renderCreoleToHtml(blocks: CreoleBlock[]): string {
+export function renderCreoleToHtml(blocks: CreoleBlock[], baseFontSize: number = 14): string {
   const parts: string[] = [];
 
   for (const block of blocks) {
@@ -32,7 +34,7 @@ export function renderCreoleToHtml(blocks: CreoleBlock[]): string {
         break;
 
       case 'heading': {
-        const size = HEADING_SIZES[block.level] || 14;
+        const size = baseFontSize + (HEADING_OFFSETS[block.level] || 0);
         parts.push(`<div style="font-size:${size}px;font-weight:bold">${creoleInline(block.content)}</div>`);
         break;
       }
@@ -55,7 +57,8 @@ export function renderCreoleToHtml(blocks: CreoleBlock[]): string {
 
       case 'code':
         // Code blocks render as monospace, with all markup disabled
-        parts.push(`<pre><code>${escapeHtml(block.content)}</code></pre>`);
+        // margin:0 resets browser-default <pre> margins to prevent overflow
+        parts.push(`<pre style="margin:0"><code>${escapeHtml(block.content)}</code></pre>`);
         break;
     }
   }

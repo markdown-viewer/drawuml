@@ -45,7 +45,7 @@ class BoxRenderer extends Renderer {
 
   render(box: ContentBox) {
     const cells: string[] = [];
-    const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=5;fillColor=${this.fillColor};strokeColor=${this.strokeColor};strokeWidth=0.5;dashed=1;dashPattern=5 5;`;
+    const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fillColor=${this.fillColor};strokeColor=${this.strokeColor};strokeWidth=${this.theme.strokeWidth};dashed=1;dashPattern=5 5;`;
     cells.push(mxVertex({
       id: this.id, value: '', style: boxStyle,
       parent: this.parentId || '1',

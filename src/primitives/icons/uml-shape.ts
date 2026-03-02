@@ -44,8 +44,8 @@ class UmlShapeRenderer extends IconRenderer {
     this.config = config;
   }
 
-  protected get iconWidth(): number { return this.config.iconWidth; }
-  protected get iconHeight(): number { return this.config.iconHeight; }
+  protected get baseIconWidth(): number { return this.config.iconWidth; }
+  protected get baseIconHeight(): number { return this.config.iconHeight; }
 
   private get color(): string | undefined { return this.desc.color; }
 
@@ -54,13 +54,14 @@ class UmlShapeRenderer extends IconRenderer {
     const value = buildLabelHtml({
       label: labelHtml,
       stereotypeLabel: this.desc.stereotypeLabel || undefined,
+      fontSize: this.theme.fontSize,
     });
     const cx = box.x + Math.round((box.width - this.iconWidth) / 2);
     let s = `shape=${this.config.shape};verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
-      + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=0.5;`
+      + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`;
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({

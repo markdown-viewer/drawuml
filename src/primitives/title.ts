@@ -16,8 +16,6 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 
-const TITLE_BOTTOM_GAP = 20; // gap between title text and diagram content
-
 class TitleRenderer extends Renderer {
   private fontSize: number;
   private htmlLabel: string;
@@ -33,7 +31,7 @@ class TitleRenderer extends Renderer {
     const m = measureText(this.htmlLabel, this.fontSize, this.theme.fontFamily, 'bold', 'normal', true);
     this.textHeight = Math.ceil(m.height);
     // Total height includes bottom gap so layout engines don't need a separate constant
-    return { width: Math.ceil(m.width), height: this.textHeight + TITLE_BOTTOM_GAP };
+    return { width: Math.ceil(m.width), height: this.textHeight + this.theme.titleBottomGap };
   }
 
   render(box: ContentBox) {

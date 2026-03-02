@@ -109,7 +109,7 @@ export function buildRendererTree(
         const regionId = `${g.id}.__conc_region__${i}`;
         const regionLabel = g.concurrentRegionLabels?.[i] || '';
         const regionColor = g.concurrentRegionColors?.[i] || '';
-        const regionR = new ConcurrentRegionRenderer(regionId, regionLabel, regionColor);
+        const regionR = new ConcurrentRegionRenderer(regionId, regionLabel, regionColor, theme);
         renderers.set(regionId, regionR);
         gr.addChild(regionR);
         for (const childId of g.concurrentRegions[i]) {

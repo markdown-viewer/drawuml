@@ -57,8 +57,8 @@ const RE_SEP_TITLED_SOLID  = /^--(.+)--$/;
 const RE_SEP_TITLED_DOUBLE = /^==(.+)==$/;
 const RE_SEP_TITLED_DOTTED = /^\.\.(.+)\.\.$/;
 
-// Heading: = / == / === / ==== at start of line
-const RE_HEADING = /^(={1,4})\s+(.+)$/;
+// Heading: = / == / === / ==== at start of line (space after = is optional)
+const RE_HEADING = /^(={1,4})\s*(.+)$/;
 
 // List item: * / ** / *** or # / ## / ###
 const RE_UNORDERED_LIST = /^(\*+)\s+(.*)$/;

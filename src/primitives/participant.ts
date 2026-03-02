@@ -29,6 +29,43 @@ export const PARTICIPANT_CONFIG: Record<string, { participant: string; iconSize:
   queue:        { participant: 'umlQueue',       iconSize: 28, iconW: 0,  textBelow: false },
 };
 
+/**
+ * Compute PARTICIPANT_CONFIG scaled to a given iconSize (theme.iconSize).
+ * Uses the same base aspect ratios as IconRenderer subclasses so that
+ * lifeline icon dimensions stay consistent with standalone icon nodes.
+ *
+ * Base ratios (matching uml-shape.ts / actor.ts IconRenderer definitions):
+ *   actor:    30 × 40   (scale = iconSize / min = iconSize / 30)
+ *   boundary: 36 × 30   (scale = iconSize / 30)
+ *   control:  30 × 35   (scale = iconSize / 30)
+ *   entity:   30 × 30   (scale = iconSize / 30)
+ *   database: 22 × 28   (square-like, scale = iconSize / 22)
+ *   participant / collections / queue: iconSize × iconSize (box types)
+ */
+export function getScaledParticipantConfig(iconSize: number): Record<string, { participant: string; iconSize: number; iconW: number; textBelow: boolean }> {
+  function scaled(baseW: number, baseH: number): { w: number; h: number } {
+    const s = iconSize / Math.min(baseW, baseH);
+    return { w: Math.round(baseW * s), h: Math.round(baseH * s) };
+  }
+  const actor = scaled(30, 40);
+  const boundary = scaled(36, 30);
+  const control = scaled(30, 35);
+  const entity = scaled(30, 30);
+  const database = scaled(22, 28);
+  const boxH = Math.round(iconSize * 28 / 24); // proportional box height
+
+  return {
+    participant:  { participant: '',               iconSize: boxH,       iconW: 0,           textBelow: false },
+    actor:        { participant: 'umlActor',       iconSize: actor.h,    iconW: actor.w,     textBelow: true },
+    boundary:     { participant: 'umlBoundary',    iconSize: boundary.h, iconW: boundary.w,  textBelow: true },
+    control:      { participant: 'umlControl',     iconSize: control.h,  iconW: control.w,   textBelow: true },
+    entity:       { participant: 'umlEntity',      iconSize: entity.h,   iconW: entity.w,    textBelow: true },
+    database:     { participant: 'umlDatabase',    iconSize: database.h, iconW: database.w,  textBelow: true },
+    collections:  { participant: 'umlCollections', iconSize: boxH,       iconW: 0,           textBelow: false },
+    queue:        { participant: 'umlQueue',       iconSize: boxH,       iconW: 0,           textBelow: false },
+  };
+}
+
 /** Minimum icon widths for participant types with external labels (used by layout). */
 export const ICON_MIN_WIDTH: Record<string, number> = {
   actor: 26,
@@ -59,8 +96,9 @@ export function participantCellGeom(
   pType: string,
   layoutX: number,
   layoutWidth: number,
+  iconSize?: number,
 ): { cellW: number; cellX: number } {
-  const cfg = PARTICIPANT_CONFIG[pType] || PARTICIPANT_CONFIG.participant;
+  const cfg = iconSize ? (getScaledParticipantConfig(iconSize)[pType] || getScaledParticipantConfig(iconSize).participant) : (PARTICIPANT_CONFIG[pType] || PARTICIPANT_CONFIG.participant);
   const cellW = cfg.iconW > 0 ? cfg.iconW : layoutWidth;
   const cellX = layoutX + (layoutWidth - cellW) / 2;
   return { cellW, cellX };
@@ -69,7 +107,7 @@ export function participantCellGeom(
 /** Generate the DrawIO style for a umlLifeline participant cell. */
 export function participantStyle(
   nodeType: string,
-  opts: { isFootbox?: boolean; color?: string; iconHeight?: number; actorStyle?: string } = {},
+  opts: { isFootbox?: boolean; color?: string; iconHeight?: number; actorStyle?: string; fontSize?: number; fontFamily?: string; arcSize?: number; strokeWidth?: number } = {},
 ): string {
   const cfg = PARTICIPANT_CONFIG[nodeType] || PARTICIPANT_CONFIG.participant;
   const size = opts.iconHeight || cfg.iconSize;
@@ -85,9 +123,12 @@ export function participantStyle(
     `size=${size}`,
     'rounded=1',
     'absoluteArcSize=1',
-    'arcSize=3',
+    `arcSize=${opts.arcSize ?? 4}`,
     'html=1',
   ];
+  if (opts.strokeWidth != null) parts.push(`strokeWidth=${opts.strokeWidth}`);
+  if (opts.fontSize) parts.push(`fontSize=${opts.fontSize}`);
+  if (opts.fontFamily) parts.push(`fontFamily=${opts.fontFamily}`);
   if (cfg.participant) parts.push(`participant=${cfg.participant}`);
   if (opts.actorStyle && cfg.participant === 'umlActor') {
     parts.push(`actorStyle=${opts.actorStyle}`);
@@ -123,7 +164,7 @@ export function participantStyle(
  */
 export function buildParticipantLabel(
   p: { label: string; stereotypeLabel?: string; spot?: { char: string; color: string } },
-  opts?: { stereotypePosition?: 'top' | 'bottom' },
+  opts?: { stereotypePosition?: 'top' | 'bottom'; fontSize?: number },
 ): string {
   // Convert raw Creole label to HTML inside the renderer
   const labelHtml = Content.inline(p.label).html;
@@ -132,6 +173,7 @@ export function buildParticipantLabel(
     stereotypeLabel: p.stereotypeLabel,
     spot: p.spot,
     stereotypePosition: opts?.stereotypePosition,
+    fontSize: opts?.fontSize,
   });
 }
 
@@ -140,18 +182,12 @@ export function buildParticipantLabel(
 // ---------------------------------------------------------------------------
 
 /** Style string for rich text blocks inside a bracket body participant. */
-function bracketTextStyle(align: 'left' | 'center' | 'right' = 'center'): string {
-  return richTextStyle(10, 10, align);
+function bracketTextStyle(align: 'left' | 'center' | 'right' = 'center', fontSize?: number, fontFamily?: string, spacingX?: number): string {
+  const sx = spacingX ?? 10;
+  return richTextStyle(sx, sx, align, fontSize, fontFamily);
 }
 
-/** Style string for separator lines inside a bracket body participant. */
-function bracketSepStyle(): string {
-  return [
-    'line', 'strokeWidth=1', 'align=left', 'verticalAlign=middle',
-    'spacingTop=-1', 'spacingLeft=3', 'spacingRight=3',
-    'rotatable=0', 'labelPosition=right', 'points=[]',
-  ].join(';') + ';';
-}
+
 
 // ---------------------------------------------------------------------------
 // Bracket body measurement (used by table-layout)
@@ -160,9 +196,22 @@ function bracketSepStyle(): string {
 /**
  * Measure bracket body content dimensions for a participant with bracketLines.
  * Returns { width, height } of the rich body content.
+ *
+ * Algorithm copied from RichRenderer.doMeasure (hasRichBody branch):
+ *   contentRect = content.measure() + contentPad*2 + strokeWidth*2
+ * Participant has no shapePadding/titlebar, so final size = contentRect.
  */
-export function measureBracketBody(bracketLines: string[]): { width: number; height: number } {
-  return Content.bracketBody(bracketLines).measure();
+export function measureBracketBody(bracketLines: string[], bodyFontSize?: number, fontFamily?: string, theme?: Theme): { width: number; height: number } {
+  const metrics: Partial<any> = {};
+  if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
+  if (fontFamily != null) metrics.fontFamily = fontFamily;
+  const size = Content.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
+  const cp = theme?.containerSpacingX ?? 5;
+  const sw = theme?.strokeWidth ?? 1;
+  return {
+    width: size.width + cp * 2 + sw * 2,
+    height: size.height + cp * 2 + sw * 2,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -178,13 +227,16 @@ export function renderParticipant(
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
-  const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width);
+  const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width, opts?.theme?.iconSize);
 
   if (p.bracketLines && p.bracketLines.length > 0) {
     // Bracket body participant: container + rich content children
-    const content = Content.bracketBody(p.bracketLines);
+    const bracketMetrics: Partial<any> = {};
+    if (opts?.theme?.fontSize != null) bracketMetrics.bodyFontSize = opts.theme.fontSize;
+    if (opts?.theme?.fontFamily != null) bracketMetrics.fontFamily = opts.theme.fontFamily;
+    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, opts?.theme);
     const cells: string[] = [];
-    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle });
+    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth });
     const colorDark = opts?.theme?.colorDark ?? '#181818';
     const fillColor = containerStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = containerStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
@@ -194,17 +246,21 @@ export function renderParticipant(
       parent: '1',
       x: cellX, y: layout.y, width: cellW, height: layout.height,
     }));
+    // Content area algorithm copied from RichRenderer.renderRichBody:
+    // childStartY = titlebarH + contentPad + padTop
+    // Participant has no titlebar/shapePadding, so startY = contentPad.
+    const cp = opts?.theme?.containerSpacingX ?? 5;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(p.id, cellW, {
-        rowStyle: bracketTextStyle(opts?.participantAlign),
-        separatorStyle: bracketSepStyle(),
+        align: opts?.participantAlign,
+        spacingX: opts?.theme?.containerSpacingX,
         fillColor,
         strokeColor,
-      }));
+      }, cp));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign),
+        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.containerSpacingX),
         parent: p.id,
         y: 0, width: cellW, height: layout.iconHeight || 28,
       }));
@@ -212,10 +268,10 @@ export function renderParticipant(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, opts);
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize });
   return [mxVertex({
     id: p.id, value: labelHtml,
-    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle }),
+    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth }),
     parent: '1',
     x: cellX, y: layout.y, width: cellW, height: layout.height,
   })];
@@ -230,17 +286,21 @@ export function renderFootbox(
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
-  const cfg = PARTICIPANT_CONFIG[p.type] || PARTICIPANT_CONFIG.participant;
+  const pCfg = opts?.theme ? getScaledParticipantConfig(opts.theme.iconSize) : PARTICIPANT_CONFIG;
+  const cfg = pCfg[p.type] || pCfg.participant;
   const footY = layout.y + layout.height;
   const footW = cfg.iconW > 0 ? cfg.iconW : layout.width;
   const footX = layout.x + (layout.width - footW) / 2;
   const footH = layout.iconHeight || cfg.iconSize;
 
   if (p.bracketLines && p.bracketLines.length > 0) {
-    const content = Content.bracketBody(p.bracketLines);
+    const bracketMetrics: Partial<any> = {};
+    if (opts?.theme?.fontSize != null) bracketMetrics.bodyFontSize = opts.theme.fontSize;
+    if (opts?.theme?.fontFamily != null) bracketMetrics.fontFamily = opts.theme.fontFamily;
+    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, opts?.theme);
     const footId = p.id + '_foot';
     const cells: string[] = [];
-    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle });
+    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth });
     const colorDark = opts?.theme?.colorDark ?? '#181818';
     const fillColor = footStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = footStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
@@ -250,17 +310,18 @@ export function renderFootbox(
       parent: '1',
       x: footX, y: footY, width: footW, height: footH,
     }));
+    const cp = opts?.theme?.containerSpacingX ?? 5;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(footId, footW, {
-        rowStyle: bracketTextStyle(opts?.participantAlign),
-        separatorStyle: bracketSepStyle(),
+        align: opts?.participantAlign,
+        spacingX: opts?.theme?.containerSpacingX,
         fillColor,
         strokeColor,
-      }));
+      }, cp));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign),
+        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.containerSpacingX),
         parent: footId,
         y: 0, width: footW, height: footH,
       }));
@@ -268,10 +329,10 @@ export function renderFootbox(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, opts);
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize });
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
-    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle }),
+    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth }),
     parent: '1',
     x: footX, y: footY, width: footW, height: footH,
   })];

@@ -11,19 +11,14 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
-import { Content } from '../../shared/content.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { parseNodeStyle } from '../../shared/color-utils.ts';
+import { JunctionRenderer } from '../icons/junction.ts';
 
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
-
-// Junction geometry constants (same pattern as actor / boundary)
-const JUNCTION_SIZE     = 16;  // circle diameter
-const JUNCTION_TEXT_GAP = 4;   // gap between circle and label
-const MIN_JUNCTION_TEXT_H = 18;  // minimum label area height (single-line floor)
-const JUNCTION_PAD_X    = 20;  // horizontal padding for label
 
 // ---------------------------------------------------------------------------
 // Stereotype → DrawIO style mapping
@@ -38,11 +33,11 @@ const ARCHIMATE_STYLE_MAP: Record<string, string> = {
   // Business layer
   'business-actor':          '',
   'business-role':           '',
-  'business-service':        'rounded=1;arcSize=25',
-  'business-process':        'rounded=1;arcSize=25',
-  'business-function':       'rounded=1;arcSize=25',
-  'business-interaction':    'rounded=1;arcSize=25',
-  'business-event':          'rounded=1;arcSize=25',
+  'business-service':        'rounded=1',
+  'business-process':        'rounded=1',
+  'business-function':       'rounded=1',
+  'business-interaction':    'rounded=1',
+  'business-event':          'rounded=1',
   'business-interface':      '',
   'business-collaboration':  '',
   'business-object':         '',
@@ -53,13 +48,13 @@ const ARCHIMATE_STYLE_MAP: Record<string, string> = {
 
   // Application layer
   'application-component':     '',
-  'application-service':       'rounded=1;arcSize=25',
-  'application-function':      'rounded=1;arcSize=25',
-  'application-interaction':   'rounded=1;arcSize=25',
+  'application-service':       'rounded=1',
+  'application-function':      'rounded=1',
+  'application-interaction':   'rounded=1',
   'application-interface':     '',
   'application-collaboration': '',
-  'application-event':         'rounded=1;arcSize=25',
-  'application-process':       'rounded=1;arcSize=25',
+  'application-event':         'rounded=1',
+  'application-process':       'rounded=1',
   'application-dataobject':    '',
 
   // Technology layer
@@ -69,11 +64,11 @@ const ARCHIMATE_STYLE_MAP: Record<string, string> = {
   'technology-systemsoftware':        '',
   'technology-communicationnetwork':  '',
   'technology-path':                  '',
-  'technology-service':               'rounded=1;arcSize=25',
-  'technology-process':               'rounded=1;arcSize=25',
-  'technology-function':              'rounded=1;arcSize=25',
-  'technology-interaction':           'rounded=1;arcSize=25',
-  'technology-event':                 'rounded=1;arcSize=25',
+  'technology-service':               'rounded=1',
+  'technology-process':               'rounded=1',
+  'technology-function':              'rounded=1',
+  'technology-interaction':           'rounded=1',
+  'technology-event':                 'rounded=1',
   'technology-interface':             '',
   'technology-collaboration':         '',
 
@@ -90,17 +85,17 @@ const ARCHIMATE_STYLE_MAP: Record<string, string> = {
   'motivation-value':        'shape=mxgraph.basic.octagon2;dx=5',
 
   // Strategy layer — rounded per ArchiMate spec
-  'strategy-capability':    'rounded=1;arcSize=25',
-  'strategy-courseofaction': 'rounded=1;arcSize=25',
+  'strategy-capability':    'rounded=1',
+  'strategy-courseofaction': 'rounded=1',
   'strategy-resource':      '',
-  'strategy-valuestream':   'rounded=1;arcSize=25',
+  'strategy-valuestream':   'rounded=1',
 
   // Implementation layer
   'implementation-deliverable':  '',
-  'implementation-event':        'rounded=1;arcSize=25',
+  'implementation-event':        'rounded=1',
   'implementation-gap':          '',
   'implementation-plateau':      '',
-  'implementation-workpackage':  'rounded=1;arcSize=25',
+  'implementation-workpackage':  'rounded=1',
 
   // Physical layer (stereotypes use technology- prefix per PlantUML stdlib)
   'technology-distributionnetwork': '',
@@ -244,12 +239,12 @@ const ARCHIMATE3_ICON_SIZE: Record<string, [number, number]> = {
   'mxgraph.archimate3.event':          [15,  9],
   'mxgraph.archimate3.facility':       [15, 10],
   'mxgraph.archimate3.function':       [15, 15],
-  'mxgraph.archimate3.gapIcon':        [15, 14],
+  'mxgraph.archimate3.gapIcon':        [20, 15],
   'mxgraph.archimate3.goal':           [15, 15],
   'mxgraph.archimate3.grouping':       [15,  9],
-  'mxgraph.archimate3.interaction':    [15, 15],
+  'mxgraph.archimate3.interaction':    [17, 15],
   'mxgraph.archimate3.interface':      [15,  8],
-  'mxgraph.archimate3.locationIcon':   [15, 15],
+  'mxgraph.archimate3.locationIcon':   [12, 15],
   'mxgraph.archimate3.material':       [15, 13],
   'mxgraph.archimate3.meaning':        [15, 14],
   'mxgraph.archimate3.network':        [15, 13],
@@ -290,51 +285,65 @@ class ArchimateRenderer extends RichRenderer {
   }
 
   protected buildStyle(): string {
-    const shape = this.shapeStyle || '';
+    let shape = this.shapeStyle || '';
+    // Replace static dx with theme-derived cornerClip/2 for octagon shapes
+    if (shape.includes('dx=')) {
+      shape = shape.replace(/dx=\d+/, `dx=${Math.round(this.theme.cornerClip / 2)}`);
+    }
     const parts = [
       shape,
       'whiteSpace=wrap', 'html=1',
       `fontStyle=1`, `fontSize=${this.theme.fontSize}`,
-      'align=center', 'verticalAlign=middle',
+      'align=center', 'verticalAlign=top',
       'spacingTop=2',
       `fillColor=none`, `strokeColor=${this.theme.colorDark}`, `fontColor=${this.theme.colorDark}`,
+      `strokeWidth=${this.theme.strokeWidth}`,
       'collapsible=0', 'container=1',
     ].filter(Boolean);
     // Add standard rounded corners for plain-rect and dashed-rect frames;
     // skip shapes that already define rounded or use a non-rect shape.
     if (!shape.includes('rounded') && !shape.includes('shape=')) {
-      parts.push(`rounded=1`, `absoluteArcSize=1`, `arcSize=${this.theme.rectArcSize}`);
+      parts.push(`rounded=1`, `absoluteArcSize=1`, `arcSize=${this.theme.arcSize}`);
+    } else if (shape.includes('rounded') && !shape.includes('arcSize')) {
+      // Rounded archimate shapes (service, process, function, etc.) — absolute pixels
+      parts.push(`absoluteArcSize=1`, `arcSize=${this.theme.largeArcSize}`);
     }
     return parts.join(';') + ';';
   }
 
-  // Top-right icon area height ~20px; content (label) starts below the icon
-  protected get topPadY(): number { return 20; }
+  // Top-right icon area acts as a titlebar
+  protected shapePadding(): ShapePadding { return {}; }
+  protected override get hasTitlebar(): boolean { return true; }
 
   // No fixed title area — use RichRenderer default (label-based detection)
 
   render(box: ContentBox): string[] {
     const cells = super.render(box);
     if (this.icon) {
-      // Look up icon dimensions (aspect-ratio-correct, max-dim=15).
-      const [iw, ih] = ARCHIMATE3_ICON_SIZE[this.icon] ?? [15, 15];
-      // Vertically center the icon within the topPadY band.
-      const iy = Math.round((this.topPadY - ih) / 2);
+      // Scale icon dimensions from base-15 table to theme.iconSize.
+      const [bw, bh] = ARCHIMATE3_ICON_SIZE[this.icon] ?? [15, 15];
+      const scale = this.theme.iconSize / 15;
+      const iw = Math.round(bw * scale);
+      const ih = Math.round(bh * scale);
+      // Vertically center the icon within the titlebar band.
+      const titlebarH = this.theme.titleBarHeight;
+      const iy = Math.round((titlebarH - ih) / 2);
       // For 'archimate' keyword nodes the icon is horizontally centered;
       // for all other archimate nodes it sits at the top-right corner.
+      const iconMargin = Math.round(this.theme.fontSize * 2 / 3); // 8 at base 12
       const ix = this.desc.centeredIcon
         ? Math.round((box.width - iw) / 2)
-        : box.width - iw - 8;
+        : box.width - iw - iconMargin;
       // Resolve icon stroke color from inline style override
       const parsedStyle = parseNodeStyle(this.desc.style);
       const iconStroke = parsedStyle?.strokeColor || this.theme.colorDark;
       cells.push(mxVertex({
         id: `${this.id}__icon`,
         value: '',
-        style: `shape=${this.icon};fillColor=none;strokeColor=${iconStroke};${this.iconExtraStyle}`,
+        style: `shape=${this.icon};fillColor=none;strokeColor=${iconStroke};strokeWidth=${this.theme.strokeWidth};${this.iconExtraStyle}`,
         parent: this.id,
         x: ix,
-        y: iy + 3,
+        y: iy + Math.round(this.theme.fontSize / 4), // 3 at base 12
         width: iw,
         height: ih,
       }));
@@ -354,7 +363,7 @@ class FolderArchimateRenderer extends ArchimateRenderer {
 
   constructor(desc: RenderDescriptor, folderFill: string, extraStyle = '') {
     // Pass extraStyle as part of shapeStyle so buildStyle() picks it up.
-    super(desc, `shape=folder;tabWidth=42;tabHeight=20;tabPosition=left;${extraStyle}`, null, '');
+    super(desc, `shape=folder;tabWidth=${desc.theme.archimateTabW};tabHeight=${desc.theme.titleBarHeight};tabPosition=left;${extraStyle}`, null, '');
     this.folderFill = folderFill;
   }
 
@@ -362,63 +371,16 @@ class FolderArchimateRenderer extends ArchimateRenderer {
     const shape = this.shapeStyle || '';
     const parts = [
       shape,
-      `rounded=1`, `absoluteArcSize=1`, `arcSize=${this.theme.rectArcSize}`,
+      `rounded=1`, `absoluteArcSize=1`, `arcSize=${this.theme.arcSize}`,
       'whiteSpace=wrap', 'html=1',
       `fontStyle=1`, `fontSize=${this.theme.fontSize}`,
-      'align=center', 'verticalAlign=middle',
+      'align=center', 'verticalAlign=top',
       'spacingTop=2',
       `fillColor=${this.folderFill}`, `strokeColor=${this.theme.colorDark}`, `fontColor=${this.theme.colorDark}`,
+      `strokeWidth=${this.theme.strokeWidth}`,
       'collapsible=0', 'container=1',
     ].filter(Boolean);
     return parts.join(';') + ';';
-  }
-}
-
-/** Junction renderer: small circle with label below (same pattern as actor / boundary). */
-class JunctionRenderer extends ArchimateRenderer {
-  protected override get topPadY(): number { return 0; }
-
-  protected override doMeasure() {
-    // Full bounding box = circle + gap + label, so DOT allocates correct spacing.
-    const labelSize = Content.inline(this.desc.label ?? '').measure();
-    const labelH = Math.max(Math.ceil(labelSize.height), MIN_JUNCTION_TEXT_H);
-    return {
-      width:  Math.max(JUNCTION_SIZE, labelSize.width + JUNCTION_PAD_X),
-      height: JUNCTION_SIZE + JUNCTION_TEXT_GAP + labelH,
-    };
-  }
-
-  override get nodeLabel(): string { return this.desc.label ?? ''; }
-
-  override graphicCenterOffset() {
-    // Circle center is at JUNCTION_SIZE/2 from top; geometric center is height/2.
-    const h = this.measure().height;
-    return { dx: 0, dy: JUNCTION_SIZE / 2 - h / 2 };
-  }
-
-  override render(box: ContentBox): string[] {
-    const fill   = this.shapeStyle.match(/fillColor=([^;]+)/)?.[1] ?? '#FFFFFF';
-    const stroke = this.shapeStyle.match(/strokeColor=([^;]+)/)?.[1] ?? this.theme.colorDark;
-    const style = [
-      'ellipse',
-      `fillColor=${fill}`,
-      `strokeColor=${stroke}`,
-      `fontColor=${this.theme.colorDark}`,
-      'verticalLabelPosition=bottom',
-      'verticalAlign=top',
-      'align=center',
-      'html=1',
-      `fontSize=${this.theme.fontSize}`,
-    ].join(';') + ';';
-    // Center the circle horizontally; place at top of the DOT bounding box.
-    const cx = box.x + Math.round((box.width - JUNCTION_SIZE) / 2);
-    return [mxVertex({
-      id: this.id,
-      value: this.content.html,
-      style,
-      parent: this.parentId || '1',
-      x: cx, y: box.y, width: JUNCTION_SIZE, height: JUNCTION_SIZE,
-    })];
   }
 }
 
@@ -436,7 +398,9 @@ export function registerArchimateShapes(): void {
     const icon = ARCHIMATE_ICON_MAP[stereotype] ?? null;
     const iconExtraStyle = stereotype === 'other-grouping' ? 'dashed=1;dashPattern=1 1;' : '';
     if (stereotype === 'archimate-junction-and' || stereotype === 'archimate-junction-or') {
-      registerRenderer(stereotype, (desc: RenderDescriptor) => new JunctionRenderer(desc, style, null));
+      const fill = style.match(/fillColor=([^;]+)/)?.[1] ?? '#FFFFFF';
+      const stroke = style.match(/strokeColor=([^;]+)/)?.[1] ?? '#181818';
+      registerRenderer(stereotype, (desc: RenderDescriptor) => new JunctionRenderer(desc, fill, stroke));
     } else if (stereotype === 'archimate-group') {
       registerRenderer(stereotype, (desc: RenderDescriptor) => new FolderArchimateRenderer(desc, '#D3D3D3'));
     } else if (stereotype === 'archimate-grouping') {

@@ -35,7 +35,8 @@ export function renderDivider(divider: {
   // Delay dividers: plain text, no lines
   if (divider.type === 'delay') {
     const labelHtml = Content.inline(divider.label).html;
-    const divStyle = `text;align=center;verticalAlign=middle;html=1;`;
+    const fontSize = divider.theme?.fontSize ?? 12;
+    const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};`;
     const hh = divider.halfHeight;
     cells.push(mxVertex({
       id: divider.id, value: labelHtml, style: divStyle,
@@ -48,22 +49,25 @@ export function renderDivider(divider: {
   // Section dividers (== text ==): two horizontal lines + bordered text box
   const colorDark = divider.theme?.colorDark ?? '#181818';
   const dividerFill = divider.theme?.dividerFill ?? '#EEEEEE';
+  const sw = divider.theme?.strokeWidth ?? 1;
   const lineY1 = divider.y - 1;
   const lineY2 = divider.y + 2;
   cells.push(mxVertex({
-    id: divider.id + '_line1', value: '', style: `shape=line;strokeWidth=1;strokeColor=${colorDark};`,
+    id: divider.id + '_line1', value: '', style: `shape=line;strokeWidth=${sw};strokeColor=${colorDark};`,
     parent: '1',
     x: divider.x1, y: lineY1, width: divider.x2 - divider.x1, height: 1,
   }));
   cells.push(mxVertex({
-    id: divider.id + '_line2', value: '', style: `shape=line;strokeWidth=1;strokeColor=${colorDark};`,
+    id: divider.id + '_line2', value: '', style: `shape=line;strokeWidth=${sw};strokeColor=${colorDark};`,
     parent: '1',
     x: divider.x1, y: lineY2, width: divider.x2 - divider.x1, height: 1,
   }));
   // Bordered text box centered between the lines
   const labelHtml = Content.inline(divider.label).html;
   const hh = divider.halfHeight;
-  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=2;`;
+  const largeArcSize = divider.theme?.largeArcSize ?? 12;
+  const fontSize = divider.theme?.fontSize ?? 12;
+  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${sw * 2};`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
     parent: '1',

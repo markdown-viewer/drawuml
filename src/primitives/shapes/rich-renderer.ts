@@ -2,27 +2,38 @@
  * RichRenderer — standardised base class for deployment / component shapes.
  *
  * Subclasses ONLY define the visual frame:
- *   - buildStyle()           — DrawIO shape style string
- *   - extraPadX / extraPadY  — padding added by shape decoration
- *   - contentXOffset / contentYOffset — content area origin offset
- *   - contentWidthReduction  — width consumed by frame decoration
+ *   - buildStyle()     — DrawIO shape style string
+ *   - shapePadding      — { top, bottom, left, right, titlebar } for shape decoration
  *
  * Base class handles ALL content logic:
  *   - Label + stereotype (default mode)
  *   - Bracket body with separators (when desc.bodyLines present)
- *   - doMeasure() via Content.measure() + frame padding
+ *   - doMeasure() via Content.measure() + shapePadding + titlebar
  *   - render() with frame cell + content label / separator children / container children
  *   - DOT subgraph / node generation
  *   - Color / inline-style application
  */
 
-import { Content, richTextStyle } from '../../shared/content.ts';
+import { Content } from '../../shared/content.ts';
 import { mxVertex, mxContentLabel, escapeXml } from '../../shared/xml-utils.ts';
 import { Renderer } from '../renderer.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
+import type { Theme } from '../../shared/theme.ts';
+
+/**
+ * Shape decoration padding returned by each subclass.
+ * All values default to 0 when omitted.
+ *   - top/bottom/left/right: extra space consumed by shape decoration
+ */
+export interface ShapePadding {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+}
 
 /** Style keys that belong to container layout, not shape identity. */
 const LAYOUT_STYLE_KEYS = new Set([
@@ -46,19 +57,6 @@ function extractShapeFragment(fullStyle: string): string {
   return parts.length > 0 ? parts.join(';') + ';' : 'rounded=0;';
 }
 
-/** DrawIO style for rich text row child mxCells. */
-function bracketRowStyle(): string {
-  return richTextStyle(10, 10);
-}
-
-/** DrawIO style for separator child mxCells. */
-function bracketSepStyle(): string {
-  return [
-    'line', 'strokeWidth=1', 'align=left', 'verticalAlign=middle',
-    'spacingTop=-1', 'spacingLeft=3', 'spacingRight=3',
-    'rotatable=0', 'labelPosition=right', 'points=[]',
-  ].join(';') + ';';
-}
 
 export abstract class RichRenderer extends Renderer {
   protected desc: RenderDescriptor;
@@ -82,43 +80,77 @@ export abstract class RichRenderer extends Renderer {
   /** DrawIO style string for the shape frame. */
   protected abstract buildStyle(): string;
 
-  /** Extra horizontal padding for shape decoration (e.g. hexagon sides). */
-  protected get extraPadX(): number { return 0; }
+  /**
+   * Shape decoration padding.
+   * Subclasses override to declare extra space consumed by shape decoration.
+   * @param contentSize — measured content dimensions including contentPad, strokeWidth and titlebar
+   */
+  protected shapePadding(_contentSize?: { width: number; height: number }): ShapePadding { return {}; }
 
-  /** Extra vertical padding for shape decoration (e.g. database caps). */
-  protected get extraPadY(): number { return 0; }
-
-  /** Horizontal offset for content area within frame. */
-  protected get contentXOffset(): number { return 0; }
+  /** Whether the shape has a titlebar area. Override to true in subclasses like folder/database. */
+  protected get hasTitlebar(): boolean { return false; }
 
   /**
-   * Top-only reserved height for shape decoration (e.g. folder tab, database cap, archimate icon).
-   * Frame height is automatically increased by this amount, and the content label starts at y=topPadY.
-   * Use this instead of pairing extraPadY+contentYOffset with identical values.
+   * Height of the title/header area.
+   * Only hasTitlebar shapes (folder, database, card, frame) have a title area;
+   * non-titlebar shapes render label in the content area.
    */
-  protected get topPadY(): number { return 0; }
+  protected get titleAreaHeight(): number {
+    return this.hasTitlebar ? this.theme.titleBarHeight : 0;
+  }
 
-  /** Width consumed by frame decoration (e.g. artifact icon on right). */
-  protected get contentWidthReduction(): number { return 0; }
+  /**
+   * Unified four-side content padding (text breathing space inside shape).
+   * Applied by base class in doMeasure() and buildRichBodyContainerStyle().
+   * The mxGraph +2 horizontal compensation is handled transparently.
+   */
+  protected get contentPad(): number { return this.theme.containerSpacingX; }
 
-  // ELK group top padding: shapes without fixed title area —
-  // add title height only when label is non-empty.
+  /** Content rect including contentPad, strokeWidth, and title area height. */
+  private computeContentRect(): { width: number; height: number } {
+    const size = this.content.measure();
+    const cp = this.contentPad;
+    const sw = this.theme.strokeWidth;
+    return {
+      width: size.width + cp * 2 + sw * 2,
+      height: size.height + cp * 2 + sw * 2 + this.titleAreaHeight,
+    };
+  }
+
+  /** Resolved top pad: shapePadding.top + titleAreaHeight. */
+  private get resolvedTopPad(): number {
+    const pad = this.shapePadding(this.computeContentRect());
+    const shapeTop = pad.top ?? 0;
+    return shapeTop + this.titleAreaHeight;
+  }
+
+  // Unified group top padding from shapePadding declaration.
+  // Clusters with label need title space even if hasTitlebar is false.
   override get groupTopPadding(): number {
-    const base = Renderer.GROUP_BASE_PAD;
-    return base + (this.label ? Renderer.GROUP_TITLE_HEIGHT : 0);
+    const pad = this.shapePadding(this.computeContentRect());
+    const shapeTop = pad.top ?? 0;
+    const titleH = this.hasTitlebar ? this.theme.titleBarHeight
+      : this.label ? this.theme.capHeight : 0;
+    return this.theme.groupPadding + titleH + shapeTop;
   }
 
   // ── Content construction ──────────────────────────────────────────────────
 
   /**
    * Detect whether this node uses rich body content.
-   * Only true when bodyLines contain at least one separator (----/====/....).
+   * True when bodyLines or multi-line label contain at least one separator (----/====/..).
    * Plain multi-line bodies without separators are rendered as label content.
    */
   protected detectRichBody(): boolean {
-    if (!this.desc.bodyLines || this.desc.bodyLines.length === 0) return false;
-    const lines = (this.desc.bodyLines as any[]).map(l => typeof l === 'string' ? l : l.text);
-    return Content.richBody(lines).hasSeparators;
+    if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
+      const lines = (this.desc.bodyLines as any[]).map(l => typeof l === 'string' ? l : l.text);
+      return Content.richBody(lines).hasSeparators;
+    }
+    // Fallback: multi-line label (from "as" syntax) may contain separators
+    if (this.label && this.label.includes('\n')) {
+      return Content.richBody(this.label.split('\n')).hasSeparators;
+    }
+    return false;
   }
 
   /**
@@ -126,9 +158,16 @@ export abstract class RichRenderer extends Renderer {
    * Default: desc.bodyLines. Override for note/legend which use desc.lines.
    */
   protected getRichBodyLines(): string[] {
-    return (this.desc.bodyLines || []).map(
-      (l: any) => typeof l === 'string' ? l : l.text
-    );
+    if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
+      return (this.desc.bodyLines as any[]).map(
+        (l: any) => typeof l === 'string' ? l : l.text
+      );
+    }
+    // Fallback: split multi-line label into lines
+    if (this.label && this.label.includes('\n')) {
+      return this.label.split('\n');
+    }
+    return [];
   }
 
   /**
@@ -136,7 +175,7 @@ export abstract class RichRenderer extends Renderer {
    * Default: undefined (use RICH_BODY_METRICS defaults).
    * Override for shapes like note/legend with custom padding.
    */
-  protected getRichBodyMetrics(): Record<string, number> | undefined {
+  protected getRichBodyMetrics(): Record<string, number | string> | undefined {
     return undefined;
   }
 
@@ -145,20 +184,26 @@ export abstract class RichRenderer extends Renderer {
    * Override for custom label patterns (e.g. package shows stereo in body).
    */
   protected buildContent(): Content {
+    const fontSize = this.theme.fontSize;
+    const fontFamily = this.theme.fontFamily;
     if (this.hasRichBody) {
-      return Content.richBody(this.getRichBodyLines(), this.getRichBodyMetrics());
+      const metrics = this.getRichBodyMetrics() || {};
+      if (!metrics.bodyFontSize) metrics.bodyFontSize = fontSize;
+      if (!metrics.fontFamily) metrics.fontFamily = fontFamily;
+      return Content.richBody(this.getRichBodyLines(), metrics, this.theme);
     }
     // bodyLines without separators: render lines as the node's display content
     if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
       const lines = this.getRichBodyLines();
       const html = lines.map(l => Content.inline(l).html).join('<br />');
-      return Content.rich(html);
+      return Content.rich(html, { bodyFontSize: fontSize, fontFamily });
     }
     const labelHtml = Content.inline(this.label).html;
     return Content.rich(buildLabelHtml({
       label: labelHtml,
       stereotypeLabel: this.desc.stereotypeLabel || undefined,
-    }));
+      fontSize,
+    }), { bodyFontSize: fontSize, fontFamily });
   }
 
   /**
@@ -169,11 +214,7 @@ export abstract class RichRenderer extends Renderer {
    */
   protected get richBodyStyleComplete(): boolean { return false; }
 
-  /** DrawIO style for rich body text row child mxCells. */
-  protected getRichBodyRowStyle(): string { return bracketRowStyle(); }
 
-  /** DrawIO style for rich body separator child mxCells. */
-  protected getRichBodySepStyle(): string { return bracketSepStyle(); }
 
   /**
    * HTML value placed directly on the frame mxVertex.
@@ -226,18 +267,23 @@ export abstract class RichRenderer extends Renderer {
   protected doMeasure() {
     if (this.isCluster) return { width: 0, height: 0 };
     const size = this.content.measure();
+    const contentRect = this.computeContentRect();
+    const pad = this.shapePadding(contentRect);
+    const padLeft = pad.left ?? 0;
+    const padRight = pad.right ?? 0;
+    const padTop = pad.top ?? 0;
+    const padBottom = pad.bottom ?? 0;
     if (this.hasRichBody) {
-      // Content.richBody metrics already include all padding;
-      // extraPadX/Y from subclass account for shape decoration.
-      // topPadY accounts for fixed title area (folder tab, frame header, etc.).
+      // contentRect already includes contentPad, strokeWidth, and title area;
+      // shapePadding adds shape decoration space.
       return {
-        width: size.width + this.extraPadX,
-        height: size.height + this.extraPadY + this.topPadY,
+        width: contentRect.width + padLeft + padRight,
+        height: contentRect.height + padTop + padBottom,
       };
     }
     return {
-      width: Math.max(this.theme.titleMinWidth, size.width + this.theme.titlePadX + this.extraPadX),
-      height: size.height + this.theme.titlePadY + this.extraPadY + this.topPadY,
+      width: Math.max(this.theme.titleMinWidth, size.width + this.theme.titlePadX + padLeft + padRight),
+      height: size.height + this.theme.titlePadY + padTop + padBottom + this.titleAreaHeight,
     };
   }
 
@@ -259,11 +305,8 @@ export abstract class RichRenderer extends Renderer {
     // Non-cluster: remove container marking
     if (!this.isCluster) s = s.replace('container=1;', '');
 
-    // Cluster: title at top instead of middle
-    if (this.isCluster) s = s.replace('verticalAlign=middle', 'verticalAlign=top');
-
     // Apply inline style overrides
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
     s = styledS;
     // Apply text color override to frame fontColor (e.g. package tab text)
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
@@ -289,13 +332,13 @@ export abstract class RichRenderer extends Renderer {
       if (bodyHtml && bodyHtml !== frameValue) {
         const stereoStyle = `text;html=1;align=center;verticalAlign=middle;`
           + `resizable=0;points=[];autosize=0;strokeColor=none;fillColor=none;`
-          + `fontSize=12;fontColor=${this.theme.colorDark};`;
+          + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};`;
         cells.push(mxVertex({
           id: `${this.id}__body`,
           value: bodyHtml,
           style: stereoStyle,
           parent: this.id,
-          x: 0, y: this.topPadY,
+          x: 0, y: this.resolvedTopPad,
           width: fb.width, height: 20,
         }));
       }
@@ -303,11 +346,13 @@ export abstract class RichRenderer extends Renderer {
     } else if (bodyHtml) {
       // Content label as child cell
       const labelStyle = `fontSize=${this.theme.fontSize};${fontColorOverride || `fontColor=${this.theme.colorDark};`}`;
+      const pad = this.shapePadding(this.computeContentRect());
       cells.push(mxContentLabel(
         this.id, bodyHtml,
-        fb.width - this.contentWidthReduction, fb.height,
+        fb.width, fb.height,
         labelStyle,
-        this.topPadY, this.contentXOffset,
+        this.resolvedTopPad, pad.left ?? 0,
+        pad.right ?? 0, pad.bottom ?? 0,
       ));
     }
 
@@ -323,14 +368,20 @@ export abstract class RichRenderer extends Renderer {
    */
   private buildRichBodyContainerStyle(): string {
     if (this.richBodyStyleComplete) return this.buildStyle();
-    const shapeFragment = extractShapeFragment(this.buildStyle());
+    const fullStyle = this.buildStyle();
+    const shapeFragment = extractShapeFragment(fullStyle);
+    const cp = this.contentPad;
+    // Preserve original fillColor/strokeColor from buildStyle if present
+    const fill = fullStyle.match(/fillColor=([^;]*)/)?.[1] ?? this.theme.defaultFill;
+    const stroke = fullStyle.match(/strokeColor=([^;]*)/)?.[1] ?? this.theme.colorDark;
     const base = [
       'html=1', 'whiteSpace=wrap', 'container=1',
       shapeFragment.replace(/;$/, ''),
-      `fillColor=${this.theme.defaultFill}`, `strokeColor=${this.theme.colorDark}`, 'strokeWidth=0.5',
+      `fillColor=${fill}`, `strokeColor=${stroke}`, `strokeWidth=${this.theme.strokeWidth}`,
       'align=left', 'verticalAlign=top',
-      'spacingLeft=10', 'spacingRight=10', `spacingTop=${6 + this.topPadY}`, 'spacingBottom=6',
+      `spacingLeft=${cp}`, `spacingRight=${cp}`, `spacingTop=${cp + this.resolvedTopPad}`, `spacingBottom=${cp}`,
       'overflow=hidden',
+      `fontSize=${this.theme.fontSize}`, `fontFamily=${this.theme.fontFamily}`,
     ];
     return base.join(';') + ';';
   }
@@ -341,7 +392,7 @@ export abstract class RichRenderer extends Renderer {
   private renderRichBody(box: ContentBox): string[] {
     let s = this.buildRichBodyContainerStyle();
     s = this.applyColorOverride(s);
-    const { style: styledS } = Renderer.applyInlineStyle(s, this.desc.style);
+    const { style: styledS } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
     s = styledS;
     s = this.postProcessStyle(s);
 
@@ -355,12 +406,18 @@ export abstract class RichRenderer extends Renderer {
         parent: this.parentId || '1',
         x: box.x, y: box.y, width: box.width, height: box.height,
       }));
-      cells.push(...this.content.renderChildren(this.id, box.width, {
-        rowStyle: this.getRichBodyRowStyle(),
-        separatorStyle: this.getRichBodySepStyle(),
+      // Compute content inset for child positioning (e.g. ellipse geometry)
+      const contentRect = this.computeContentRect();
+      const pad = this.shapePadding(contentRect);
+      const padLeft = pad.left ?? 0;
+      const padRight = pad.right ?? 0;
+      const padTop = pad.top ?? 0;
+      const childWidth = box.width - padLeft - padRight;
+      const childStartY = this.titleAreaHeight + this.contentPad + padTop;
+      cells.push(...this.content.renderChildren(this.id, childWidth, {
         fillColor,
         strokeColor,
-      }, this.topPadY));
+      }, childStartY, padLeft));
     } else {
       cells.push(mxVertex({
         id: this.id, value: this.content.html, style: s,

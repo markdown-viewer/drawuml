@@ -17,10 +17,7 @@ import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 import { parseNodeStyle } from '../shared/color-utils.ts';
 
-const PORT_SIZE = 12;
-const PORT_HALF = PORT_SIZE / 2;
-const LABEL_HEIGHT = 22;
-const LABEL_PAD = 3;      // gap between square edge and label
+const LABEL_PAD_DEFAULT = 3;      // gap between square edge and label (fallback)
 const DEFAULT_FILL = '#F1F1F1';
 const DEFAULT_STROKE = '#181818';
 
@@ -43,8 +40,9 @@ export class PortNodeRenderer extends Renderer {
   override get isCluster(): boolean { return false; }
 
   protected doMeasure(): { width: number; height: number } {
-    // DOT sees only the square (12×12); label is rendered outside the bounding box.
-    return { width: PORT_SIZE, height: PORT_SIZE };
+    // DOT sees only the square (portSize × portSize); label is rendered outside the bounding box.
+    const ps = this.theme.portSize;
+    return { width: ps, height: ps };
   }
 
   render(box: ContentBox): string[] {
@@ -62,11 +60,14 @@ export class PortNodeRenderer extends Renderer {
       if (parsed.strokeColor) strokeColor = parsed.strokeColor;
       if (parsed.lineStyle === 'dashed') extraStyle += 'dashed=1;';
       else if (parsed.lineStyle === 'dotted') extraStyle += 'dashed=1;dashPattern=1 2;';
-      else if (parsed.lineStyle === 'bold') extraStyle += 'strokeWidth=3;';
+      else if (parsed.lineStyle === 'bold') extraStyle += `strokeWidth=${this.theme.strokeWidth * 3};`;
     }
 
+    const portSize = this.theme.portSize;
+    const portHalf = portSize / 2;
+    const portLabelH = this.theme.portLabelH;
     const squareStyle =
-      `rounded=0;fillColor=${fillColor};strokeColor=${strokeColor};strokeWidth=1.5;${extraStyle}`;
+      `rounded=0;fillColor=${fillColor};strokeColor=${strokeColor};strokeWidth=${this.theme.strokeWidth * 1.5};${extraStyle}`;
 
     // Square cell — parent='1' (root level) so coordinates are absolute
     cells.push(mxVertex({
@@ -76,28 +77,29 @@ export class PortNodeRenderer extends Renderer {
       parent: '1',
       x: box.x,
       y: box.y,
-      width: PORT_SIZE,
-      height: PORT_SIZE,
+      width: portSize,
+      height: portSize,
     }));
 
     // Label cell — positioned above (portin) or below (portout) the square
     if (this._label) {
-      const labelWidth = Math.max(this._label.length * 9, PORT_SIZE + 20);
-      const labelX = Math.round(box.x + PORT_HALF - labelWidth / 2);
+      const labelPad = this.theme.portLabelPad || LABEL_PAD_DEFAULT;
+      const labelWidth = Math.max(this._label.length * 9, portSize + 20);
+      const labelX = Math.round(box.x + portHalf - labelWidth / 2);
       const labelY = this._portKind === 'portout'
-        ? box.y + PORT_SIZE + LABEL_PAD       // below the square
-        : box.y - LABEL_HEIGHT - LABEL_PAD;   // above the square
+        ? box.y + portSize + labelPad       // below the square
+        : box.y - portLabelH - labelPad;   // above the square
 
       const textColor = (parsed?.textColor) ? `fontColor=${parsed.textColor};` : '';
       cells.push(mxVertex({
         id: `${this.id}__lbl`,
         value: this._label,
-        style: `text;align=center;verticalAlign=middle;${textColor}fontSize=12;`,
+        style: `text;align=center;verticalAlign=middle;${textColor}fontSize=${this.theme.fontSize};`,
         parent: '1',
         x: labelX,
         y: labelY,
         width: labelWidth,
-        height: LABEL_HEIGHT,
+        height: portLabelH,
       }));
     }
 

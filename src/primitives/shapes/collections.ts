@@ -12,32 +12,31 @@ import { registerRenderer } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
-/** Offset between the back and front rectangles. */
-const SHADOW_OFFSET = 5;
-
 class CollectionsRenderer extends RichRenderer {
+  /** Offset between the back and front rectangles. */
+  private get shadowOffset(): number { return this.theme.shadowOffset; }
+
   protected buildStyle(): string {
-    return `shape=mxgraph.basic.rect;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=#FFFFFF;strokeColor=${this.theme.colorDark};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
+    return `shape=mxgraph.basic.rect;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=#FFFFFF;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
   }
-  protected get extraPadX(): number { return SHADOW_OFFSET; }
-  protected get extraPadY(): number { return SHADOW_OFFSET; }
   get isCluster(): boolean { return false; }
 
   // Front rect is smaller than layout box by shadow offset
   protected frameBox(box: ContentBox): ContentBox {
-    return { x: box.x, y: box.y, width: box.width - SHADOW_OFFSET, height: box.height - SHADOW_OFFSET };
+    const s = this.shadowOffset;
+    return { x: box.x, y: box.y, width: box.width - s, height: box.height - s };
   }
 
   // Back shadow rectangle rendered behind main frame
   protected renderExtraCells(box: ContentBox): string[] {
     let bs = `rounded=0;fillColor=none;strokeColor=${this.theme.colorDark};`;
     if (this.color) bs = bs.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
-    { const r = Renderer.applyInlineStyle(bs, this.desc.style); bs = r.style; }
+    { const r = Renderer.applyInlineStyle(bs, this.desc.style, this.theme.strokeWidth * 2); bs = r.style; }
     return [mxVertex({
       id: `${this.id}__back`, value: '', style: bs,
       parent: this.parentId || '1',
-      x: box.x + SHADOW_OFFSET, y: box.y + SHADOW_OFFSET,
-      width: box.width - SHADOW_OFFSET, height: box.height - SHADOW_OFFSET,
+      x: box.x + this.shadowOffset, y: box.y + this.shadowOffset,
+      width: box.width - this.shadowOffset, height: box.height - this.shadowOffset,
     })];
   }
 }

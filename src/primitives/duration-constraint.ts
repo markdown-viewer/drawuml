@@ -24,7 +24,8 @@ export function renderDurationConstraint(dc: {
   const cells: string[] = [];
   const colorDark = dc.theme?.colorDark ?? '#181818';
   const smallFontSize = dc.theme?.smallFontSize ?? 10;
-  const lineStyle = `endArrow=block;endFill=1;startArrow=block;startFill=1;strokeColor=${colorDark};`;
+  const sw = dc.theme?.strokeWidth ?? 1;
+  const lineStyle = `endArrow=block;endFill=1;startArrow=block;startFill=1;strokeColor=${colorDark};strokeWidth=${sw};`;
   cells.push(
     `<mxCell id="${escapeXml(dc.id + '_line')}" value="" style="${lineStyle}" edge="1" parent="1">`
     + `<mxGeometry relative="1" as="geometry">`

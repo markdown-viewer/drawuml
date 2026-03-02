@@ -6,8 +6,9 @@
  * share the same post-processing logic.
  */
 
-import type { LayoutResult, LayoutNode, LayoutGroup } from '../model/index.ts';
+import type { LayoutResult, LayoutNode, LayoutGroup, LayoutEdge } from '../model/index.ts';
 import type { SemanticModel, SemanticNode } from '../model/index.ts';
+import type { Theme } from '../shared/theme.ts';
 import { computeTitleH } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 
@@ -154,11 +155,123 @@ export function clipPathAtGroupBoundary(
 }
 
 // ---------------------------------------------------------------------------
-// Port node snapping
+// Edge-edge spacing enforcement
 // ---------------------------------------------------------------------------
 
-const PORT_HALF = 6; // half of PORT_SIZE (12px)
-const PORT_SIZE = PORT_HALF * 2;
+/** A vertical or horizontal segment extracted from an edge's point list. */
+interface EdgeSegment {
+  edgeIdx: number;
+  /** Index of the first point in the segment pair */
+  ptIdx: number;
+  /** Is this segment vertical (true) or horizontal (false)? */
+  vertical: boolean;
+  /** Constant coordinate (x for vertical, y for horizontal) */
+  pos: number;
+  /** Range start (y-min for vertical, x-min for horizontal) */
+  rangeMin: number;
+  /** Range end (y-max for vertical, x-max for horizontal) */
+  rangeMax: number;
+}
+
+/**
+ * Post-process edge routes to enforce minimum edge-edge spacing.
+ *
+ * ELK does not guarantee edge-edge spacing for cross-hierarchy edges
+ * (edges routed through different hierarchy levels). This function
+ * detects overlapping parallel edge segments and nudges them apart.
+ */
+export function separateOverlappingEdges(layout: LayoutResult, minGap: number): void {
+  if (minGap <= 0) return;
+  const edges = layout.edges;
+  if (!edges || edges.length < 2) return;
+
+  // Collect all axis-aligned segments from all edges
+  const vertSegs: EdgeSegment[] = [];
+  const horizSegs: EdgeSegment[] = [];
+  for (let ei = 0; ei < edges.length; ei++) {
+    const pts = edges[ei].points;
+    if (!pts || pts.length < 2) continue;
+    for (let pi = 0; pi < pts.length - 1; pi++) {
+      const dx = Math.abs(pts[pi].x - pts[pi + 1].x);
+      const dy = Math.abs(pts[pi].y - pts[pi + 1].y);
+      if (dx < 0.5 && dy > 0.5) {
+        // vertical segment
+        vertSegs.push({
+          edgeIdx: ei, ptIdx: pi, vertical: true,
+          pos: pts[pi].x,
+          rangeMin: Math.min(pts[pi].y, pts[pi + 1].y),
+          rangeMax: Math.max(pts[pi].y, pts[pi + 1].y),
+        });
+      } else if (dy < 0.5 && dx > 0.5) {
+        // horizontal segment
+        horizSegs.push({
+          edgeIdx: ei, ptIdx: pi, vertical: false,
+          pos: pts[pi].y,
+          rangeMin: Math.min(pts[pi].x, pts[pi + 1].x),
+          rangeMax: Math.max(pts[pi].x, pts[pi + 1].x),
+        });
+      }
+    }
+  }
+
+  // For each pair of parallel segments from DIFFERENT edges,
+  // check if they overlap in range and are too close.
+  _nudgeSegments(vertSegs, edges, minGap);
+  _nudgeSegments(horizSegs, edges, minGap);
+}
+
+/**
+ * Nudge overlapping parallel segments apart.
+ * Mutates edge points in-place.
+ */
+function _nudgeSegments(
+  segs: EdgeSegment[],
+  edges: LayoutEdge[],
+  minGap: number,
+): void {
+  // Sort by position so we can process neighbors
+  segs.sort((a, b) => a.pos - b.pos);
+
+  for (let i = 0; i < segs.length; i++) {
+    for (let j = i + 1; j < segs.length; j++) {
+      const a = segs[i], b = segs[j];
+      // Different edges only
+      if (a.edgeIdx === b.edgeIdx) continue;
+      const gap = b.pos - a.pos;
+      if (gap >= minGap) break; // sorted, so no more close pairs for this i
+      // Check range overlap
+      const overlapMin = Math.max(a.rangeMin, b.rangeMin);
+      const overlapMax = Math.min(a.rangeMax, b.rangeMax);
+      if (overlapMax <= overlapMin) continue;
+      // Segments overlap and are too close — nudge them apart symmetrically
+      const shift = (minGap - gap) / 2;
+      _shiftSegment(a, edges, -shift);
+      _shiftSegment(b, edges, shift);
+      // Update pos for subsequent comparisons
+      a.pos -= shift;
+      b.pos += shift;
+    }
+  }
+}
+
+/**
+ * Shift one segment along its perpendicular axis.
+ * Updates both endpoints of the segment in the edge's point array.
+ */
+function _shiftSegment(seg: EdgeSegment, edges: LayoutEdge[], delta: number): void {
+  const pts = edges[seg.edgeIdx].points!;
+  if (seg.vertical) {
+    pts[seg.ptIdx].x += delta;
+    pts[seg.ptIdx + 1].x += delta;
+  } else {
+    pts[seg.ptIdx].y += delta;
+    pts[seg.ptIdx + 1].y += delta;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Port node snapping
+// ---------------------------------------------------------------------------
 
 /**
  * Snap port nodes to their parent group boundary after layout,
@@ -168,7 +281,10 @@ export function snapPortNodes(
   layout: LayoutResult,
   model: SemanticModel,
   renderers: Map<string, Renderer>,
+  theme?: Theme,
 ): void {
+  const PORT_SIZE = theme?.portSize ?? 12;
+  const PORT_HALF = PORT_SIZE / 2;
   const nodeGroupMap = new Map<string, string>();
   for (const group of model.groups || []) {
     for (const childId of group.children) nodeGroupMap.set(childId, group.id);
@@ -289,6 +405,7 @@ export function alignFieldNotes(
   nodes: Record<string, LayoutNode>,
   notes: Array<{ id: string; position?: string; target?: string; memberTarget?: string }>,
   modelNodes: SemanticNode[],
+  theme?: Theme,
 ): void {
   for (const note of notes) {
     if (!note.memberTarget || !note.target) continue;
@@ -339,7 +456,7 @@ export function alignFieldNotes(
   for (const group of Array.from(groups.values())) {
     if (group.length <= 1) continue;
     group.sort((a, b) => (nodes[a.id]?.y ?? 0) - (nodes[b.id]?.y ?? 0));
-    const GAP = 10;
+    const GAP = theme?.seqMediumPad ?? 10;
     for (let i = 1; i < group.length; i++) {
       const prev = nodes[group[i - 1].id];
       const cur = nodes[group[i].id];
@@ -394,13 +511,8 @@ export function positionTitle(layout: LayoutResult, renderers: Map<string, Rende
  *
  * For DOT engine: nodes are already in correct columns (DOT clusters).
  *   Only normalizes region heights to span full container.
- *
- * For ELK engine: nodes are flat-laid-out (correct Y order, single column).
- *   This function assigns X columns per lane, shifts nodes & edge waypoints.
- *
- * @param engine - 'dot' (default) or 'elk'
  */
-export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, engine: 'dot' | 'elk' = 'dot'): void {
+export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, theme?: Theme): void {
   if (!model.groups) return;
 
   for (const group of model.groups) {
@@ -409,10 +521,8 @@ export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, e
     const containerPos = layout.groups?.[group.id];
     if (!containerPos) continue;
 
-    if (engine === 'elk') {
-      _rearrangeSwimlaneElk(layout, group, containerPos);
-    } else if (model.rankdir === 'LR') {
-      _rearrangeSwimlaneDotLR(layout, group, containerPos);
+    if (model.rankdir === 'LR') {
+      _rearrangeSwimlaneDotLR(layout, group, containerPos, theme);
     } else {
       _rearrangeSwimlaneDot(layout, group, containerPos);
     }
@@ -490,11 +600,12 @@ function _rearrangeSwimlaneDotLR(
   layout: LayoutResult,
   group: { id: string; concurrentRegions: string[][]; children: string[] },
   containerPos: LayoutGroup,
+  theme?: Theme,
 ): void {
   const regions = group.concurrentRegions;
   const numLanes = regions.length;
-  const LANE_PAD = 20;
-  const LANE_HEADER = 40; // left-side title width for horizontal lanes
+  const LANE_PAD = theme?.groupPadding ?? 20;
+  const LANE_HEADER = theme?.titleBarHeight ?? 40; // left-side title width for horizontal lanes
 
   // Build node→lane index map
   const nodeLane = new Map<string, number>();
@@ -512,7 +623,8 @@ function _rearrangeSwimlaneDotLR(
       const n = layout.nodes[nid];
       if (n) maxH = Math.max(maxH, n.height);
     }
-    laneHeights.push(Math.max(maxH + 2 * LANE_PAD, 80));
+    const minLaneH = (theme?.nodesepPx ?? 40) * 2; // 80 at base 12
+    laneHeights.push(Math.max(maxH + 2 * LANE_PAD, minLaneH));
   }
 
   // Compute lane Y offsets (cumulative)
@@ -577,137 +689,6 @@ function _rearrangeSwimlaneDotLR(
   }
 }
 
-/**
- * ELK mode: nodes are flat (single column, correct Y order).
- * Assign X columns per lane, shift nodes & edge waypoints.
- */
-function _rearrangeSwimlaneElk(
-  layout: LayoutResult,
-  group: { id: string; concurrentRegions: string[][]; children: string[]; concurrentRegionLabels?: string[] },
-  containerPos: LayoutGroup,
-): void {
-  const regions = group.concurrentRegions;
-  const numLanes = regions.length;
-  const LANE_PAD = 20; // padding inside each lane
-  const LANE_HEADER = 20; // header height for lane labels
-
-  // Build node→lane index map
-  const nodeLane = new Map<string, number>();
-  for (let i = 0; i < numLanes; i++) {
-    for (const nid of regions[i]) {
-      nodeLane.set(nid, i);
-    }
-  }
-
-  // Compute width of each lane: max node width + 2*padding
-  const laneWidths: number[] = [];
-  for (let i = 0; i < numLanes; i++) {
-    let maxW = 0;
-    for (const nid of regions[i]) {
-      const n = layout.nodes[nid];
-      if (n) maxW = Math.max(maxW, n.width);
-    }
-    laneWidths.push(Math.max(maxW + 2 * LANE_PAD, 80)); // min lane width 80
-  }
-
-  // Compute lane X offsets (cumulative)
-  const laneX: number[] = [];
-  let accX = 0;
-  for (let i = 0; i < numLanes; i++) {
-    laneX.push(accX);
-    accX += laneWidths[i];
-  }
-  const totalWidth = accX;
-
-  // Compute Y bounds from all nodes (ELK placed them correctly in Y)
-  let minY = Infinity, maxY = -Infinity;
-  for (const nid of group.children) {
-    const n = layout.nodes[nid];
-    if (!n) continue;
-    minY = Math.min(minY, n.y);
-    maxY = Math.max(maxY, n.y + n.height);
-  }
-  if (!isFinite(minY)) return;
-
-  const containerX = containerPos.x;
-  const containerY = Math.round(minY - LANE_HEADER);
-  const totalHeight = Math.round(maxY - minY + LANE_HEADER);
-
-  // Build old→new X mapping for edge waypoint adjustment
-  const nodeXShifts = new Map<string, { dx: number }>();
-
-  // Move each node to its lane column, centered horizontally
-  for (const nid of group.children) {
-    const n = layout.nodes[nid];
-    if (!n) continue;
-    const lane = nodeLane.get(nid);
-    if (lane === undefined) continue;
-
-    const oldCx = n.x + n.width / 2;
-    const newX = containerX + laneX[lane] + (laneWidths[lane] - n.width) / 2;
-    n.x = Math.round(newX);
-    const newCx = n.x + n.width / 2;
-    nodeXShifts.set(nid, { dx: newCx - oldCx });
-  }
-
-  // Adjust edge waypoints: for each edge, shift X coords based on
-  // the average shift of its source/target lane
-  for (const edge of layout.edges) {
-    if (!edge.points || edge.points.length < 2) continue;
-
-    const srcLane = nodeLane.get(edge.from);
-    const tgtLane = nodeLane.get(edge.to);
-    if (srcLane === undefined && tgtLane === undefined) continue;
-
-    const srcShift = nodeXShifts.get(edge.from);
-    const tgtShift = nodeXShifts.get(edge.to);
-    const srcDx = srcShift?.dx || 0;
-    const tgtDx = tgtShift?.dx || 0;
-
-    // For start/end points: use the corresponding node's shift
-    // For intermediate bend points: interpolate based on Y position
-    const pts = edge.points;
-    const startY = pts[0].y;
-    const endY = pts[pts.length - 1].y;
-    const yRange = endY - startY;
-
-    for (let k = 0; k < pts.length; k++) {
-      let dx: number;
-      if (k === 0) {
-        dx = srcDx;
-      } else if (k === pts.length - 1) {
-        dx = tgtDx;
-      } else if (Math.abs(yRange) < 1) {
-        dx = (srcDx + tgtDx) / 2;
-      } else {
-        // Interpolate shift based on Y position between source and target
-        const t = (pts[k].y - startY) / yRange;
-        dx = srcDx + (tgtDx - srcDx) * Math.max(0, Math.min(1, t));
-      }
-      pts[k] = { x: Math.round(pts[k].x + dx), y: pts[k].y };
-    }
-  }
-
-  // Update container dimensions
-  containerPos.x = containerX;
-  containerPos.y = containerY;
-  containerPos.width = totalWidth;
-  containerPos.height = totalHeight;
-
-  // Create region groups for DrawIO rendering
-  if (!layout.groups) layout.groups = {};
-  for (let i = 0; i < numLanes; i++) {
-    const regionId = `${group.id}.__conc_region__${i}`;
-    layout.groups[regionId] = {
-      id: regionId,
-      x: containerX + laneX[i],
-      y: containerY,
-      width: laneWidths[i],
-      height: totalHeight,
-    };
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Fix ortho edges for swimlane diagrams
 // ---------------------------------------------------------------------------
@@ -739,8 +720,10 @@ function _rearrangeSwimlaneElk(
  * Must be called BEFORE fixOrthoEdges (which rebuilds edge paths from
  * corrected node positions).
  */
-export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, minGap: number = 40): void {
+export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme?: Theme): void {
   if (!model.groups) return;
+
+  const minGap = theme?.nodesepPx ?? 40;
 
   const swimContainer = model.groups.find(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
@@ -1040,7 +1023,8 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
  *   3. Build two detour paths around the expanded rect (CW and CCW).
  *   4. Pick the shorter one, splice it in, and remove bypassed points.
  */
-export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, margin: number = 20): void {
+export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, theme?: Theme): void {
+  const margin = theme ? Math.round(theme.nodesepPx / 3) : 10;
   const edges = layout.edges;
   if (!edges || edges.length === 0) return;
   const nodes = layout.nodes;

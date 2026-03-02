@@ -21,7 +21,7 @@ import { Content } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import type { LayoutResult } from '../model/index.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
-import type { ContentBox, FinalizeBodyCtx, ContentBlock } from '../shared/content.ts';
+import type { ContentBox, FinalizeBodyCtx, ContentBlock, ChildStyleOpts } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 import type { Theme } from '../shared/theme.ts';
@@ -115,19 +115,13 @@ export abstract class Renderer {
   get portKind(): 'portin' | 'portout' | null { return null; }
 
   /**
-   * Offset from geometic center to visual graphic center (in pixels).
-   * For nodes whose visual shape (e.g. icon) is not centered within the
-   * full bounding box (e.g. actor with label below), override this so DOT
-   * layout can align edge routing with the actual graphic center.
-   * Positive dy = graphic center is below geometric center.
-   * Negative dy = graphic center is above geometric center.
+   * Size of the visual graphic area only (excluding external labels).
+   * Returns null when the graphic fills the entire bounding box.
+   * Used by ELK adapter to set icon-only node dimensions with external
+   * labels, so edges route to the icon boundary.
+   * Used by DOT layout to compute graphic-center offset.
    */
-  graphicCenterOffset(): { dx: number; dy: number } { return { dx: 0, dy: 0 }; }
-
-  /** Base gap between header bottom and first child in ELK groups (px). */
-  static readonly GROUP_BASE_PAD = 15;
-  /** Title line visual height for non-fixed-title shapes (px). */
-  static readonly GROUP_TITLE_HEIGHT = 20;
+  graphicSize(): { width: number; height: number } | null { return null; }
 
   /**
    * Top padding for ELK group containers (pixels).
@@ -139,8 +133,8 @@ export abstract class Renderer {
    * Subclasses override for shape-specific logic.
    */
   get groupTopPadding(): number {
-    const base = Renderer.GROUP_BASE_PAD;
-    return base + (this.clusterLabel ? Renderer.GROUP_TITLE_HEIGHT : 0);
+    const base = this.theme.groupPadding;
+    return base + (this.clusterLabel ? this.theme.capHeight : 0);
   }
 
   /**
@@ -160,7 +154,7 @@ export abstract class Renderer {
     if (this.isCluster) {
       node.label = this.clusterLabel;
       node.children = this.children.map(c => c.buildLayoutGraph());
-      node.padding = { top: this.groupTopPadding, right: 20, bottom: 20, left: 20 };
+      node.padding = { top: this.groupTopPadding, right: this.theme.groupPadding, bottom: this.theme.groupPadding, left: this.theme.groupPadding };
     }
     return node;
   }
@@ -174,7 +168,7 @@ export abstract class Renderer {
    * Handles fillColor, strokeColor, lineStyle (dashed/dotted/bold), textColor.
    * Each renderer calls this in its own render() to apply user-specified styles.
    */
-  static applyInlineStyle(drawioStyle: string, rawStyle: string | null | undefined): { style: string; fontColorOverride: string } {
+  static applyInlineStyle(drawioStyle: string, rawStyle: string | null | undefined, boldStrokeWidth: number = 2): { style: string; fontColorOverride: string } {
     let s = drawioStyle;
     let fontColorOverride = '';
     const parsed = parseNodeStyle(rawStyle);
@@ -186,7 +180,7 @@ export abstract class Renderer {
       if (parsed.strokeColor) s += `strokeColor=${parsed.strokeColor};`;
       if (parsed.lineStyle === 'dashed') s += 'dashed=1;';
       else if (parsed.lineStyle === 'dotted') s += 'dashed=1;dashPattern=1 2;';
-      else if (parsed.lineStyle === 'bold') s += 'strokeWidth=2;';
+      else if (parsed.lineStyle === 'bold') s += `strokeWidth=${boldStrokeWidth};`;
       if (parsed.textColor) fontColorOverride = `fontColor=${parsed.textColor};`;
     }
     return { style: s, fontColorOverride };
@@ -234,6 +228,9 @@ export abstract class SwimlaneRenderer extends Renderer {
       visibilityIcons: opts?.visibilityIcons,
       hideFields: opts?.hideFields,
       hideMethods: opts?.hideMethods,
+      fontSize: this.theme?.fontSize,
+      fontFamily: this.theme?.fontFamily,
+      theme: this.theme,
       finalizeBody: (ctx) => this.finalizeBody(ctx),
     });
   }
@@ -254,10 +251,8 @@ export abstract class SwimlaneRenderer extends Renderer {
 
   /** DrawIO swimlane style for the container. */
   protected abstract getContainerStyle(titleHeight: number): string;
-  /** DrawIO style for body text row child mxCells. */
-  protected abstract getRowStyle(): string;
-  /** DrawIO style for separator child mxCells. */
-  protected abstract getSeparatorStyle(): string;
+  /** Swimlane child style options (portConstraint, stroke/lineStyle overrides). */
+  protected getChildStyleOpts(): ChildStyleOpts { return { portConstraint: true }; }
 
   render(box: ContentBox) {
     const cells: string[] = [];
@@ -272,10 +267,8 @@ export abstract class SwimlaneRenderer extends Renderer {
     }));
 
     // Body rows + separators as children, starting below title
-    cells.push(...this.content.renderChildren(this.id, box.width, {
-      rowStyle: this.getRowStyle(),
-      separatorStyle: this.getSeparatorStyle(),
-    }, size.titleHeight));
+    cells.push(...this.content.renderChildren(this.id, box.width,
+      this.getChildStyleOpts(), size.titleHeight));
 
     return cells;
   }

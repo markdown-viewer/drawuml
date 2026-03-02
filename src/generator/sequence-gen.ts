@@ -3,6 +3,7 @@ import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import {
   PARTICIPANT_CONFIG,
+  getScaledParticipantConfig,
   participantCellGeom,
   participantStyle,
   renderParticipant,
@@ -69,7 +70,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
     if (!lp) continue;
-    const { cellX } = participantCellGeom(p.type, lp.x, lp.width);
+    const { cellX } = participantCellGeom(p.type, lp.x, lp.width, theme?.iconSize);
     participantCellMap[p.id] = { cellX, cellY: lp.y };
   }
 
@@ -120,11 +121,12 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   }
 
   // Build participant layout map for lifeline-connected edges (no activation)
+  const pConfig = theme ? getScaledParticipantConfig(theme.iconSize) : PARTICIPANT_CONFIG;
   const pLayoutMap: Record<string, { x: number; y: number; width: number; height: number; centerX: number }> = {};
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
     if (!lp) continue;
-    const cfg = PARTICIPANT_CONFIG[p.type] || PARTICIPANT_CONFIG.participant;
+    const cfg = pConfig[p.type] || pConfig.participant;
     const cellW = cfg.iconW > 0 ? cfg.iconW : lp.width;
     const cellX = lp.x + (lp.width - cellW) / 2;
     pLayoutMap[p.id] = { x: cellX, y: lp.y, width: cellW, height: lp.height, centerX: lp.centerX };
@@ -143,7 +145,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     const labelBelow = model.responseMessageBelowArrow && isLeftward;
     const vAlign = labelBelow ? 'top' : 'bottom';
     const isTimed = !msg.self && (msg.toY ?? msg.y) !== msg.y;
-    const labelPad = 5; // matches layout smallPad — single-side gap between label and lifeline
+    const labelPad = theme?.seqSmallPad ?? 5;
 
     if (msg.self) {
       const dir = msg.arrowStyle?.direction || 'right';
@@ -202,7 +204,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
       }
     }
 
-    let style = messageStyle(msgForStyle);
+    let style = messageStyle(msgForStyle, theme?.strokeWidth);
 
     if (msg.self) {
       // Self-reference: 3-segment path using sourcePoint + waypoints + targetPoint.
@@ -260,9 +262,11 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
           y: geo.geoY,
           offset: { x: geo.offsetX, y: 0 },
           sourcePoint: { x: msg.fromX, y: msg.y },
-          targetPoint: { x: msg.toX, y: msg.y + 20 },
+          targetPoint: { x: msg.toX, y: msg.toY },
           waypoints: wp,
         },
+        fontSize: theme?.fontSize,
+        fontFamily: theme?.fontFamily,
       }));
       continue;
     }
@@ -309,6 +313,8 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
         sourcePoint: { x: msg.fromX, y: msg.y },
         targetPoint: { x: msg.toX, y: msg.toY ?? msg.y },
       },
+      fontSize: theme?.fontSize,
+      fontFamily: theme?.fontFamily,
     }));
   }
 

@@ -1,45 +1,12 @@
 /**
- * Legend primitive — sizing and rendering for class-diagram legends.
- * Extends RichRenderer with rich body mode (desc.lines as content).
+ * Legend shape renderer — standalone legend node.
+ *
+ * Uses standard RichRenderer content layout — only shape and color differ.
  */
 
-import { richTextStyle } from '../../shared/content.ts';
 import { RichRenderer } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const LEGEND_PADDING_Y = 16;
-const LEGEND_MIN_WIDTH = 40;
-
-// ---------------------------------------------------------------------------
-// Style
-// ---------------------------------------------------------------------------
-
-function legendStyle(legendFill: string, colorDark: string): string {
-  return `rounded=1;absoluteArcSize=1;arcSize=15;whiteSpace=wrap;html=1;align=left;verticalAlign=middle;spacingLeft=5;spacingRight=5;fillColor=${legendFill};strokeColor=${colorDark};`;
-}
-
-/** Text row style inside legend. */
-function legendTextStyle(): string {
-  return richTextStyle(5, 5);
-}
-
-/** Separator style inside legend. */
-function legendSepStyle(): string {
-  return [
-    'line', 'strokeWidth=1', 'align=left', 'verticalAlign=middle',
-    'spacingTop=-1', 'spacingLeft=3', 'spacingRight=3',
-    'rotatable=0', 'labelPosition=right', 'points=[]',
-  ].join(';') + ';';
-}
-
-// ---------------------------------------------------------------------------
-// Renderer class
-// ---------------------------------------------------------------------------
 
 class LegendRenderer extends RichRenderer {
   constructor(desc: RenderDescriptor) {
@@ -52,26 +19,17 @@ class LegendRenderer extends RichRenderer {
   protected detectRichBody(): boolean { return true; }
   protected getRichBodyLines(): string[] { return this.desc.lines || []; }
 
-  protected getRichBodyMetrics(): Record<string, number> {
-    return {
-      paddingX: this.theme.titlePadX,
-      paddingY: LEGEND_PADDING_Y,
-      minWidth: LEGEND_MIN_WIDTH,
-    };
+  protected getRichBodyMetrics(): Record<string, number | string> {
+    return { minWidth: this.theme.legendMinW };
   }
-
-  // Legend style is a complete container style (no fragment extraction needed)
-  protected get richBodyStyleComplete(): boolean { return true; }
 
   protected buildStyle(): string {
-    return legendStyle(this.theme.legendFill, this.theme.colorDark);
+    const arc = this.theme.largeArcSize;
+    return `rounded=1;absoluteArcSize=1;arcSize=${arc};whiteSpace=wrap;html=1;fillColor=${this.theme.legendFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontSize=${this.theme.fontSize};fontFamily=${this.theme.fontFamily};`;
   }
 
-  // Legend doesn't use deployment shape color override — colors are fixed
+  // Legend colors are fixed; skip deployment color override
   protected applyColorOverride(s: string): string { return s; }
-
-  protected getRichBodyRowStyle(): string { return legendTextStyle(); }
-  protected getRichBodySepStyle(): string { return legendSepStyle(); }
 }
 
 /** Register legend renderer into global registry. */

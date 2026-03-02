@@ -10,8 +10,6 @@ import type { Theme } from '../shared/theme.ts';
 // Destroy marker
 // ---------------------------------------------------------------------------
 
-const DESTROY_CROSS_SIZE = 9;
-
 /**
  * Render a destroy marker (X cross) to a DrawIO mxCell XML string.
  * When parentId + parentGeom are provided, coordinates are relative to the parent.
@@ -24,9 +22,9 @@ export function renderDestroyMarker(
   parentGeom?: { x: number; y: number },
   theme?: Theme,
 ): string {
-  const s = DESTROY_CROSS_SIZE;
+  const s = theme?.seqDestroyCrossSize ?? 9;
   const destroyStroke = theme?.destroyStroke ?? '#181818';
-  const destroyStyle = `shape=umlDestroy;strokeColor=${destroyStroke};strokeWidth=2;`;
+  const destroyStyle = `shape=umlDestroy;strokeColor=${destroyStroke};strokeWidth=${(theme?.strokeWidth ?? 1) * 2};`;
   if (parentId && parentGeom) {
     const relX = cx - s - parentGeom.x;
     const relY = cy - s - parentGeom.y;
@@ -59,7 +57,7 @@ export function activationBarStyle(fillColor?: string, theme?: Theme): string {
     'portConstraint=eastwest',
     `fillColor=${fill}`,
     `strokeColor=${stroke}`,
-    'strokeWidth=1',
+    `strokeWidth=${theme?.strokeWidth ?? 1}`,
   ].join(';') + ';';
 }
 
