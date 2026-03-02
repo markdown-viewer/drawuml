@@ -216,10 +216,32 @@ function extractLayout(
   for (const edge of layoutEdges) {
     if (!edge.points || edge.points.length < 2) continue;
 
+    // For ancestor↔descendant group edges, skip clipping the ancestor
+    // group boundary — the edge should originate from inside the ancestor.
+    let skipFromClip = false;
+    let skipToClip = false;
+    if (edge.fromGroup && edge.toGroup) {
+      const fg = layoutGroups[edge.fromGroup];
+      const tg = layoutGroups[edge.toGroup];
+      if (fg && tg) {
+        if (tg.x >= fg.x && tg.y >= fg.y
+            && tg.x + tg.width <= fg.x + fg.width
+            && tg.y + tg.height <= fg.y + fg.height) {
+          // toGroup inside fromGroup — fromGroup is ancestor, skip its clip
+          skipFromClip = true;
+        } else if (fg.x >= tg.x && fg.y >= tg.y
+            && fg.x + fg.width <= tg.x + tg.width
+            && fg.y + fg.height <= tg.y + tg.height) {
+          // fromGroup inside toGroup — toGroup is ancestor, skip its clip
+          skipToClip = true;
+        }
+      }
+    }
+
     // fromGroup: the path starts at the representative node inside the group.
     // We need to clip from the start — find where the path exits the group
     // and replace the internal portion with the boundary crossing point.
-    if (edge.fromGroup) {
+    if (edge.fromGroup && !skipFromClip) {
       const g = layoutGroups[edge.fromGroup];
       if (g) {
         edge.points = clipPathAtGroupBoundary(edge.points, g, 'start');
@@ -229,7 +251,7 @@ function extractLayout(
     // toGroup: the path ends at the representative node inside the group.
     // We need to clip from the end — find where the path enters the group
     // and replace the internal portion with the boundary crossing point.
-    if (edge.toGroup) {
+    if (edge.toGroup && !skipToClip) {
       const g = layoutGroups[edge.toGroup];
       if (g) {
         edge.points = clipPathAtGroupBoundary(edge.points, g, 'end');

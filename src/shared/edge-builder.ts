@@ -118,7 +118,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   if (spec.cardFrom) {
     const cardHtml = escapeXml(Content.inline(spec.cardFrom, fontOpts).html);
     cells.push(
-      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
+      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
       + `<mxGeometry x="-1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );
@@ -126,7 +126,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   if (spec.cardTo) {
     const cardHtml = escapeXml(Content.inline(spec.cardTo, fontOpts).html);
     cells.push(
-      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
+      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
       + `<mxGeometry x="1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );
