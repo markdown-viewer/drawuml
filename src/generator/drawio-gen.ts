@@ -341,14 +341,6 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     }
   }
 
-  // Notes
-  for (const note of model.notes || []) {
-    const l = layout.nodes[note.id];
-    if (!l) continue;
-    const r = renderers.get(note.id);
-    if (r) cells.push(...r.render({ x: l.x, y: l.y, width: l.width, height: l.height }));
-  }
-
   // Note-to-target dashed connection edges (skip link notes — they have no connector)
   for (const note of model.notes || []) {
     if (!note.target || note.onLink) continue;

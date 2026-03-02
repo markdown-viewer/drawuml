@@ -1093,6 +1093,13 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       }
     }
 
+    // GroupLine rule produces type='group' instead of sequence_block keyword='group'
+    if (st.kind === 'block_statement' && st.type === 'group') {
+      if (handleFragment('group', st.text || '')) {
+        continue;
+      }
+    }
+
     // partition is equivalent to a fragment in sequence diagrams
     if (st.kind === 'block_statement' && st.type === 'partition') {
       const label = String(st.text || '').replace(/\s*\{?\s*$/, '').trim();
