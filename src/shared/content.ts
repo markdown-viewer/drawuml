@@ -684,6 +684,7 @@ export class Content {
       : allLines;
     let i = 0;
     let hasSeparator = false;
+    const seenRowIds = new Set<string>(); // track row ids to deduplicate
 
     // Pre-scan: detect if any body lines have a single-char visibility prefix.
     // When true AND icons are enabled, ALL body lines get a fixed-width icon slot.
@@ -735,7 +736,15 @@ export class Content {
 
       // --- Regular member line: inline Creole only ---
       const html = processBodyLine(line, hasVisIcons, showIcons, tag);
-      blocks.push({ kind: 'row', html, id: deriveRowId(opts.nodeId, line) });
+      let rowId = deriveRowId(opts.nodeId, line);
+      // Deduplicate: append numeric suffix when id already used
+      if (rowId && seenRowIds.has(rowId)) {
+        let suffix = 2;
+        while (seenRowIds.has(`${rowId}_${suffix}`)) suffix++;
+        rowId = `${rowId}_${suffix}`;
+      }
+      if (rowId) seenRowIds.add(rowId);
+      blocks.push({ kind: 'row', html, id: rowId });
       i++;
     }
 
