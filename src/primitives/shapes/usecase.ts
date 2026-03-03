@@ -33,7 +33,7 @@ class UsecaseRenderer extends RichRenderer {
   protected shapePadding(contentSize?: { width: number; height: number }): ShapePadding {
     if (!contentSize) return {};
     const factor = (Math.SQRT2 - 1) / 2;
-    const halfChar = this.theme.fontSize / 2;
+    const halfChar = this.theme.cornerClip;
     return {
       left: Math.ceil(contentSize.width * factor - halfChar),
       right: Math.ceil(contentSize.width * factor - halfChar),

@@ -39,7 +39,7 @@ export function buildUmlFrameStyle(opts: UmlFrameStyleOpts): string {
   const parts = [
     'shape=umlFrame', 'whiteSpace=wrap', 'html=1', 'fontStyle=1',
     'align=left', 'verticalAlign=middle',
-    `spacingLeft=${opts.spacingLeft ?? Math.round(opts.fontSize / 2)}`,
+    `spacingLeft=${opts.spacingLeft ?? opts.cornerClip}`,
     `corner=${opts.cornerClip}`,
     `width=${opts.tabWidth}`,
     `height=${opts.tabHeight}`,

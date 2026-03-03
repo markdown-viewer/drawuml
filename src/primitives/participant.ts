@@ -45,14 +45,14 @@ export const PARTICIPANT_CONFIG: Record<string, { participant: string; iconSize:
 export function getScaledParticipantConfig(iconSize: number): Record<string, { participant: string; iconSize: number; iconW: number; textBelow: boolean }> {
   function scaled(baseW: number, baseH: number): { w: number; h: number } {
     const s = iconSize / Math.min(baseW, baseH);
-    return { w: Math.round(baseW * s), h: Math.round(baseH * s) };
+    return { w: baseW * s, h: baseH * s };
   }
   const actor = scaled(30, 40);
   const boundary = scaled(36, 30);
   const control = scaled(30, 35);
   const entity = scaled(30, 30);
   const database = scaled(22, 28);
-  const boxH = Math.round(iconSize * 28 / 24); // proportional box height
+  const boxH = iconSize * 28 / 24; // proportional box height
 
   return {
     participant:  { participant: '',               iconSize: boxH,       iconW: 0,           textBelow: false },
@@ -164,7 +164,7 @@ export function participantStyle(
  */
 export function buildParticipantLabel(
   p: { label: string; stereotypeLabel?: string; spot?: { char: string; color: string } },
-  opts?: { stereotypePosition?: 'top' | 'bottom'; fontSize?: number },
+  opts?: { stereotypePosition?: 'top' | 'bottom'; fontSize?: number; spotSize?: number; spotFontSize?: number; spotMargin?: number },
 ): string {
   // Convert raw Creole label to HTML inside the renderer
   const labelHtml = Content.inline(p.label).html;
@@ -174,6 +174,9 @@ export function buildParticipantLabel(
     spot: p.spot,
     stereotypePosition: opts?.stereotypePosition,
     fontSize: opts?.fontSize,
+    spotSize: opts?.spotSize,
+    spotFontSize: opts?.spotFontSize,
+    spotMargin: opts?.spotMargin,
   });
 }
 
@@ -268,7 +271,7 @@ export function renderParticipant(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize });
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize, spotSize: opts?.theme?.spotSize, spotFontSize: opts?.theme?.spotFontSize, spotMargin: opts?.theme?.spotMargin });
   return [mxVertex({
     id: p.id, value: labelHtml,
     style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth }),
@@ -329,7 +332,7 @@ export function renderFootbox(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize });
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize, spotSize: opts?.theme?.spotSize, spotFontSize: opts?.theme?.spotFontSize, spotMargin: opts?.theme?.spotMargin });
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
     style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth }),

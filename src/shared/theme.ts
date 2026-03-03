@@ -46,6 +46,7 @@ export interface Theme {
   readonly cornerClip: number;
 
   // ── Sizes — fixed dimensions, min widths/heights ──────────────────────────
+  readonly spotMargin: number;           //   4 — spot circle right margin in label HTML
   readonly stateForkHeight: number;     //   4 — fork/join bar thickness
   readonly seqDestroyCrossSize: number; //   9 — destroy marker half-size
   readonly seqActBarWidth: number;      //  10 — activation bar width
@@ -60,10 +61,14 @@ export interface Theme {
   readonly portLabelH: number;          //  22 — port label height
   readonly spotSize: number;            //  22 — spot circle diameter
   readonly iconSize: number;            //  24 — small nodes (start/end, junctions)
+  readonly archimateIconSize: number;   //  30 — archimate icon overlay max dimension
+  readonly dotMinNodeH: number;         //  25 — DOT layout minimum node height
+  readonly mapRowHeight: number;        //  26 — map entry row height
   readonly capHeight: number;           //   9 — cap/ellipse height for non-titlebar shapes
   readonly titleBarHeight: number;      //  26 — title bar height for fixed-title shapes
   readonly containerMinH: number;       //  30 — bracket minimum height
   readonly noteMinW: number;            //  30 — note minimum width
+  readonly dotMinNodeW: number;          //  40 — DOT layout minimum node width
   readonly personHeadH: number;         //  38 — person head circle height
   readonly legendMinW: number;          //  40 — legend minimum width
   readonly fragMinH: number;            //  40 — fragment minimum height
@@ -98,10 +103,10 @@ export function createTheme(config?: ThemeConfig): Theme {
     // ── Typography ──
     fontSize,
     fontFamily,
-    smallFontSize: Math.round(fontSize / 1.15),
-    labelFontSize: Math.round(fontSize * 1.15),
-    titleFontSize: Math.round(fontSize * 1.2),
-    spotFontSize: Math.round(fontSize * 14 / 12),
+    smallFontSize: fontSize / 1.15,
+    labelFontSize: fontSize * 1.15,
+    titleFontSize: fontSize * 1.2,
+    spotFontSize: fontSize * 14 / 12,
     layoutFontSize: fontSize,
 
     // ── Colors & fills ──
@@ -115,51 +120,56 @@ export function createTheme(config?: ThemeConfig): Theme {
 
     // ── Stroke & corner ──
     strokeWidth: strokeWidth,
-    arcSize: Math.round(fontSize / 3),
-    largeArcSize: Math.round(fontSize),
-    cornerClip: Math.round(fontSize * 6 / 12),
+    arcSize: fontSize / 3,
+    largeArcSize: fontSize,
+    cornerClip: fontSize * 6 / 12,
 
     // ── Sizes (sorted small → large @base12) ──
-    stateForkHeight: Math.round(fontSize / 3),             //   4
-    seqDestroyCrossSize: Math.round(fontSize * 9 / 12),    //   9
-    capHeight: Math.round(fontSize * 9 / 12),              //   9
-    seqActBarWidth: Math.round(fontSize * 10 / 12),        //  10
-    classSepHeight: Math.round(fontSize * 10 / 12),        //  10
-    portSize: fontSize,                                     //  12
-    iconMinLabelH: Math.round(fontSize * 18 / 12),         //  18
-    mxIconMinLabelH: Math.round(fontSize * 20 / 12),       //  20
-    titledSepHeight: Math.round(fontSize * 20 / 12),       //  20
-    fragCondMinH: Math.round(fontSize * 20 / 12),          //  20
-    fragSectionH: Math.round(fontSize * 20 / 12),          //  20
-    classRowHeight: Math.round(fontSize * 22 / 12),        //  22
-    portLabelH: Math.round(fontSize * 22 / 12),            //  22
-    spotSize: Math.round(fontSize * 22 / 12),              //  22
-    iconSize: Math.round(fontSize * 24 / 12),              //  24
-    titleBarHeight: Math.round(fontSize * 26 / 12),        //  26
-    containerMinH: Math.round(fontSize * 30 / 12),         //  30
-    noteMinW: Math.round(fontSize * 30 / 12),              //  30
-    personHeadH: Math.round(fontSize * 38 / 12),           //  38
-    legendMinW: Math.round(fontSize * 40 / 12),            //  40
-    fragMinH: Math.round(fontSize * 40 / 12),              //  40
-    seqLifelineMinH: Math.round(fontSize * 40 / 12),       //  40
-    archimateTabW: Math.round(fontSize * 42 / 12),         //  42
-    seqSelfRefLoop: Math.round(fontSize * 45 / 12),        //  45
-    defaultIconSize: Math.round(fontSize * 48 / 12),       //  48
-    tabMinWidth: Math.round(fontSize * 50 / 12),           //  50
-    containerMinW: Math.round(fontSize * 60 / 12),         //  60
-    mxgraphIconSize: Math.round(fontSize * 60 / 12),       //  60
-    titleMinWidth: Math.round(fontSize * 72 / 12),         //  72
-    classMinWidth: Math.round(fontSize * 80 / 12),         //  80
-    stateForkWidth: Math.round(fontSize * 80 / 12),        //  80
-    seqMinShortArrow: Math.round(fontSize * 80 / 12),      //  80
-    maxRowWidth: Math.round(fontSize * 720 / 12),          // 720
+    spotMargin: fontSize * 5 / 12,              //   5
+    stateForkHeight: fontSize * 5 / 12,        //  5
+    seqDestroyCrossSize: fontSize * 10 / 12,   //  10
+    capHeight: fontSize * 10 / 12,             //  10
+    seqActBarWidth: fontSize * 10 / 12,        //  10
+    classSepHeight: fontSize * 10 / 12,        //  10
+    portSize: fontSize * 10 / 12,              //  10
+    iconMinLabelH: fontSize * 20 / 12,         //  20
+    mxIconMinLabelH: fontSize * 20 / 12,       //  20
+    titledSepHeight: fontSize * 20 / 12,       //  20
+    fragCondMinH: fontSize * 20 / 12,          //  20
+    fragSectionH: fontSize * 20 / 12,          //  20
+    classRowHeight: fontSize * 20 / 12,        //  20
+    portLabelH: fontSize * 20 / 12,            //  20
+    archimateIconSize: fontSize * 20 / 12,     //  20
+    spotSize: fontSize * 20 / 12,              //  20
+    titleBarHeight: fontSize * 20 / 12,        //  20
+    dotMinNodeH: fontSize * 20 / 12,           //  20
+    mapRowHeight: fontSize * 20 / 12,          //  20
+    iconSize: fontSize * 30 / 12,              //  30
+    containerMinH: fontSize * 30 / 12,         //  30
+    noteMinW: fontSize * 30 / 12,              //  30
+    legendMinW: fontSize * 30 / 12,            //  30
+    containerMinW: fontSize * 30 / 12,         //  30
+    archimateTabW: fontSize * 30 / 12,         //  30
+    tabMinWidth: fontSize * 30 / 12,           //  30
+    dotMinNodeW: fontSize * 40 / 12,           //  40
+    personHeadH: fontSize * 40 / 12,           //  40
+    fragMinH: fontSize * 40 / 12,              //  40
+    seqLifelineMinH: fontSize * 40 / 12,       //  40
+    seqSelfRefLoop: fontSize * 40 / 12,        //  40
+    defaultIconSize: fontSize * 60 / 12,       //  60
+    mxgraphIconSize: fontSize * 60 / 12,       //  60
+    titleMinWidth: fontSize * 60 / 12,         //  60
+    classMinWidth: fontSize * 60 / 12,         //  60
+    stateForkWidth: fontSize * 60 / 12,        //  60
+    seqMinShortArrow: fontSize * 60 / 12,      //  60
+    maxRowWidth: fontSize * 720 / 12,          // 720
 
     // ── Spacing — 5 unified tiers ──
-    padXS: Math.round(fontSize * 5 / 12),                   //   5
-    padS: Math.round(fontSize * 10 / 12),                   //  10
-    padM: Math.round(fontSize * 15 / 12),                   //  15
-    padL: Math.round(fontSize * 20 / 12),                   //  20
-    padXL: Math.round(fontSize * 30 / 12),                  //  30
+    padXS: fontSize * 5 / 12,                   //   5
+    padS: fontSize * 10 / 12,                   //  10
+    padM: fontSize * 15 / 12,                   //  15
+    padL: fontSize * 20 / 12,                   //  20
+    padXL: fontSize * 30 / 12,                  //  30
   };
 }
 

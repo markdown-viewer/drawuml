@@ -18,6 +18,9 @@ export function buildLabelHtml(opts: {
   italic?: boolean;
   stereotypePosition?: 'top' | 'bottom';
   fontSize?: number;
+  spotSize?: number;
+  spotFontSize?: number;
+  spotMargin?: number;
 }): string {
   const { label, stereotypeLabel, spot, italic = false, stereotypePosition = 'top', fontSize } = opts;
   const fs = fontSize ?? 12;
@@ -31,7 +34,7 @@ export function buildLabelHtml(opts: {
   }
 
   // Derive sizes from base font size
-  const stereoFontSize = Math.round(fs);
+  const stereoFontSize = fs;
   // Escape stereotype text for HTML context (e.g. "<< Generated >>" must not be parsed as tags)
   const stereoText = hasStereotype ? escapeXml(stereotypeLabel!) : '';
   const stereoDiv = hasStereotype
@@ -44,17 +47,17 @@ export function buildLabelHtml(opts: {
       : stereoDiv + `<div>${styledLabel}</div>`;
   }
 
-  // Spot circle HTML — sizes scale with font size
-  const spotSize = Math.round(fs * 22 / 12);
-  const spotFont = Math.round(fs * 14 / 12);
-  const spotMargin = Math.round(fs * 4 / 12);
+  // Spot circle HTML — sizes from theme or derived from font size
+  const spotSize = opts.spotSize ?? fs * 22 / 12;
+  const spotFont = opts.spotFontSize ?? fs * 14 / 12;
+  const spotMar = opts.spotMargin ?? fs * 4 / 12;
   const borderColor = darkenColor(spot!.color);
   const circleHtml =
     `<span style="display:inline-block;width:${spotSize}px;height:${spotSize}px;line-height:${spotSize}px;`
     + `text-align:center;border-radius:50%;background:${spot!.color};`
     + `border:1px solid ${borderColor};`
     + `font-size:${spotFont}px;font-style:normal;font-weight:bold;vertical-align:middle;`
-    + `margin-right:${spotMargin}px;">${spot!.char}</span>`;
+    + `margin-right:${spotMar}px;">${spot!.char}</span>`;
 
   if (!hasStereotype) {
     return circleHtml + styledLabel;

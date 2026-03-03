@@ -86,7 +86,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const pcfg = pConfig[p.type] || pConfig.participant;
     const iconW = pcfg.iconW;
     const label = p.label || p.id;
-    const displayLabel = buildParticipantLabel(p, { stereotypePosition: model.stereotypePosition, fontSize });
+    const displayLabel = buildParticipantLabel(p, { stereotypePosition: model.stereotypePosition, fontSize, spotSize: theme?.spotSize, spotFontSize: theme?.spotFontSize, spotMargin: theme?.spotMargin });
     const labelW = measureLabel(displayLabel);
     const baseH = pcfg.iconSize;
     if (iconW > 0) {
@@ -399,7 +399,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // their label below the arrow, so their label height contributes to the
   // below-center space instead of above-center.
   // Scale factor for timed (slanted) message delay values
-  const delayScale = fontSize / 12;
+  const delayScale = theme?.strokeWidth ?? 1;
 
   const responseBelow = !!model.responseMessageBelowArrow;
   const msgLabelHeightByRow = {};      // any label height (for hasMsg check)
@@ -430,7 +430,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       selfRefDropByRow[row] = selfRefDrop;
     }
     if (msg.delay) {
-      timedDropByRow[row] = Math.max(timedDropByRow[row] || 0, Math.round(msg.delay * delayScale));
+      timedDropByRow[row] = Math.max(timedDropByRow[row] || 0, msg.delay * delayScale);
     }
   }
 
@@ -685,7 +685,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const fromP = participants[msg.from];
     const toP = participants[msg.to];
     const y = rowY(msg.row ?? idx);
-    const delay = Math.round((msg.delay || 0) * delayScale);
+    const delay = (msg.delay || 0) * delayScale;
 
     if (!fromP || !toP) {
       // External endpoint: compute position based on arrow type
@@ -903,7 +903,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // the activation starts at the arrow's arrival Y (rowY + delay).
     for (const msg of model.messages) {
       if (msg.row === a.startRow && msg.to === a.participant && msg.delay) {
-        y = rowY(a.startRow) + Math.round(msg.delay * delayScale);
+        y = rowY(a.startRow) + msg.delay * delayScale;
         break;
       }
     }
@@ -1062,8 +1062,8 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     let minFragH = theme?.fragMinH ?? 40;
     if (f.type === 'ref' && f.label) {
       const labelLines = f.label.split('\n').length;
-      const lineH = Math.round(fontSize * 1.2);
-      minFragH = tabHeight + labelLines * lineH + Math.round(fontSize / 3);
+      const lineH = theme?.titleFontSize ?? fontSize * 1.2;
+      minFragH = tabHeight + labelLines * lineH + (theme?.arcSize ?? fontSize / 3);
     }
     const fragH = Math.max(minFragH, fragBottom - fragY);
     // Tab width: based on actual tab text width + padding (aligned with FrameRenderer)

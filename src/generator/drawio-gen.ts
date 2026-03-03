@@ -315,8 +315,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         layoutEdge?.points, options?.theme?.padXS ?? 4,
       );
       cells.push(...lr.render({
-        x: adjustedPos.x - Math.round(w / 2),
-        y: adjustedPos.y - Math.round(h / 2),
+        x: adjustedPos.x - w / 2,
+        y: adjustedPos.y - h / 2,
         width: w, height: h,
       }));
     }
@@ -325,8 +325,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme: options?.theme });
       const m = cfr.measure();
       cells.push(...cfr.render({
-        x: layoutCardFromPos.x - Math.round(m.width / 2),
-        y: layoutCardFromPos.y - Math.round(m.height / 2),
+        x: layoutCardFromPos.x - m.width / 2,
+        y: layoutCardFromPos.y - m.height / 2,
         width: m.width, height: m.height,
       }));
     }
@@ -334,8 +334,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme: options?.theme });
       const m = ctr.measure();
       cells.push(...ctr.render({
-        x: layoutCardToPos.x - Math.round(m.width / 2),
-        y: layoutCardToPos.y - Math.round(m.height / 2),
+        x: layoutCardToPos.x - m.width / 2,
+        y: layoutCardToPos.y - m.height / 2,
         width: m.width, height: m.height,
       }));
     }
@@ -418,7 +418,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
 
 /** Clamp a value to [0, 1] and round to 4 decimal places for exit/entry constraints. */
 function clamp01(v: number): number {
-  return Math.round(Math.max(0, Math.min(1, v)) * 10000) / 10000;
+  return Math.max(0, Math.min(1, v));
 }
 
 function computePortEdgeSides(
@@ -549,6 +549,6 @@ function adjustLabelAwayFromEdge(
     }
   }
 
-  return { x: Math.round(newX), y: labelCenter.y };
+  return { x: newX, y: labelCenter.y };
 }
 

@@ -82,10 +82,10 @@ function collectNodes(
       // Container node → record as group
       groups[child.id] = {
         id: child.id,
-        x: Math.round(absX),
-        y: Math.round(absY),
-        width: Math.round(w),
-        height: Math.round(h),
+        x: absX,
+        y: absY,
+        width: w,
+        height: h,
       };
 
       // Extract ELK ports as layout nodes (port nodes mapped to group ports)
@@ -109,10 +109,10 @@ function collectNodes(
 
             nodes[port.id] = {
               id: port.id,
-              x: Math.round(absX + px),
-              y: Math.round(absY + py),
-              width: Math.round(pw),
-              height: Math.round(ph),
+              x: absX + px,
+              y: absY + py,
+              width: pw,
+              height: ph,
             };
           }
         }
@@ -134,17 +134,17 @@ function collectNodes(
       let nodeX = absX;
       let nodeY = absY;
       if (gs && knownSize) {
-        const marginLeft = Math.round((knownSize.width - gs.width) / 2);
+        const marginLeft = (knownSize.width - gs.width) / 2;
         // Icon is at top, label below — no top margin adjustment needed
         nodeX -= marginLeft;
       }
 
       const layoutNode: LayoutNode = {
         id: child.id,
-        x: Math.round(nodeX),
-        y: Math.round(nodeY),
-        width: Math.round(nodeW),
-        height: Math.round(nodeH),
+        x: nodeX,
+        y: nodeY,
+        width: nodeW,
+        height: nodeH,
       };
 
       // External label position
@@ -152,8 +152,8 @@ function collectNodes(
         const label = child.labels[0];
         if (label.x !== undefined && label.y !== undefined) {
           layoutNode.xlabelPos = {
-            x: Math.round(absX + label.x + (label.width / 2)),
-            y: Math.round(absY + label.y + (label.height / 2)),
+            x: absX + label.x + (label.width / 2),
+            y: absY + label.y + (label.height / 2),
           };
         }
       }
@@ -212,22 +212,22 @@ function extractEdges(
       for (const section of (elkEdge as any).sections) {
         if (section.startPoint) {
           points.push({
-            x: Math.round(section.startPoint.x + offset.x),
-            y: Math.round(section.startPoint.y + offset.y),
+            x: section.startPoint.x + offset.x,
+            y: section.startPoint.y + offset.y,
           });
         }
         if (section.bendPoints) {
           for (const bp of section.bendPoints) {
             points.push({
-              x: Math.round(bp.x + offset.x),
-              y: Math.round(bp.y + offset.y),
+              x: bp.x + offset.x,
+              y: bp.y + offset.y,
             });
           }
         }
         if (section.endPoint) {
           points.push({
-            x: Math.round(section.endPoint.x + offset.x),
-            y: Math.round(section.endPoint.y + offset.y),
+            x: section.endPoint.x + offset.x,
+            y: section.endPoint.y + offset.y,
           });
         }
       }
@@ -246,8 +246,8 @@ function extractEdges(
       const lbl = elkEdge.labels[0];
       if (lbl.x !== undefined && lbl.y !== undefined) {
         labelPos = {
-          x: Math.round(offset.x + lbl.x + (lbl.width || 0) / 2),
-          y: Math.round(offset.y + lbl.y + (lbl.height || 0) / 2),
+          x: offset.x + lbl.x + (lbl.width || 0) / 2,
+          y: offset.y + lbl.y + (lbl.height || 0) / 2,
         };
         labelSize = { width: Math.ceil(lbl.width || 0), height: Math.ceil(lbl.height || 0) };
       }
@@ -357,7 +357,7 @@ function simplifyOrthogonalEdge(
         a.x === b.x && b.y === c.y && c.x === d.x &&
         a.x !== d.x && Math.abs(a.x - d.x) <= BEND_THRESHOLD
       ) {
-        const midX = Math.round((a.x + d.x) / 2);
+        const midX = (a.x + d.x) / 2;
         result.push({ x: midX, y: a.y });
         result.push({ x: midX, y: d.y });
         i += 4;
@@ -369,7 +369,7 @@ function simplifyOrthogonalEdge(
         a.y === b.y && b.x === c.x && c.y === d.y &&
         a.y !== d.y && Math.abs(a.y - d.y) <= BEND_THRESHOLD
       ) {
-        const midY = Math.round((a.y + d.y) / 2);
+        const midY = (a.y + d.y) / 2;
         result.push({ x: a.x, y: midY });
         result.push({ x: d.x, y: midY });
         i += 4;

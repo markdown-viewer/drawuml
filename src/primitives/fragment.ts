@@ -94,7 +94,7 @@ export function renderFragment(frag: {
     const condHtml = Content.inline(conditionLabel).html;
     const condLines = conditionLabel.split('\n').length;
     const fragCondMinH = frag.theme?.fragCondMinH ?? 20;
-    const condH = Math.max(fragCondMinH, condLines * Math.round(smallFontSize * 1.4) + 4);
+    const condH = Math.max(fragCondMinH, condLines * smallFontSize * 1.4) + 4;
     const fragLabelSpacingX = frag.theme?.padXS ?? 4;
     const fragLabelGap = frag.theme?.padXS ?? 4;
     if (isRef) {

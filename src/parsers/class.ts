@@ -602,15 +602,19 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         if (name) {
           const id = normalizeId(name);
           const fillColor = junctionColorMap[macroName] || null;
+          // Map macro kind to archimate junction stereotype
+          const junctionStereotype = macroName.includes('And')
+            ? 'archimate-junction-and'
+            : 'archimate-junction-or';
           if (!nodesById[id]) nodeOrder.push(id);
           nodesById[id] = {
             id,
             type: NodeType.Class,
             label: name,
-            stereotype: 'circle',
+            stereotype: junctionStereotype,
             stereotypeLabel: '',
             bodyLines: [],
-            style: fillColor,
+            color: fillColor ?? undefined,
           };
           registerNodeInGroup(id);
           lastDefinedClass = id;

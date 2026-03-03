@@ -75,7 +75,7 @@ function buildPortHtmlLabel(gn: LayoutGraphNode): string | null {
     // Fill gap between previous port bottom and current port top
     const gap = portY - prevBottom;
     if (gap > 0) {
-      rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${Math.round(gap)}" WIDTH="${gn.width}"> </TD></TR>`);
+      rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${gap}" WIDTH="${gn.width}"> </TD></TR>`);
     }
     // Port row with PORT attribute
     const portName = port.id.includes('::') ? port.id.split('::').slice(1).join('::') : port.id;
@@ -84,14 +84,14 @@ function buildPortHtmlLabel(gn: LayoutGraphNode): string | null {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
-    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${Math.round(port.height)}" WIDTH="${gn.width}" PORT="${safePort}"> </TD></TR>`);
+    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${port.height}" WIDTH="${gn.width}" PORT="${safePort}"> </TD></TR>`);
     prevBottom = portY + port.height;
   }
 
   // Fill remaining space at the bottom
   const remaining = gn.height - prevBottom;
   if (remaining > 0) {
-    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${Math.round(remaining)}" WIDTH="${gn.width}"> </TD></TR>`);
+    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${remaining}" WIDTH="${gn.width}"> </TD></TR>`);
   }
 
   return `<\n<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0" FIXEDSIZE="TRUE" WIDTH="${gn.width}" HEIGHT="${gn.height}">\n${rows.join('\n')}\n</TABLE>\n>`;
@@ -209,7 +209,7 @@ function buildNodeDotLines(
   // shapes get a larger label area than non-titlebar shapes.
   const renderer = ctx.renderers.get(gn.id);
   const titleArea = renderer ? renderer.groupTopPadding - ctx.groupPadding : 0;
-  const fs = Math.max(1, Math.round((titleArea - 8) / 1.2));
+  const fs = Math.max(1, (titleArea - 8) / 1.2);
   lines.push(`${inner}  fontsize=${fs}`);
   lines.push(`${inner}  style=rounded`);
   // Concurrent region parents need zero inner margin — regions fill the full area.
@@ -288,8 +288,8 @@ export function layoutGraphToDot(
   const ranksepPx = theme?.padXL ?? 40;
   const maxRowWidth = theme?.maxRowWidth ?? 800;
   const layoutFontSize = theme?.layoutFontSize ?? 10;
-  const dotMinH = (Math.round((theme?.fontSize ?? 12) * 25 / 12) / PX_PER_INCH).toFixed(6);
-  const dotMinW = (Math.round((theme?.fontSize ?? 12) * 40 / 12) / PX_PER_INCH).toFixed(6);
+  const dotMinH = ((theme?.dotMinNodeH ?? 25) / PX_PER_INCH).toFixed(6);
+  const dotMinW = ((theme?.dotMinNodeW ?? 40) / PX_PER_INCH).toFixed(6);
   const nodesepInch = pxToInch(nodesepPx);
   const ranksepInch = pxToInch(ranksepPx);
 

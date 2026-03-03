@@ -72,10 +72,10 @@ function extractLayout(
     nodes[name] = {
       id: name,
       cx, cy,
-      width: Math.round(wPt),
-      height: Math.round(hPt),
-      x: Math.round(cx - wPt / 2),
-      y: Math.round(cy - hPt / 2 + offsetDy),
+      width: wPt,
+      height: hPt,
+      x: cx - wPt / 2,
+      y: cy - hPt / 2 + offsetDy,
     } as any;
     // Store raw xlabel position (Graphviz coords) for conversion after Y-flip
     if (obj.xlp && typeof obj.xlp === 'string') {
@@ -126,10 +126,10 @@ function extractLayout(
     const right = rg.x2 + xShift;
     layoutGroups[rg.id] = {
       id: rg.id,
-      x: Math.round(left),
-      y: Math.round(top),
-      width: Math.round(right - left),
-      height: Math.round(bottom - top),
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
     };
   }
 
@@ -178,12 +178,12 @@ function extractLayout(
       let cardToPos: { x: number; y: number } | undefined;
       if (vizEdge.tail_lp && typeof vizEdge.tail_lp === 'string') {
         const [tlx, tly] = (vizEdge.tail_lp as string).split(',').map(Number);
-        const pos = { x: Math.round(tlx + xShift), y: Math.round(allMaxY - tly) };
+        const pos = { x: tlx + xShift, y: allMaxY - tly };
         if (isInverted) cardToPos = pos; else cardFromPos = pos;
       }
       if (vizEdge.head_lp && typeof vizEdge.head_lp === 'string') {
         const [hlx, hly] = (vizEdge.head_lp as string).split(',').map(Number);
-        const pos = { x: Math.round(hlx + xShift), y: Math.round(allMaxY - hly) };
+        const pos = { x: hlx + xShift, y: allMaxY - hly };
         if (isInverted) cardFromPos = pos; else cardToPos = pos;
       }
 
@@ -192,7 +192,7 @@ function extractLayout(
       let labelPos: { x: number; y: number } | undefined;
       if (vizEdge.lp && typeof vizEdge.lp === 'string') {
         const [lpx, lpy] = (vizEdge.lp as string).split(',').map(Number);
-        labelPos = { x: Math.round(lpx + xShift), y: Math.round(allMaxY - lpy) };
+        labelPos = { x: lpx + xShift, y: allMaxY - lpy };
       }
 
       layoutEdges.push({

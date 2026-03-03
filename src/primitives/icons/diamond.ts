@@ -26,8 +26,8 @@ class DiamondRenderer extends IconRenderer {
   render(box: ContentBox) {
     const dw = this.iconWidth;
     const dh = this.iconHeight;
-    const dx = box.x + Math.round((box.width - dw) / 2);
-    const dy = box.y + Math.round((box.height - dh) / 2);
+    const dx = box.x + (box.width - dw) / 2;
+    const dy = box.y + (box.height - dh) / 2;
     const style = 'rhombus;whiteSpace=wrap;html=1;'
       + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`;
     return [mxVertex({

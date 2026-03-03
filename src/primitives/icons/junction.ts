@@ -8,6 +8,7 @@
 
 import { IconRenderer } from './icon-renderer.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
+import { normalizeColor } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
@@ -22,16 +23,17 @@ export class JunctionRenderer extends IconRenderer {
 
   constructor(desc: RenderDescriptor, fillColor: string, strokeColor: string) {
     super(desc);
-    this.fillColor = fillColor;
-    this.strokeColor = strokeColor;
+    // Per-node color (from !define macro) overrides registration-time default
+    this.fillColor = normalizeColor(desc.color) ?? normalizeColor(fillColor) ?? fillColor;
+    this.strokeColor = normalizeColor(strokeColor) ?? strokeColor;
   }
 
   // Base 16×16 circle — scaled by iconScale from IconRenderer
   // (baseIconWidth/baseIconHeight default to 16, no override needed)
 
   render(box: ContentBox): string[] {
-    const d = this.iconWidth;
-    const cx = box.x + Math.round((box.width - d) / 2);
+    const d = this.iconWidth * 0.5;
+    const cx = box.x + (box.width - d) / 2;
     const style = [
       'ellipse',
       `fillColor=${this.fillColor}`,

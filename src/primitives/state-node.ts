@@ -43,8 +43,8 @@ class StateForkJoinRenderer extends Renderer {
   render(box: ContentBox) {
     const w = this.theme.stateForkWidth;
     const h = this.theme.stateForkHeight;
-    const x = box.x + Math.round((box.width - w) / 2);
-    const y = box.y + Math.round((box.height - h) / 2);
+    const x = box.x + (box.width - w) / 2;
+    const y = box.y + (box.height - h) / 2;
     return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=${this.theme.stateForkHeight};strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
   }
 }
@@ -84,7 +84,7 @@ class StateChoiceRenderer extends RichRenderer {
     const base = super.doMeasure();
     const h = Math.max(choiceSize, base.height);
     // For 45° side angle: horizontal extent of each point = height / 2
-    this._hexSize = Math.round(h / 2);
+    this._hexSize = h / 2;
     const w = Math.max(choiceSize, base.width + this._hexSize * 2);
     return { width: w, height: h };
   }
@@ -184,9 +184,9 @@ export class SwimlaneContainerRenderer extends Renderer {
         if (ri.renderer instanceof ConcurrentRegionRenderer) {
           ri.renderer._isHorizontalLane = true;
         }
-        const laneY = Math.round(cumulY);
+        const laneY = cumulY;
         cumulY += laneHeights[i];
-        const actualH = Math.round(cumulY) - laneY;
+        const actualH = cumulY - laneY;
         const laneBox: ContentBox = { x: 0, y: laneY, width: box.width, height: actualH };
         cells.push(...ri.renderer.render(laneBox));
       }
@@ -208,9 +208,9 @@ export class SwimlaneContainerRenderer extends Renderer {
     const cells: string[] = [];
     let cumulX = 0;
     for (let i = 0; i < n; i++) {
-      const laneX = Math.round(cumulX);
+      const laneX = cumulX;
       cumulX += laneWidths[i];
-      const actualW = Math.round(cumulX) - laneX;
+      const actualW = cumulX - laneX;
       const laneBox: ContentBox = { x: laneX, y: laneY, width: actualW, height: laneH };
       cells.push(...regionInfos[i].renderer.render(laneBox));
     }
@@ -258,7 +258,7 @@ export class ConcurrentRegionRenderer extends Renderer {
 
   // Uniform padding on all sides inside each region lane.
   override get groupTopPadding(): number {
-    const headerSize = this.regionLabel ? Math.round(this.theme.titleBarHeight * 20 / 26) : 0;
+    const headerSize = this.regionLabel ? this.theme.titleBarHeight : 0;
     return this.theme.padXL + headerSize;
   }
 
@@ -283,7 +283,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     // Render as a standard DrawIO swimlane lane with visible borders.
     // Adjacent lanes naturally form visual separators.
     // LR mode: horizontal=0 puts the label on the left side (double header).
-    const headerH = Math.round(this.theme.titleBarHeight * 20 / 26);
+    const headerH = this.theme.titleBarHeight;
     const startSize = this.regionLabel ? (this._isHorizontalLane ? headerH * 2 : headerH) : 0;
     const fill = this.regionColor || 'none';
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
@@ -447,9 +447,9 @@ class StateNodeRenderer extends SwimlaneRenderer {
     const cells: string[] = [];
     let cumulX = 0;
     for (let i = 0; i < n; i++) {
-      const laneX = Math.round(cumulX);
+      const laneX = cumulX;
       cumulX += laneWidths[i];
-      const actualW = Math.round(cumulX) - laneX;
+      const actualW = cumulX - laneX;
       const laneBox: ContentBox = { x: laneX, y: laneY, width: actualW, height: laneH };
       cells.push(...regionInfos[i].renderer.render(laneBox));
     }

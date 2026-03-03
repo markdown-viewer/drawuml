@@ -56,7 +56,7 @@ const SPOT_TYPES = new Set(Object.keys(SPOT_MAP));
  * Build HTML for the title area of a class node.
  * Delegates to shared buildLabelHtml with class-specific spot/italic resolution.
  */
-export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string }; theme?: { fontSize: number; fontFamily: string } }): string {
+export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string }; theme?: { fontSize: number; fontFamily: string; spotSize?: number; spotFontSize?: number; spotMargin?: number } }): string {
   const stype = node.stereotype || node.type || '';
   // Custom spot from <<(X,color)>> overrides the default SPOT_MAP lookup.
   const spotInfo = node.hideCircle ? undefined : (node.spot || SPOT_MAP[stype]);
@@ -68,6 +68,9 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
     spot: spotInfo ? { char: spotInfo.char, color: spotInfo.color } : undefined,
     italic: ITALIC_TYPES.has(stype),
     fontSize: node.theme?.fontSize,
+    spotSize: node.theme?.spotSize,
+    spotFontSize: node.theme?.spotFontSize,
+    spotMargin: node.theme?.spotMargin,
   });
 }
 

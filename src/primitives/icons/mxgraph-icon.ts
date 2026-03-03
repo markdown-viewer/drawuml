@@ -85,7 +85,7 @@ export class MxgraphIconRenderer extends IconRenderer {
     style = styledStyle;
 
     // Center icon horizontally within the DOT-allocated box
-    const ix = box.x + Math.round((box.width - iw) / 2);
+    const ix = box.x + (box.width - iw) / 2;
 
     return [mxVertex({
       id:     this.id,

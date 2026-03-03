@@ -23,12 +23,12 @@ import type { Theme } from '../shared/theme.ts';
 
 /** Row height for each map entry — scales with fontSize. */
 function mapRowHeight(theme: Theme): number {
-  return Math.round(theme.fontSize * 26 / 12);
+  return theme.mapRowHeight;
 }
 
 /** Horizontal padding inside each cell — scales with fontSize. */
 function cellPadX(theme: Theme): number {
-  return Math.round(theme.fontSize / 2);
+  return theme.cornerClip;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,8 +63,8 @@ class MapNodeRenderer extends Renderer {
   protected doMeasure() {
     const rowH = mapRowHeight(this.theme);
     const padX = cellPadX(this.theme);
-    const paddingX = Math.round(this.theme.fontSize * 40 / 12); // title horizontal padding
-    const titlePadY = Math.round(this.theme.fontSize);            // title vertical padding
+    const paddingX = this.theme.dotMinNodeW;                  // title horizontal padding
+    const titlePadY = this.theme.fontSize;                      // title vertical padding
 
     // Title dimensions
     const titleSize = this.titleContent.measure();

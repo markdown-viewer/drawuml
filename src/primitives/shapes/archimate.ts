@@ -239,12 +239,12 @@ const ARCHIMATE3_ICON_SIZE: Record<string, [number, number]> = {
   'mxgraph.archimate3.event':          [15,  9],
   'mxgraph.archimate3.facility':       [15, 10],
   'mxgraph.archimate3.function':       [15, 15],
-  'mxgraph.archimate3.gapIcon':        [20, 15],
+  'mxgraph.archimate3.gapIcon':        [17, 15],
   'mxgraph.archimate3.goal':           [15, 15],
   'mxgraph.archimate3.grouping':       [15,  9],
   'mxgraph.archimate3.interaction':    [17, 15],
   'mxgraph.archimate3.interface':      [15,  8],
-  'mxgraph.archimate3.locationIcon':   [12, 15],
+  'mxgraph.archimate3.locationIcon':   [15, 15],
   'mxgraph.archimate3.material':       [15, 13],
   'mxgraph.archimate3.meaning':        [15, 14],
   'mxgraph.archimate3.network':        [15, 13],
@@ -268,6 +268,8 @@ const ARCHIMATE3_ICON_SIZE: Record<string, [number, number]> = {
   'mxgraph.archimate3.workPackage':    [15, 13],
 };
 
+const BASE_ICON_SIZE = 15;
+
 // ---------------------------------------------------------------------------
 // Renderer class
 // ---------------------------------------------------------------------------
@@ -288,7 +290,7 @@ class ArchimateRenderer extends RichRenderer {
     let shape = this.shapeStyle || '';
     // Replace static dx with theme-derived cornerClip/2 for octagon shapes
     if (shape.includes('dx=')) {
-      shape = shape.replace(/dx=\d+/, `dx=${Math.round(this.theme.cornerClip / 2)}`);
+      shape = shape.replace(/dx=\d+/, `dx=${this.theme.cornerClip / 2}`);
     }
     const parts = [
       shape,
@@ -320,20 +322,17 @@ class ArchimateRenderer extends RichRenderer {
   render(box: ContentBox): string[] {
     const cells = super.render(box);
     if (this.icon) {
-      // Scale icon dimensions from base-15 table to theme.iconSize.
-      const [bw, bh] = ARCHIMATE3_ICON_SIZE[this.icon] ?? [15, 15];
-      const scale = this.theme.iconSize / 15;
-      const iw = Math.round(bw * scale);
-      const ih = Math.round(bh * scale);
+      // Scale icon dimensions from BASE_ICON_SIZE table to theme.iconSize.
+      const [bw, bh] = ARCHIMATE3_ICON_SIZE[this.icon] ?? [BASE_ICON_SIZE, BASE_ICON_SIZE];
+      const iw = bw * this.theme.archimateIconSize / BASE_ICON_SIZE * 0.8;
+      const ih = bh * this.theme.archimateIconSize / BASE_ICON_SIZE * 0.8;
       // Vertically center the icon within the titlebar band.
-      const titlebarH = this.theme.titleBarHeight;
-      const iy = Math.round((titlebarH - ih) / 2);
+      const iy = this.theme.padXS + (BASE_ICON_SIZE - ih) / 2;
       // For 'archimate' keyword nodes the icon is horizontally centered;
       // for all other archimate nodes it sits at the top-right corner.
-      const iconMargin = Math.round(this.theme.fontSize * 2 / 3); // 8 at base 12
       const ix = this.desc.centeredIcon
-        ? Math.round((box.width - iw) / 2)
-        : box.width - iw - iconMargin;
+        ? (box.width - iw) / 2
+        : box.width - this.theme.padXS - (BASE_ICON_SIZE + iw) / 2;
       // Resolve icon stroke color from inline style override
       const parsedStyle = parseNodeStyle(this.desc.style);
       const iconStroke = parsedStyle?.strokeColor || this.theme.colorDark;
@@ -343,7 +342,7 @@ class ArchimateRenderer extends RichRenderer {
         style: `shape=${this.icon};fillColor=none;strokeColor=${iconStroke};strokeWidth=${this.theme.strokeWidth};${this.iconExtraStyle}`,
         parent: this.id,
         x: ix,
-        y: iy + Math.round(this.theme.fontSize / 4), // 3 at base 12
+        y: iy,
         width: iw,
         height: ih,
       }));

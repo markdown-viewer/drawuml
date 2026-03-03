@@ -97,7 +97,7 @@ function snapToGroupBoundary(pt: { x: number; y: number }, g: LayoutGroup): { x:
     c.dist = (c.x - pt.x) ** 2 + (c.y - pt.y) ** 2;
   }
   candidates.sort((a, b) => a.dist - b.dist);
-  return { x: Math.round(candidates[0].x), y: Math.round(candidates[0].y) };
+  return { x: candidates[0].x, y: candidates[0].y };
 }
 
 function clamp(v: number, min: number, max: number): number {
@@ -127,7 +127,7 @@ export function clipPathAtGroupBoundary(
       if (p1Inside && !p2Inside) {
         const cross = segmentRectIntersection(p1, p2, g);
         if (cross) {
-          return [{ x: Math.round(cross.x), y: Math.round(cross.y) }, ...points.slice(i + 1)];
+          return [{ x: cross.x, y: cross.y }, ...points.slice(i + 1)];
         }
       }
       if (!p1Inside) return points;
@@ -144,7 +144,7 @@ export function clipPathAtGroupBoundary(
       if (!p1Inside && p2Inside) {
         const cross = segmentRectIntersection(p1, p2, g);
         if (cross) {
-          return [...points.slice(0, i), { x: Math.round(cross.x), y: Math.round(cross.y) }];
+          return [...points.slice(0, i), { x: cross.x, y: cross.y }];
         }
       }
       if (!p2Inside) return points;
@@ -350,8 +350,8 @@ export function snapPortNodes(
             }
             if (!cross) cross = pts[pts.length - 1]; // fallback
             if (!intersectionSet) {
-              portNode.x = Math.round(cross.x) - PORT_HALF;
-              portNode.y = Math.round(cross.y) - PORT_HALF;
+              portNode.x = cross.x - PORT_HALF;
+              portNode.y = cross.y - PORT_HALF;
               portNode.width = PORT_SIZE;
               portNode.height = PORT_SIZE;
               intersectionSet = true;
@@ -374,8 +374,8 @@ export function snapPortNodes(
             }
             if (!cross) cross = pts[0]; // fallback
             if (!intersectionSet) {
-              portNode.x = Math.round(cross.x) - PORT_HALF;
-              portNode.y = Math.round(cross.y) - PORT_HALF;
+              portNode.x = cross.x - PORT_HALF;
+              portNode.y = cross.y - PORT_HALF;
               portNode.width = PORT_SIZE;
               portNode.height = PORT_SIZE;
               intersectionSet = true;
@@ -523,8 +523,8 @@ export function positionTitle(layout: LayoutResult, renderers: Map<string, Rende
 
   layout.nodes['__title__'] = {
     id: '__title__',
-    x: Math.round(titleX),
-    y: Math.round(titleY),
+    x: titleX,
+    y: titleY,
     width: sz.width,
     height: sz.height,
   };
@@ -602,10 +602,10 @@ function _rearrangeSwimlaneDot(
   const totalHeight = maxY - minY;
 
   // Update container to encompass all regions
-  containerPos.x = Math.round(minX);
-  containerPos.y = Math.round(minY);
-  containerPos.width = Math.round(maxX - minX);
-  containerPos.height = Math.round(totalHeight);
+  containerPos.x = minX;
+  containerPos.y = minY;
+  containerPos.width = maxX - minX;
+  containerPos.height = totalHeight;
 
   // Set all regions to full container height, keep X/width from engine
   if (!layout.groups) layout.groups = {};
@@ -684,7 +684,7 @@ function _rearrangeSwimlaneDotLR(
 
   const totalWidth = maxX - minX + LANE_HEADER;
   const containerY = containerPos.y;
-  const containerX = Math.round(minX);
+  const containerX = minX;
 
   // Move each node: shift right by LANE_HEADER, center vertically in lane
   for (const nid of group.children) {
@@ -694,13 +694,13 @@ function _rearrangeSwimlaneDotLR(
     if (lane === undefined) continue;
 
     n.x = n.x + LANE_HEADER;
-    n.y = Math.round(containerY + laneY[lane] + (laneHeights[lane] - n.height) / 2);
+    n.y = containerY + laneY[lane] + (laneHeights[lane] - n.height) / 2;
   }
 
   // Update container
   containerPos.x = containerX;
   containerPos.y = containerY;
-  containerPos.width = Math.round(totalWidth);
+  containerPos.width = totalWidth;
   containerPos.height = totalHeight;
 
   // Update region groups — horizontal bands
@@ -967,7 +967,7 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
 
       if (Math.abs(ey - ny) < 5) {
         // same row (within 5px tolerance) → straight horizontal line
-        const avgY = Math.round((ey + ny) / 2);
+        const avgY = (ey + ny) / 2;
         if (e.points && e.points.length === 2) {
           const d0 = Math.abs(e.points[0].y - avgY) + Math.abs(e.points[0].x - ex);
           const d1 = Math.abs(e.points[1].y - avgY) + Math.abs(e.points[1].x - nx);
@@ -977,14 +977,14 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
             continue;
           }
         }
-        e.points = [{ x: Math.round(ex), y: avgY }, { x: Math.round(nx), y: avgY }];
+        e.points = [{ x: ex, y: avgY }, { x: nx, y: avgY }];
       } else {
         // cross-row → 4-point ortho (exit → → vertical → → entry)
         e.points = [
-          { x: Math.round(ex), y: Math.round(ey) },
-          { x: Math.round(midX), y: Math.round(ey) },
-          { x: Math.round(midX), y: Math.round(ny) },
-          { x: Math.round(nx), y: Math.round(ny) },
+          { x: ex, y: ey },
+          { x: midX, y: ey },
+          { x: midX, y: ny },
+          { x: nx, y: ny },
         ];
       }
     } else {
@@ -993,7 +993,7 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
 
       if (Math.abs(ex - nx) < 5) {
         // same column (within 5px tolerance) → straight vertical line
-        const avgX = Math.round((ex + nx) / 2);
+        const avgX = (ex + nx) / 2;
         if (e.points && e.points.length === 2) {
           const dx0 = Math.abs(e.points[0].x - avgX) + Math.abs(e.points[0].y - ey);
           const dx1 = Math.abs(e.points[1].x - avgX) + Math.abs(e.points[1].y - ny);
@@ -1003,14 +1003,14 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
             continue;
           }
         }
-        e.points = [{ x: avgX, y: Math.round(ey) }, { x: avgX, y: Math.round(ny) }];
+        e.points = [{ x: avgX, y: ey }, { x: avgX, y: ny }];
       } else {
         // cross-column → 4-point ortho (exit ↓ → horizontal → ↓ entry)
         e.points = [
-          { x: Math.round(ex), y: Math.round(ey) },
-          { x: Math.round(ex), y: Math.round(midY) },
-          { x: Math.round(nx), y: Math.round(midY) },
-          { x: Math.round(nx), y: Math.round(ny) },
+          { x: ex, y: ey },
+          { x: ex, y: midY },
+          { x: nx, y: midY },
+          { x: nx, y: ny },
         ];
       }
     }
@@ -1018,13 +1018,13 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
     // Recalculate label position to midpoint of the middle segment
     if (e.labelPos && e.points.length === 4) {
       e.labelPos = {
-        x: Math.round((e.points[1].x + e.points[2].x) / 2),
-        y: Math.round((e.points[1].y + e.points[2].y) / 2),
+        x: (e.points[1].x + e.points[2].x) / 2,
+        y: (e.points[1].y + e.points[2].y) / 2,
       };
     } else if (e.labelPos && e.points.length === 2) {
       e.labelPos = {
-        x: Math.round((e.points[0].x + e.points[1].x) / 2),
-        y: Math.round((e.points[0].y + e.points[1].y) / 2),
+        x: (e.points[0].x + e.points[1].x) / 2,
+        y: (e.points[0].y + e.points[1].y) / 2,
       };
     }
 
@@ -1052,7 +1052,7 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
  *   4. Pick the shorter one, splice it in, and remove bypassed points.
  */
 export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, theme?: Theme): void {
-  const margin = theme ? Math.round(theme.padL / 3) : 10;
+  const margin = theme ? theme.padL / 3 : 10;
   const edges = layout.edges;
   if (!edges || edges.length === 0) return;
   const nodes = layout.nodes;
@@ -1121,9 +1121,9 @@ export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel,
       // Rebuild edge: [0..entryIdx] + entryPt + detour + exitPt + [exitIdx+1..end]
       const newPts: Array<{ x: number; y: number }> = [];
       for (let i = 0; i <= entryIdx; i++) newPts.push(pts[i]);
-      newPts.push({ x: Math.round(entryPt.x), y: Math.round(entryPt.y) });
-      for (const dp of detour) newPts.push({ x: Math.round(dp.x), y: Math.round(dp.y) });
-      newPts.push({ x: Math.round(exitPt.x), y: Math.round(exitPt.y) });
+      newPts.push({ x: entryPt.x, y: entryPt.y });
+      for (const dp of detour) newPts.push({ x: dp.x, y: dp.y });
+      newPts.push({ x: exitPt.x, y: exitPt.y });
       for (let i = exitIdx + 1; i < pts.length; i++) newPts.push(pts[i]);
 
       edge.points = newPts;
@@ -1143,8 +1143,8 @@ export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel,
       const a = edge.points[bestIdx];
       const b = edge.points[bestIdx + 1];
       edge.labelPos = {
-        x: Math.round((a.x + b.x) / 2),
-        y: Math.round((a.y + b.y) / 2),
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2,
       };
     }
   }

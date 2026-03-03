@@ -51,7 +51,7 @@ class CircleRenderer extends IconRenderer {
 
   render(box: ContentBox) {
     const d = this.iconWidth;
-    const cx = box.x + Math.round((box.width - d) / 2);
+    const cx = box.x + (box.width - d) / 2;
     const cy = box.y;
     // Use actual text width as labelWidth to prevent wrapping without over-expanding
     const labelWidth = Math.max(this.textWidth + 4, d);

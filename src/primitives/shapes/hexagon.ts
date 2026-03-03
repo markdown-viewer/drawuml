@@ -11,11 +11,14 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class HexagonRenderer extends RichRenderer {
   protected buildStyle(): string {
-    const size = Math.round(this.theme.cornerClip * 1.5);
+    const size = this.theme.cornerClip * 1.5;
     return `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=${size};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
   }
   // Extra horizontal padding for hexagon pointed sides
-  protected shapePadding(): ShapePadding { const size = Math.round(this.theme.cornerClip * 1.5); return { left: size * 2, right: size * 2 }; }
+  protected shapePadding(): ShapePadding {
+    const size = this.theme.cornerClip * 1.5;
+    return { left: size * 2, right: size * 2 };
+  }
 }
 
 export function registerHexagonShape(): void {

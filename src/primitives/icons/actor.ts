@@ -69,7 +69,7 @@ class ActorRenderer extends IconRenderer {
       + `fontSize=${this.theme.fontSize};fontColor=${this.textColor};align=center;`;
 
     // Center the stick figure within the box
-    const cx = box.x + Math.round((box.width - this.iconWidth) / 2);
+    const cx = box.x + (box.width - this.iconWidth) / 2;
     const cy = box.y;
 
     return [mxVertex({

@@ -61,8 +61,8 @@ export function parseEdgePos(
 
   // Coordinate transform: flip Y, shift X (matching node transform)
   const transform = (p: Point): Point => ({
-    x: Math.round(p.x + xShift),
-    y: Math.round(maxY - p.y + margin),
+    x: p.x + xShift,
+    y: maxY - p.y + margin,
   });
 
   // Build cubic Bézier segment list from tokens

@@ -56,7 +56,7 @@ class UmlShapeRenderer extends IconRenderer {
       stereotypeLabel: this.desc.stereotypeLabel || undefined,
       fontSize: this.theme.fontSize,
     });
-    const cx = box.x + Math.round((box.width - this.iconWidth) / 2);
+    const cx = box.x + (box.width - this.iconWidth) / 2;
     let s = `shape=${this.config.shape};verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
       + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`;

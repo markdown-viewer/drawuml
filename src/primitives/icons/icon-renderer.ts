@@ -37,9 +37,9 @@ export abstract class IconRenderer extends Renderer {
   }
 
   /** Computed icon width (baseIconWidth × iconScale). Override for non-scaled icons. */
-  protected get iconWidth(): number { return Math.round(this.baseIconWidth * this.iconScale); }
+  protected get iconWidth(): number { return this.baseIconWidth * this.iconScale; }
   /** Computed icon height (baseIconHeight × iconScale). Override for non-scaled icons. */
-  protected get iconHeight(): number { return Math.round(this.baseIconHeight * this.iconScale); }
+  protected get iconHeight(): number { return this.baseIconHeight * this.iconScale; }
 
   // ── Configurable layout constants (override to customize) ──────────────────
 

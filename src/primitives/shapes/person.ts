@@ -27,11 +27,11 @@ class PersonRenderer extends RichRenderer {
     // Case 1: cellW <= cellH  →  padTop = R * cw - cp
     const pt1 = R * cw - cp;
     if (pt1 >= 0 && cw <= ch + pt1) {
-      return { top: Math.round(pt1) };
+      return { top: pt1 };
     }
     // Case 2: cellH < cellW  →  padTop = (R * ch - cp) / (1 - R)
     const pt2 = (R * ch - cp) / (1 - R);
-    return { top: Math.max(0, Math.round(pt2)) };
+    return { top: Math.max(0, pt2) };
   }
   get isCluster(): boolean { return false; }
 }

@@ -15,7 +15,7 @@ class QueueRenderer extends RichRenderer {
   }
   // Extra width for the cylinder end caps
   protected shapePadding(): ShapePadding {
-    return { left: this.theme.capHeight * 2, right: this.theme.capHeight * 2 };
+    return { left: this.theme.capHeight, right: this.theme.capHeight * 2 };
   }
 }
 
