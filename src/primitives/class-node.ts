@@ -80,7 +80,7 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
  * (e.g. object, state). Returns emptyBodyPad for empty body.
  */
 function skipAutoSeparator(ctx: FinalizeBodyCtx, theme?: Theme): Partial<Record<string, any>> {
-  if (ctx.lines.length === 0) return { emptyBodyPad: theme?.emptyBodyPad ?? 10 };
+  if (ctx.lines.length === 0) return { emptyBodyPad: theme?.padS ?? 10 };
   return {};
 }
 
@@ -225,7 +225,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       childStroke: this.childStroke,
       childLineStyle: this.childLineStyle,
       portConstraint: true as const,
-      spacingX: this.theme.classRowSpacingX,
+      spacingX: this.theme.padXS,
     };
   }
 

@@ -85,21 +85,21 @@ function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string
 // ---------------------------------------------------------------------------
 
 function elkSpacing(theme?: Theme) {
-  const groupSpacing = theme?.groupSpacing ?? 8;
+  const groupSpacing = theme?.padS ?? 8;
   return {
-    nodeNode: String(theme?.nodesepPx ?? 12),
-    nodeNodeBetweenLayers: String(theme?.ranksepPx ?? 40),
-    edgeEdge: String(theme?.edgeEdgePx ?? 8),
-    edgeEdgeBetweenLayers: String(theme?.edgeEdgePx ?? 8),
-    edgeNode: String(theme?.nodesepPx ?? 10),
-    edgeNodeBetweenLayers: String(theme?.nodesepPx ?? 20),
-    nodeSelfLoop: String(theme?.nodesepPx ?? 10),
+    nodeNode: String(theme?.padL ?? 12),
+    nodeNodeBetweenLayers: String(theme?.padXL ?? 40),
+    edgeEdge: String(theme?.padXS ?? 8),
+    edgeEdgeBetweenLayers: String(theme?.padXS ?? 8),
+    edgeNode: String(theme?.padL ?? 10),
+    edgeNodeBetweenLayers: String(theme?.padL ?? 20),
+    nodeSelfLoop: String(theme?.padL ?? 10),
     // Reduced same-layer spacing for root level when groups are present —
     // groups already have internal padding, so inter-group gaps
     // should be smaller than inter-node gaps.
     // Between-layers spacing stays normal so edge channels aren't cramped.
     groupNodeNode: String(groupSpacing),
-    groupNodeNodeBetweenLayers: String(theme?.ranksepPx ?? 40),
+    groupNodeNodeBetweenLayers: String(theme?.padXL ?? 40),
   };
 }
 
@@ -292,7 +292,7 @@ export function layoutGraphToElk(
     // don't hug the node boundary (avoids cramped arrow decorations).
     'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
     // Edge-label gap — scaled with font size
-    'elk.spacing.edgeLabel': String(theme?.edgeLabelGap ?? 4),
+    'elk.spacing.edgeLabel': String(theme?.padXS ?? 4),
     // Post-layout compaction removes unnecessary vertical gaps
     'elk.layered.compaction.postCompaction.strategy': 'LEFT',
     // Node placement & alignment

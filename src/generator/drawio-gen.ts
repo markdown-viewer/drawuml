@@ -162,7 +162,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // layout endpoints and add constraints so drawio2svg pins the connection
     // to the field cell's left/right border.
     if (hasPort && points && points.length >= 2) {
-      const sides = computePortEdgeSides(points, edge, layout, renderers, options?.theme?.edgeSnapPx);
+      const sides = computePortEdgeSides(points, edge, layout, renderers, options?.theme?.padS);
       if (sides.exitX != null) {
         style += `exitX=${sides.exitX};exitY=${sides.exitY};exitDx=0;exitDy=0;`;
       }
@@ -312,7 +312,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       // Adjust label position to maintain gap from edge line
       const adjustedPos = adjustLabelAwayFromEdge(
         layoutLabelPos, { width: w, height: h },
-        layoutEdge?.points, options?.theme?.edgeLabelGap ?? 4,
+        layoutEdge?.points, options?.theme?.padXS ?? 4,
       );
       cells.push(...lr.render({
         x: adjustedPos.x - Math.round(w / 2),

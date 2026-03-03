@@ -95,8 +95,8 @@ export function renderFragment(frag: {
     const condLines = conditionLabel.split('\n').length;
     const fragCondMinH = frag.theme?.fragCondMinH ?? 20;
     const condH = Math.max(fragCondMinH, condLines * Math.round(smallFontSize * 1.4) + 4);
-    const fragLabelSpacingX = frag.theme?.fragLabelSpacingX ?? 4;
-    const fragLabelGap = frag.theme?.fragLabelGap ?? 4;
+    const fragLabelSpacingX = frag.theme?.padXS ?? 4;
+    const fragLabelGap = frag.theme?.padXS ?? 4;
     if (isRef) {
       // ref: label text centered in content area, no brackets
       const contentY = frag.y + tabH;
@@ -143,9 +143,9 @@ export function renderFragment(frag: {
       parent: '1',
       x: frag.x, y, width: frag.width, height: 1,
     }));
-    const fragSectionSpacingX = frag.theme?.fragSectionSpacingX ?? 8;
+    const fragSectionSpacingX = frag.theme?.padS ?? 8;
     const fragSectionH = frag.theme?.fragSectionH ?? 20;
-    const fragLabelGap = frag.theme?.fragLabelGap ?? 4;
+    const fragLabelGap = frag.theme?.padXS ?? 4;
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
       style: `text;align=left;verticalAlign=top;spacingLeft=${fragSectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};`,

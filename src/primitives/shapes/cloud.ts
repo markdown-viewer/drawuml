@@ -15,7 +15,7 @@ class CloudRenderer extends RichRenderer {
   }
   // Cloud arc border + corner radius inset
   protected shapePadding(): ShapePadding {
-    return { left: this.theme.cloudPadH, right: this.theme.cloudPadH, top: this.theme.cloudPadV, bottom: this.theme.cloudPadV };
+    return { left: this.theme.padS, right: this.theme.padS, top: this.theme.padXS, bottom: this.theme.padXS };
   }
 }
 

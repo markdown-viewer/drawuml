@@ -86,7 +86,7 @@ class MapNodeRenderer extends Renderer {
     const valColW = maxValW + padX * 2;
     this._keyColWidth = keyColW;
 
-    const bodyW = keyColW + valColW + this.theme.mapColGap;
+    const bodyW = keyColW + valColW + this.theme.padXS;
     const totalW = Math.max(titleW, bodyW);
     const bodyH = this.entries.length * rowH;
     const totalH = titleH + bodyH;

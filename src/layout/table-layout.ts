@@ -26,18 +26,18 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const fontSize = theme?.fontSize ?? 12;
   const fontFamily = theme?.fontFamily ?? 'Arial';
   const titleMinWidth = theme?.titleMinWidth ?? 100;
-  const titlePadX = theme?.titlePadX ?? 20;
-  const titlePadY = theme?.titlePadY ?? 10;
-  const minGap = theme?.nodesepPx ?? 20;
-  const mediumPad = theme?.seqMediumPad ?? 10;
+  const titlePadX = theme?.padM ?? 20;
+  const titlePadY = theme?.padS ?? 10;
+  const minGap = theme?.padL ?? 20;
+  const mediumPad = theme?.padS ?? 10;
   const marginX = model.mainframe ? minGap : 0;
   let marginTop = 0;
   const minParticipantWidth = titleMinWidth;
   const tabHeight = theme?.titleBarHeight ?? 26;
-  const unitGap = theme?.ranksepPx ?? 30;
+  const unitGap = theme?.padXL ?? 30;
   const labelPadding = titlePadX;
-  const smallPad = theme?.seqSmallPad ?? 5;
-  const extBoundaryGap = theme?.seqExtBoundaryGap ?? 60;
+  const smallPad = theme?.padXS ?? 5;
+  const extBoundaryGap = theme?.padXL ?? 60;
 
   // Title: compute height and push participants down by title height + gap
   const renderers = new Map<string, Renderer>();
@@ -465,7 +465,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // actual content: label height above the arrow, note height expanding both
   // above and below. The gap between adjacent bounding boxes is fixed (unitGap),
   // so rows with less content take less space, keeping visual spacing uniform.
-  const arrowPad = theme?.seqArrowPad ?? 4;
+  const arrowPad = theme?.padXS ?? 4;
 
   // Compute per-row unit dimensions using above/below center approach
   const rowUnits = [];

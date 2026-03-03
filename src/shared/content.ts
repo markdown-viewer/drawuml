@@ -152,9 +152,9 @@ const DEFAULTS: ContentMetrics = {
 /** Build class metrics from theme or use hardcoded defaults. */
 function classMetrics(theme?: Theme): Partial<ContentMetrics> {
   if (theme) return {
-    paddingX: theme.classPadX,
+    paddingX: theme.padXL,
     titlePaddingY: theme.fontSize,
-    bodyPaddingY: theme.classBodyPadY,
+    bodyPaddingY: theme.padXS,
     rowHeight: theme.classRowHeight,
     separatorHeight: theme.classSepHeight,
     titledSeparatorHeight: theme.titledSepHeight,
@@ -602,7 +602,7 @@ export class Content {
       return parts.join(';') + ';';
     }
     // Rich body row: richTextStyle
-    const sx = co?.spacingX ?? (this._theme?.containerSpacingX ?? 10);
+    const sx = co?.spacingX ?? (this._theme?.padXS ?? 10);
     return richTextStyle(sx, sx, co?.align ?? 'left', fs, ff);
   }
 

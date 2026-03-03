@@ -145,7 +145,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     const labelBelow = model.responseMessageBelowArrow && isLeftward;
     const vAlign = labelBelow ? 'top' : 'bottom';
     const isTimed = !msg.self && (msg.toY ?? msg.y) !== msg.y;
-    const labelPad = theme?.seqSmallPad ?? 5;
+    const labelPad = theme?.padXS ?? 5;
 
     if (msg.self) {
       const dir = msg.arrowStyle?.direction || 'right';

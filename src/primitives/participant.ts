@@ -206,7 +206,7 @@ export function measureBracketBody(bracketLines: string[], bodyFontSize?: number
   if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
   if (fontFamily != null) metrics.fontFamily = fontFamily;
   const size = Content.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
-  const cp = theme?.containerSpacingX ?? 5;
+  const cp = theme?.padXS ?? 5;
   const sw = theme?.strokeWidth ?? 1;
   return {
     width: size.width + cp * 2 + sw * 2,
@@ -249,18 +249,18 @@ export function renderParticipant(
     // Content area algorithm copied from RichRenderer.renderRichBody:
     // childStartY = titlebarH + contentPad + padTop
     // Participant has no titlebar/shapePadding, so startY = contentPad.
-    const cp = opts?.theme?.containerSpacingX ?? 5;
+    const cp = opts?.theme?.padXS ?? 5;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(p.id, cellW, {
         align: opts?.participantAlign,
-        spacingX: opts?.theme?.containerSpacingX,
+        spacingX: opts?.theme?.padXS,
         fillColor,
         strokeColor,
       }, cp));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.containerSpacingX),
+        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.padXS),
         parent: p.id,
         y: 0, width: cellW, height: layout.iconHeight || 28,
       }));
@@ -310,18 +310,18 @@ export function renderFootbox(
       parent: '1',
       x: footX, y: footY, width: footW, height: footH,
     }));
-    const cp = opts?.theme?.containerSpacingX ?? 5;
+    const cp = opts?.theme?.padXS ?? 5;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(footId, footW, {
         align: opts?.participantAlign,
-        spacingX: opts?.theme?.containerSpacingX,
+        spacingX: opts?.theme?.padXS,
         fillColor,
         strokeColor,
       }, cp));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.containerSpacingX),
+        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.padXS),
         parent: footId,
         y: 0, width: footW, height: footH,
       }));

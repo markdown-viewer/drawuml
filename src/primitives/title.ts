@@ -31,7 +31,7 @@ class TitleRenderer extends Renderer {
     const m = measureText(this.htmlLabel, this.fontSize, this.theme.fontFamily, 'bold', 'normal', true);
     this.textHeight = Math.ceil(m.height);
     // Total height includes bottom gap so layout engines don't need a separate constant
-    return { width: Math.ceil(m.width), height: this.textHeight + this.theme.titleBottomGap };
+    return { width: Math.ceil(m.width), height: this.textHeight + this.theme.padL };
   }
 
   render(box: ContentBox) {

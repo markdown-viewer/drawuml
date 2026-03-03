@@ -44,9 +44,9 @@ export abstract class IconRenderer extends Renderer {
   // ── Configurable layout constants (override to customize) ──────────────────
 
   /** Gap between icon bottom and label top (px). */
-  protected get iconGap(): number { return this.theme.iconGap; }
+  protected get iconGap(): number { return this.theme.padXS; }
   /** Horizontal padding added to label width (px). */
-  protected get paddingX(): number { return this.theme.iconPadX; }
+  protected get paddingX(): number { return this.theme.padL; }
   /** Minimum label height — single-line floor (px). */
   protected get minLabelHeight(): number { return this.theme.iconMinLabelH; }
 

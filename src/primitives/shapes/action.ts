@@ -16,7 +16,7 @@ class ActionRenderer extends RichRenderer {
     return `shape=singleArrow;arrowWidth=1;arrowSize=0.12;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
   }
   // Extra padding for the arrow tip
-  protected shapePadding(): ShapePadding { return { left: this.theme.actionPadH, right: this.theme.actionPadH }; }
+  protected shapePadding(): ShapePadding { return { left: this.theme.padM, right: this.theme.padM }; }
 }
 
 export function registerActionShape(): void {

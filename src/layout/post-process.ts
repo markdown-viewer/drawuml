@@ -484,7 +484,7 @@ export function alignFieldNotes(
   for (const group of Array.from(groups.values())) {
     if (group.length <= 1) continue;
     group.sort((a, b) => (nodes[a.id]?.y ?? 0) - (nodes[b.id]?.y ?? 0));
-    const GAP = theme?.seqMediumPad ?? 10;
+    const GAP = theme?.padS ?? 10;
     for (let i = 1; i < group.length; i++) {
       const prev = nodes[group[i - 1].id];
       const cur = nodes[group[i].id];
@@ -632,7 +632,7 @@ function _rearrangeSwimlaneDotLR(
 ): void {
   const regions = group.concurrentRegions;
   const numLanes = regions.length;
-  const LANE_PAD = theme?.groupPadding ?? 20;
+  const LANE_PAD = theme?.padXL ?? 20;
   const LANE_HEADER = theme?.titleBarHeight ?? 40; // left-side title width for horizontal lanes
 
   // Build node→lane index map
@@ -651,7 +651,7 @@ function _rearrangeSwimlaneDotLR(
       const n = layout.nodes[nid];
       if (n) maxH = Math.max(maxH, n.height);
     }
-    const minLaneH = (theme?.nodesepPx ?? 40) * 2; // 80 at base 12
+    const minLaneH = (theme?.padL ?? 40) * 2; // 80 at base 12
     laneHeights.push(Math.max(maxH + 2 * LANE_PAD, minLaneH));
   }
 
@@ -751,7 +751,7 @@ function _rearrangeSwimlaneDotLR(
 export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme?: Theme): void {
   if (!model.groups) return;
 
-  const minGap = theme?.nodesepPx ?? 40;
+  const minGap = theme?.padL ?? 40;
 
   const swimContainer = model.groups.find(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
@@ -1052,7 +1052,7 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
  *   4. Pick the shorter one, splice it in, and remove bypassed points.
  */
 export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, theme?: Theme): void {
-  const margin = theme ? Math.round(theme.nodesepPx / 3) : 10;
+  const margin = theme ? Math.round(theme.padL / 3) : 10;
   const edges = layout.edges;
   if (!edges || edges.length === 0) return;
   const nodes = layout.nodes;

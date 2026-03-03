@@ -104,7 +104,7 @@ export abstract class RichRenderer extends Renderer {
    * Applied by base class in doMeasure() and buildRichBodyContainerStyle().
    * The mxGraph +2 horizontal compensation is handled transparently.
    */
-  protected get contentPad(): number { return this.theme.containerSpacingX; }
+  protected get contentPad(): number { return this.theme.padXS; }
 
   /** Content rect including contentPad, strokeWidth, and title area height. */
   private computeContentRect(): { width: number; height: number } {
@@ -131,7 +131,7 @@ export abstract class RichRenderer extends Renderer {
     const shapeTop = pad.top ?? 0;
     const titleH = this.hasTitlebar ? this.theme.titleBarHeight
       : this.label ? this.theme.capHeight : 0;
-    return this.theme.groupPadding + titleH + shapeTop;
+    return this.theme.padXL + titleH + shapeTop;
   }
 
   // ── Content construction ──────────────────────────────────────────────────
@@ -270,8 +270,8 @@ export abstract class RichRenderer extends Renderer {
       };
     }
     return {
-      width: Math.max(this.theme.titleMinWidth, size.width + this.theme.titlePadX + padLeft + padRight),
-      height: size.height + this.theme.titlePadY + padTop + padBottom + this.titleAreaHeight,
+      width: Math.max(this.theme.titleMinWidth, size.width + this.theme.padM + padLeft + padRight),
+      height: size.height + this.theme.padS + padTop + padBottom + this.titleAreaHeight,
     };
   }
 

@@ -259,13 +259,13 @@ export class ConcurrentRegionRenderer extends Renderer {
   // Uniform padding on all sides inside each region lane.
   override get groupTopPadding(): number {
     const headerSize = this.regionLabel ? Math.round(this.theme.titleBarHeight * 20 / 26) : 0;
-    return this.theme.groupPadding + headerSize;
+    return this.theme.padXL + headerSize;
   }
 
   override buildLayoutGraph() {
     const node = super.buildLayoutGraph();
     if (node.padding) {
-      const p = this.theme.groupPadding;
+      const p = this.theme.padXL;
       node.padding.left = p;
       node.padding.right = p;
       node.padding.bottom = p;
@@ -372,7 +372,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
-    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme?.emptyBodyPad ?? 10 };
+    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme?.padS ?? 10 };
     return {};
   }
 
@@ -386,7 +386,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
 
   // State title bar is a fixed title area
   // +2 compensates for visual gap difference vs non-fixed shapes
-  override get groupTopPadding(): number { return this.theme.groupPadding + this.theme.titleBarHeight + 2; }
+  override get groupTopPadding(): number { return this.theme.padXL + this.theme.titleBarHeight + 2; }
 
   /**
    * Render: composite state → group container; leaf → swimlane.

@@ -92,7 +92,7 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
 
   // 9. Enforce minimum edge-edge spacing (ELK doesn't guarantee it for cross-hierarchy edges)
   const theme = options?.theme;
-  separateOverlappingEdges(layout, theme?.edgeEdgePx ?? 8);
+  separateOverlappingEdges(layout, theme?.padXS ?? 8);
 
   // 10. Swimlane column rearrangement (if activity swimlanes present)
   rearrangeSwimlanes(layout, model, theme);

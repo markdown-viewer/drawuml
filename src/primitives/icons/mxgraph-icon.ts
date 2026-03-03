@@ -35,7 +35,7 @@ export class MxgraphIconRenderer extends IconRenderer {
   protected override get iconScale(): number {
     return this.theme.mxgraphIconSize / Math.max(this.baseIconWidth, this.baseIconHeight);
   }
-  protected override get paddingX(): number { return this.theme.mxIconPadX; }
+  protected override get paddingX(): number { return this.theme.padM; }
   protected override get minLabelHeight(): number { return this.theme.mxIconMinLabelH; }
 
   // Override: padding applies to icon width too

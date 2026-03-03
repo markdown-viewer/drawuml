@@ -284,8 +284,8 @@ export function layoutGraphToDot(
   theme?: Theme,
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
-  const nodesepPx = theme?.nodesepPx ?? 30;
-  const ranksepPx = theme?.ranksepPx ?? 40;
+  const nodesepPx = theme?.padL ?? 30;
+  const ranksepPx = theme?.padXL ?? 40;
   const maxRowWidth = theme?.maxRowWidth ?? 800;
   const layoutFontSize = theme?.layoutFontSize ?? 10;
   const dotMinH = (Math.round((theme?.fontSize ?? 12) * 25 / 12) / PX_PER_INCH).toFixed(6);
@@ -462,8 +462,8 @@ export function layoutGraphToDot(
   // --- Build adapter context ---
 
   const smallFontSize = theme?.smallFontSize ?? 10;
-  const groupPadding = theme?.groupPadding ?? 20;
-  const groupSpacing = theme?.groupSpacing ?? 8;
+  const groupPadding = theme?.padXL ?? 20;
+  const groupSpacing = theme?.padS ?? 8;
 
   const ctx: DotAdapterContext = {
     portNodes,
