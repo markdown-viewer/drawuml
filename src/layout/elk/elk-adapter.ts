@@ -68,6 +68,19 @@ const RANKDIR_TO_ELK_DIRECTION: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Port side mapping — map portKind + direction to ELK port side
+// ---------------------------------------------------------------------------
+
+function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string): string {
+  if (elkDirection === 'DOWN' || elkDirection === 'UP') {
+    const isDown = elkDirection === 'DOWN';
+    return portKind === 'portout' ? (isDown ? 'SOUTH' : 'NORTH') : (isDown ? 'NORTH' : 'SOUTH');
+  }
+  const isRight = elkDirection === 'RIGHT';
+  return portKind === 'portout' ? (isRight ? 'EAST' : 'WEST') : (isRight ? 'WEST' : 'EAST');
+}
+
+// ---------------------------------------------------------------------------
 // ELK spacing — helper to extract layout spacing strings from theme
 // ---------------------------------------------------------------------------
 
@@ -222,8 +235,17 @@ export function layoutGraphToElk(
   const groupMap = new Map<string, SemanticGroup>();
   for (const g of model.groups || []) groupMap.set(g.id, g);
 
+  // Build portNode → parentGroup map for ELK group port mapping
+  const portToGroup = new Map<string, string>();
+  for (const g of model.groups || []) {
+    for (const childId of g.children) {
+      const r = renderers.get(childId);
+      if (r?.isPort) portToGroup.set(childId, g.id);
+    }
+  }
+
   // Map LayoutGraphNode tree to ELK children
-  const children: ElkNode[] = root.map(n => mapNode(n, renderers, portVariants, groupMap, elkDirection, es));
+  const children: ElkNode[] = root.map(n => mapNode(n, renderers, portVariants, groupMap, elkDirection, es, portToGroup));
 
   // Add note nodes (notes are not part of the LayoutGraphNode tree but may
   // be referenced by edges, e.g. "note ... as N2" with "Object .. N2")
@@ -302,7 +324,7 @@ export function layoutGraphToElk(
 
   // Place each edge at its lowest common ancestor container.
   // Build node-id → ancestor-path map, then distribute edges.
-  distributeEdges(elkRoot, allEdges);
+  distributeEdges(elkRoot, allEdges, portToGroup);
 
   // Boost direction priority on edges leaving the start node's target
   // so ELK's cycle breaker preserves the forward direction from the
@@ -329,6 +351,7 @@ function mapNode(
   groupMap: Map<string, SemanticGroup>,
   elkDirection: string,
   es: ReturnType<typeof elkSpacing>,
+  portToGroup?: Map<string, string>,
 ): ElkNode {
   const elk: ElkNode = {
     id: gn.id,
@@ -379,7 +402,30 @@ function mapNode(
       }
     } else {
       // ── Normal container ───────────────────────────────────────────
-      elk.children = gn.children.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection, es));
+
+      // Extract port nodes as ELK ports on this container
+      let effectiveChildren = gn.children;
+      const groupPortElks: ElkPort[] = [];
+      if (portToGroup && portToGroup.size > 0) {
+        const regularKids: LayoutGraphNode[] = [];
+        for (const c of gn.children) {
+          const r = renderers.get(c.id);
+          if (r?.isPort && portToGroup.get(c.id) === gn.id) {
+            const side = getPortSide(r.portKind, elkDirection);
+            groupPortElks.push({
+              id: c.id,
+              width: c.width,
+              height: c.height,
+              layoutOptions: { 'elk.port.side': side },
+            });
+          } else {
+            regularKids.push(c);
+          }
+        }
+        if (groupPortElks.length > 0) effectiveChildren = regularKids;
+      }
+
+      elk.children = effectiveChildren.map(c => mapNode(c, renderers, portVariants, groupMap, elkDirection, es, portToGroup));
 
       // Container padding + spacing.
       if (gn.padding) {
@@ -394,6 +440,13 @@ function mapNode(
           'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
           'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
         };
+      }
+
+      // Add port nodes as ELK ports on the container
+      if (groupPortElks.length > 0) {
+        elk.ports = (elk.ports || []).concat(groupPortElks);
+        if (!elk.layoutOptions) elk.layoutOptions = {};
+        elk.layoutOptions['elk.portConstraints'] = 'FIXED_SIDE';
       }
     }
 
@@ -625,9 +678,20 @@ function buildNodeMap(elkRoot: ElkNode): Map<string, ElkNode> {
  * Distribute edges to their LCA containers so that intra-group edges
  * are routed within the group instead of at the root level.
  */
-function distributeEdges(elkRoot: ElkNode, edges: ElkEdge[]): void {
+function distributeEdges(elkRoot: ElkNode, edges: ElkEdge[], portToGroup?: Map<string, string>): void {
   const ancestorMap = buildAncestorMap(elkRoot);
   const nodeMap = buildNodeMap(elkRoot);
+
+  // Register port node IDs in the ancestor map so LCA resolution
+  // correctly places port edges inside the parent group.
+  if (portToGroup) {
+    for (const [portId, groupId] of portToGroup) {
+      const groupPath = ancestorMap.get(groupId);
+      if (groupPath) {
+        ancestorMap.set(portId, [...groupPath, groupId]);
+      }
+    }
+  }
 
   for (const edge of edges) {
     // Extract base node IDs (strip port suffix "node::port" → "node")
@@ -728,12 +792,6 @@ function collectEdges(
 ): ElkEdge[] {
   const elkEdges: ElkEdge[] = [];
 
-  // Port node IDs — for spacer labels on unlabeled port edges
-  const portNodeIds = new Set<string>();
-  for (const n of model.nodes) {
-    if (n.isPort) portNodeIds.add(n.id);
-  }
-
   for (const edge of model.edges) {
     const isInverted = edge.direction === 'left' || edge.direction === 'up';
     const from = isInverted ? edge.to : edge.from;
@@ -761,14 +819,6 @@ function collectEdges(
         width: m.width,
         height: m.height,
       }];
-    }
-
-    // Unlabeled port edges: use a thicker virtual thickness so ELK
-    // reserves more routing space without introducing a label dummy node
-    // (which would cause extra bends).
-    if (!edge.label && !edge.cardFrom && !edge.cardTo && (portNodeIds.has(edge.from) || portNodeIds.has(edge.to))) {
-      if (!elkEdge.layoutOptions) elkEdge.layoutOptions = {};
-      elkEdge.layoutOptions['elk.edge.thickness'] = 10;
     }
 
     elkEdges.push(elkEdge);

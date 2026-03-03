@@ -87,6 +87,37 @@ function collectNodes(
         width: Math.round(w),
         height: Math.round(h),
       };
+
+      // Extract ELK ports as layout nodes (port nodes mapped to group ports)
+      // ELK places ports with their edge touching the group boundary, but
+      // PlantUML ports straddle the boundary (center on the boundary line).
+      // Adjust by half the port size toward the group interior.
+      if (child.ports) {
+        for (const port of child.ports) {
+          const pr = renderers.get(port.id);
+          if (pr?.isPort) {
+            const pw = port.width ?? 12;
+            const ph = port.height ?? 12;
+            let px = port.x ?? 0;
+            let py = port.y ?? 0;
+
+            // Shift port center onto the group boundary
+            if (py < 0) py += ph / 2;                     // NORTH: shift down
+            else if (py >= h) py -= ph / 2;               // SOUTH: shift up
+            if (px < 0) px += pw / 2;                     // WEST: shift right
+            else if (px >= w) px -= pw / 2;               // EAST: shift left
+
+            nodes[port.id] = {
+              id: port.id,
+              x: Math.round(absX + px),
+              y: Math.round(absY + py),
+              width: Math.round(pw),
+              height: Math.round(ph),
+            };
+          }
+        }
+      }
+
       // Recurse into children
       collectNodes(child, absX, absY, nodes, groups, groupIds, renderers);
     } else {

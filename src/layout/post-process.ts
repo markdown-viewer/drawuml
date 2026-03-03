@@ -282,6 +282,7 @@ export function snapPortNodes(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
   theme?: Theme,
+  elkPortIds?: Set<string>,
 ): void {
   const PORT_SIZE = theme?.portSize ?? 12;
   const PORT_HALF = PORT_SIZE / 2;
@@ -299,6 +300,33 @@ export function snapPortNodes(
       if (!r?.isPort) continue;
       const portNode = layout.nodes[childId];
       if (!portNode) continue;
+
+      // ELK port nodes already have correct positions from the layout engine.
+      // Only clip internal edge paths to the port box; skip position reset.
+      if (elkPortIds?.has(childId)) {
+        const portBox: LayoutGroup = {
+          id: childId,
+          x: portNode.x,
+          y: portNode.y,
+          width: PORT_SIZE,
+          height: PORT_SIZE,
+        };
+        for (const edge of layout.edges || []) {
+          if (!edge.points || edge.points.length < 2) continue;
+          if (edge.to === childId) {
+            const otherGroupId = nodeGroupMap.get(edge.from);
+            if (otherGroupId === group.id) {
+              edge.points = clipPathAtGroupBoundary(edge.points, portBox, 'end');
+            }
+          } else if (edge.from === childId) {
+            const otherGroupId = nodeGroupMap.get(edge.to);
+            if (otherGroupId === group.id) {
+              edge.points = clipPathAtGroupBoundary(edge.points, portBox, 'start');
+            }
+          }
+        }
+        continue;
+      }
 
       // --- Pass 1: External edges ---
       let intersectionSet = false;

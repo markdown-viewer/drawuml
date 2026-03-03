@@ -98,7 +98,16 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   rearrangeSwimlanes(layout, model, theme);
 
   // 11. Post-processing (shared with DOT engine)
-  snapPortNodes(layout, model, renderers, theme);
+  // Build set of port node IDs that were laid out as ELK ports — these
+  // already have correct positions and should not be re-snapped.
+  const elkPortIds = new Set<string>();
+  for (const g of model.groups || []) {
+    for (const childId of g.children) {
+      const r = renderers.get(childId);
+      if (r?.isPort) elkPortIds.add(childId);
+    }
+  }
+  snapPortNodes(layout, model, renderers, theme, elkPortIds);
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
   positionTitle(layout, renderers);
 
