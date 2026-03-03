@@ -424,6 +424,24 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
   const defaultNodeType = isStateDiagram ? NodeType.State : NodeType.Class;
 
+  // Pre-scan: detect if any routing_relation has arrow heads.
+  // In deployment/description context this determines whether implicit nodes
+  // are rendered as circles (no arrow heads) or class rectangles (with arrow heads).
+  let hasArrowHeadInRouting = false;
+  if (isDeploymentContext) {
+    for (const st0 of statements) {
+      if (!st0 || typeof st0 !== 'object') continue;
+      if (st0.kind === 'generic_statement' && st0.type === 'routing_relation' && st0.arrowMeta) {
+        const startHead = String(st0.arrowMeta.startHeadToken || '');
+        const endHead = String(st0.arrowMeta.endHeadToken || '');
+        if (startHead || endHead) {
+          hasArrowHeadInRouting = true;
+          break;
+        }
+      }
+    }
+  }
+
   // Pre-scan: build sprite map from "sprite $name jar:archimate/stereotype" directives.
   // Used to resolve <<$name>> stereotypes on rectangle declarations (003-style archimate diagrams).
   const spriteMap: Record<string, string> = {};
@@ -811,7 +829,49 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           }
           continue;
         }
-        // No archimate stereotype found — fall through to later handlers
+        // No archimate stereotype — handle as rectangle group or node
+        if (st.block) {
+          // Rectangle with block: create a group (container)
+          const rawLabel = String(st.label || st.name || '').trim();
+          const rawAlias = String(st.alias || '').trim();
+          const stereotype = stereos.length > 0 ? stereos[0] : undefined;
+          const segments = [rawAlias || rawLabel || declType];
+          const startParent = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+          const chain = findOrCreateGroupChain(segments, declType, startParent, stereotype);
+          if (chain.length > 0) {
+            const leaf = chain[chain.length - 1];
+            if (st.style) leaf.style = st.style;
+            // Set display label when alias differs from label
+            if (rawAlias && rawLabel && rawAlias !== rawLabel) {
+              leaf.label = rawLabel;
+            }
+          }
+          for (const g of chain) groupStack.push(g);
+          blockPushCounts.push(chain.length);
+          continue;
+        } else {
+          // Rectangle without block: create a node
+          const rawLabel = String(st.label || st.name || '').trim();
+          const rawAlias = String(st.alias || '').trim();
+          const id = normalizeId(rawAlias || rawLabel);
+          const label = rawLabel;
+          const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: 'rectangle',
+              stereotypeLabel: stereotypeLabel || '',
+              bodyLines: [],
+              style: st.style || null,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
       }
 
       // mxgraph icon declaration: "mxgraph.aws4.compute.awsLambda "Label" as alias #color"
@@ -1312,6 +1372,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       }
 
       // Bracket body: "node n [...]" — puml.ts has pre-collected lines on the statement
+      // Bracket body replaces the label display, so label is cleared;
+      // bodyLines carries the actual display content (may be empty).
       if (st.kind === 'block_statement' && st.type === 'component_bracket_start') {
         const ctype = String(st.componentType || '').toLowerCase();
         const name = String(st.name || '').trim();
@@ -1322,7 +1384,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           nodesById[id] = {
             id,
             type: NodeType.Class,
-            label: name,
+            label: '',
             stereotype: ctype,
             stereotypeLabel: '',
             bodyLines: bLines,
@@ -1792,8 +1854,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in description context → actor (PlantUML default for DescriptionDiagram)
               nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else if (!lollipopFrom && isDeploymentContext) {
-              // Bare name in deployment context → interface circle (PlantUML DescriptionDiagram default)
-              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: 'circle', stereotypeLabel: '', bodyLines: [] };
+              // Bare name in deployment context: circle if no arrow heads, class if any arrow head
+              const depStereo = hasArrowHeadInRouting ? null : 'circle';
+              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: depStereo, stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
@@ -1820,8 +1883,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in description context → actor (PlantUML default for DescriptionDiagram)
               nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else if (!lollipopTo && isDeploymentContext) {
-              // Bare name in deployment context → interface circle (PlantUML DescriptionDiagram default)
-              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: 'circle', stereotypeLabel: '', bodyLines: [] };
+              // Bare name in deployment context: circle if no arrow heads, class if any arrow head
+              const depStereo = hasArrowHeadInRouting ? null : 'circle';
+              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: depStereo, stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }

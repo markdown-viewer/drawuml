@@ -81,11 +81,12 @@ function elkSpacing(theme?: Theme) {
     edgeNode: String(theme?.nodesepPx ?? 10),
     edgeNodeBetweenLayers: String(theme?.nodesepPx ?? 20),
     nodeSelfLoop: String(theme?.nodesepPx ?? 10),
-    // Reduced spacing for root level when groups are present —
+    // Reduced same-layer spacing for root level when groups are present —
     // groups already have internal padding, so inter-group gaps
     // should be smaller than inter-node gaps.
+    // Between-layers spacing stays normal so edge channels aren't cramped.
     groupNodeNode: String(groupSpacing),
-    groupNodeNodeBetweenLayers: String(groupSpacing),
+    groupNodeNodeBetweenLayers: String(theme?.ranksepPx ?? 40),
   };
 }
 
@@ -727,6 +728,12 @@ function collectEdges(
 ): ElkEdge[] {
   const elkEdges: ElkEdge[] = [];
 
+  // Port node IDs — for spacer labels on unlabeled port edges
+  const portNodeIds = new Set<string>();
+  for (const n of model.nodes) {
+    if (n.isPort) portNodeIds.add(n.id);
+  }
+
   for (const edge of model.edges) {
     const isInverted = edge.direction === 'left' || edge.direction === 'up';
     const from = isInverted ? edge.to : edge.from;
@@ -754,6 +761,14 @@ function collectEdges(
         width: m.width,
         height: m.height,
       }];
+    }
+
+    // Unlabeled port edges: use a thicker virtual thickness so ELK
+    // reserves more routing space without introducing a label dummy node
+    // (which would cause extra bends).
+    if (!edge.label && !edge.cardFrom && !edge.cardTo && (portNodeIds.has(edge.from) || portNodeIds.has(edge.to))) {
+      if (!elkEdge.layoutOptions) elkEdge.layoutOptions = {};
+      elkEdge.layoutOptions['elk.edge.thickness'] = 10;
     }
 
     elkEdges.push(elkEdge);

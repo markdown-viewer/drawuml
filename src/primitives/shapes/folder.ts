@@ -21,9 +21,27 @@ class FolderRenderer extends RichRenderer {
     this.isPackage = isPackage;
   }
 
+  /** Tab width: text width + fontSize padding (left+right spacing). */
+  private computeTabWidth(): number {
+    return Math.max(Math.ceil(measureText(this.label, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', false).width) + this.theme.fontSize, this.theme.tabMinWidth);
+  }
+
   protected buildStyle(): string {
-    const tabWidth = Math.max(Math.ceil(measureText(this.label, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', false).width) + this.theme.fontSize, this.theme.tabMinWidth);
+    const tabWidth = this.computeTabWidth();
     return `shape=folder;html=1;whiteSpace=wrap;fontStyle=1;tabWidth=${tabWidth};tabHeight=${this.theme.titleBarHeight};tabPosition=left;tabFill=1;labelInHeader=1;boundedLbl=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=${Math.round(this.theme.fontSize / 2)};verticalAlign=middle;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
+  }
+
+  protected override doMeasure() {
+    const base = super.doMeasure();
+    if (this.isCluster) return base;
+    // Ensure element width > tabWidth so drawio2svg arc clipping
+    // does not eat into the tab's right padding.
+    const tabWidth = this.computeTabWidth();
+    const minWidth = tabWidth + this.theme.fontSize;
+    return {
+      width: Math.max(base.width, minWidth),
+      height: base.height,
+    };
   }
 
   // Folder has a fixed titlebar (tab area)

@@ -487,6 +487,13 @@ export function layoutGraphToDot(
     nodeGroupLines.push(...buildNodeDotLines(gn, '  ', ctx));
   }
 
+  // --- Port node IDs (for spacer labels on unlabeled port edges) ---
+
+  const portNodeIds = new Set<string>();
+  for (const n of model.nodes) {
+    if (n.isPort) portNodeIds.add(n.id);
+  }
+
   // --- Edge lines ---
 
   const edgeLines: string[] = [];
@@ -505,6 +512,9 @@ export function layoutGraphToDot(
     if (edge.label) {
       const dotLabel = unescapePlantUml(edge.label).replace(/"/g, '\\"');
       attrs += `,label="${dotLabel}"`;
+    } else if (!edge.cardFrom && !edge.cardTo && (portNodeIds.has(edge.from) || portNodeIds.has(edge.to))) {
+      // Invisible spacer label for unlabeled port edges to prevent cramped layout
+      attrs += ',label=" "';
     }
     if (edge.cardFrom) {
       const escaped = unescapePlantUml(edge.cardFrom).replace(/"/g, '\\"');

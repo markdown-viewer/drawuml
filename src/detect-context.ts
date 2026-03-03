@@ -149,6 +149,7 @@ export function detectDiagramContext(parsed): DiagramContext {
   let hasActivity = false;
   let hasStrongActivity = false; // :text;, start, stop, if, etc. — unambiguous activity indicators
   let hasArrowStatement = false; // arrow_statement → legacy activity syntax (handled by class parser)
+  let hasBareRouting = false; // bare-endpoint routing_relation without deployment-specific syntax
 
   for (const st of statements) {
     if (!st || typeof st !== 'object') continue;
@@ -312,9 +313,11 @@ export function detectDiagramContext(parsed): DiagramContext {
         const arrowNoColor = arrow.replace(/\[#[^\]]*\]/g, '');
         if (/[|*#{}+^]/.test(arrowNoColor) || /-(?:left|right|up|down)-/i.test(arrowNoColor)) {
           hasNonSequence = true;
+          hasBareRouting = true;
         } else if (/^[~.=\-]{2,}$/.test(arrowNoColor)) {
           // Symmetric double-char arrows (~~, .., ==, --) are class/deployment relations
           hasNonSequence = true;
+          hasBareRouting = true;
         } else if (/[0()]/.test(arrowNoColor)) {
           // Lollipop/socket/ball arrows (0, (, )) are deployment-specific
           hasNonSequence = true;
@@ -376,6 +379,10 @@ export function detectDiagramContext(parsed): DiagramContext {
   if (hasDeployment) return 'deployment';
   if (hasUsecase) return 'usecase';
   if (hasActivity) return 'activity';
+  // Bare routing_relations (e.g. A -- B : label) without explicit class
+  // declarations indicate a deployment/description diagram in PlantUML's
+  // DescriptionDiagramFactory (priority 1).
+  if (hasBareRouting && !hasExplicitClassDecl) return 'deployment';
   // Description: implicit-only class declarations (no explicit `class` keyword).
   // Matches PlantUML's DescriptionDiagramFactory (priority 1) which renders
   // bare entity declarations like `Foo <<Bar>>` as actors by default.
