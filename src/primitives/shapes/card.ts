@@ -12,15 +12,18 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class CardRenderer extends RichRenderer {
   protected shapePadding(): ShapePadding { return {}; }
-  protected override get hasTitlebar(): boolean { return true; }
+  // Only show titlebar when card is a cluster (has children);
+  // standalone cards (label-only or with body) use a plain rect.
+  protected override get hasTitlebar(): boolean {
+    return this.isCluster;
+  }
 
   protected buildStyle(): string {
-    // Use plain rectangle when card has title only (no body content and no children)
-    const hasContent = this.desc.bodyLines && this.desc.bodyLines.length > 0;
-    if (!hasContent && !this.isCluster) {
+    if (!this.isCluster) {
+      // Plain rectangle for standalone card (label-only or with body content)
       return `shape=mxgraph.basic.rect;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
     }
-    // Swimlane with startSize gives a proper title bar header, matching state/class node pattern
+    // Swimlane with title bar header for cluster card (has children)
     return `swimlane;startSize=${this.theme.titleBarHeight};swimlaneLine=1;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
 }
