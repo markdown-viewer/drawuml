@@ -7,26 +7,17 @@
 
 import { normalizeColor, darkenColor } from '../../shared/color-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class NoteNodeRenderer extends RichRenderer {
-  constructor(desc: RenderDescriptor) {
-    super(desc);
-  }
-
   private get noteType(): string { return this.desc.noteType || 'note'; }
   private get fillColor(): string { return normalizeColor(this.desc.color || '#FEFFDD'); }
-
-  get isCluster(): boolean { return false; }
 
   // Note always uses rich body mode (desc.lines as content)
   protected detectRichBody(): boolean { return true; }
   protected getRichBodyLines(): string[] { return this.desc.lines || []; }
-
-  protected getRichBodyMetrics(): Record<string, number | string> {
-    return { minWidth: this.theme.noteMinW };
-  }
 
   protected buildStyle(): string {
     const fill = this.fillColor;
@@ -45,8 +36,20 @@ class NoteNodeRenderer extends RichRenderer {
     return `shape=note;size=${clip};${base}`;
   }
 
-  // Note color is baked into buildStyle; skip deployment color override
-  protected applyColorOverride(s: string): string { return s; }
+  // Shape-specific content avoidance padding:
+  // - note (fold corner): avoid the fold triangle on the right
+  // - hnote (hexagon): avoid pointed sides on both left and right
+  // - rnote (rectangle): no extra padding needed
+  protected shapePadding(): ShapePadding {
+    const clip = this.theme.cornerClip;
+    if (this.noteType === 'hnote') {
+      return { left: clip, right: clip };
+    }
+    if (this.noteType === 'note') {
+      return { right: clip };
+    }
+    return {};
+  }
 }
 
 /** Register note renderer into global registry. */

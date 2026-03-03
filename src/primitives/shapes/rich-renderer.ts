@@ -171,15 +171,6 @@ export abstract class RichRenderer extends Renderer {
   }
 
   /**
-   * Return custom Content.richBody metrics for rich body mode.
-   * Default: undefined (use RICH_BODY_METRICS defaults).
-   * Override for shapes like note/legend with custom padding.
-   */
-  protected getRichBodyMetrics(): Record<string, number | string> | undefined {
-    return undefined;
-  }
-
-  /**
    * Build Content from label + stereotype HTML, or rich body lines.
    * Override for custom label patterns (e.g. package shows stereo in body).
    */
@@ -187,10 +178,7 @@ export abstract class RichRenderer extends Renderer {
     const fontSize = this.theme.fontSize;
     const fontFamily = this.theme.fontFamily;
     if (this.hasRichBody) {
-      const metrics = this.getRichBodyMetrics() || {};
-      if (!metrics.bodyFontSize) metrics.bodyFontSize = fontSize;
-      if (!metrics.fontFamily) metrics.fontFamily = fontFamily;
-      return Content.richBody(this.getRichBodyLines(), metrics, this.theme);
+      return Content.richBody(this.getRichBodyLines(), { bodyFontSize: fontSize, fontFamily }, this.theme);
     }
     // bodyLines without separators: render lines as the node's display content
     if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
@@ -400,31 +388,28 @@ export abstract class RichRenderer extends Renderer {
     const strokeColor = s.match(/strokeColor=([^;]*)/)?.[1] || this.theme.colorDark;
 
     const cells: string[] = [];
-    if (this.content.hasSeparators) {
-      cells.push(mxVertex({
-        id: this.id, value: '', style: s,
-        parent: this.parentId || '1',
-        x: box.x, y: box.y, width: box.width, height: box.height,
-      }));
-      // Compute content inset for child positioning (e.g. ellipse geometry)
-      const contentRect = this.computeContentRect();
-      const pad = this.shapePadding(contentRect);
-      const padLeft = pad.left ?? 0;
-      const padRight = pad.right ?? 0;
-      const padTop = pad.top ?? 0;
-      const childWidth = box.width - padLeft - padRight;
-      const childStartY = this.titleAreaHeight + this.contentPad + padTop;
-      cells.push(...this.content.renderChildren(this.id, childWidth, {
-        fillColor,
-        strokeColor,
-      }, childStartY, padLeft));
-    } else {
-      cells.push(mxVertex({
-        id: this.id, value: this.content.html, style: s,
-        parent: this.parentId || '1',
-        x: box.x, y: box.y, width: box.width, height: box.height,
-      }));
-    }
+    // Always use child cells for content positioning.
+    // Putting content directly as container value with verticalAlign=top causes
+    // drawio2svg to add a fixed +7px baseOffset, making top padding unstable
+    // across font sizes.  Child cells with verticalAlign=middle and precise
+    // heights avoid this offset entirely.
+    cells.push(mxVertex({
+      id: this.id, value: '', style: s,
+      parent: this.parentId || '1',
+      x: box.x, y: box.y, width: box.width, height: box.height,
+    }));
+    // Compute content inset for child positioning (e.g. ellipse geometry)
+    const contentRect = this.computeContentRect();
+    const pad = this.shapePadding(contentRect);
+    const padLeft = pad.left ?? 0;
+    const padRight = pad.right ?? 0;
+    const padTop = pad.top ?? 0;
+    const childWidth = box.width - padLeft - padRight;
+    const childStartY = this.titleAreaHeight + this.contentPad + padTop;
+    cells.push(...this.content.renderChildren(this.id, childWidth, {
+      fillColor,
+      strokeColor,
+    }, childStartY, padLeft));
     return cells;
   }
 }

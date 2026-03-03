@@ -123,7 +123,7 @@ export interface Theme {
 export function createTheme(config?: ThemeConfig): Theme {
   const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
   const fontFamily = config?.fontFamily ?? DEFAULT_FONT_FAMILY;
-  const strokeWidth = fontSize / 12;
+  const strokeWidth = (fontSize / 12).toFixed(1);
 
   return {
     // ── Typography ──
@@ -145,7 +145,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     destroyStroke: '#A80036',
 
     // ── Stroke & corner ──
-    strokeWidth: Math.round(strokeWidth),
+    strokeWidth: strokeWidth,
     arcSize: Math.round(fontSize / 3),
     largeArcSize: Math.round(fontSize),
     cornerClip: Math.round(fontSize * 6 / 12),
@@ -195,7 +195,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     fragLabelSpacingX: Math.round(fontSize * 4 / 12),       //   4
     fragLabelGap: Math.round(fontSize * 4 / 12),            //   4
     mapColGap: Math.round(fontSize * 4 / 12),               //   4
-    edgeEdgePx: Math.round(4 * strokeWidth),                //   4
+    edgeEdgePx: Math.round(fontSize * 4 / 12),              //   4
     classBodyPadY: Math.round(fontSize * 5 / 12),           //   5
     seqSmallPad: Math.round(fontSize * 5 / 12),             //   5
     shadowOffset: Math.round(fontSize * 5 / 12),            //   5

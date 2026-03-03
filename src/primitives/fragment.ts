@@ -87,8 +87,9 @@ export function renderFragment(frag: {
     x: frag.x, y: frag.y, width: frag.width, height: frag.height,
   }));
 
-  // Condition label to the right of the tab
+  // Condition label to the right of the tab (or centered in content area for ref)
   const smallFontSize = frag.theme?.smallFontSize ?? 10;
+  const isRef = frag.type === 'ref';
   if (conditionLabel) {
     const condHtml = Content.inline(conditionLabel).html;
     const condLines = conditionLabel.split('\n').length;
@@ -96,12 +97,24 @@ export function renderFragment(frag: {
     const condH = Math.max(fragCondMinH, condLines * Math.round(smallFontSize * 1.4) + 4);
     const fragLabelSpacingX = frag.theme?.fragLabelSpacingX ?? 4;
     const fragLabelGap = frag.theme?.fragLabelGap ?? 4;
-    const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${fragLabelSpacingX};spacingTop=-2;fontSize=${smallFontSize};`;
-    cells.push(mxVertex({
-      id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
-      parent: '1',
-      x: frag.x + tabW + fragLabelGap, y: frag.y, width: frag.width - tabW - fragLabelGap * 2, height: condH,
-    }));
+    if (isRef) {
+      // ref: label text centered in content area, no brackets
+      const contentY = frag.y + tabH;
+      const contentH = frag.height - tabH;
+      const labelStyle = `text;html=1;align=center;verticalAlign=middle;fontSize=${smallFontSize};`;
+      cells.push(mxVertex({
+        id: frag.id + '_label', value: condHtml, style: labelStyle,
+        parent: '1',
+        x: frag.x, y: contentY, width: frag.width, height: contentH,
+      }));
+    } else {
+      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${fragLabelSpacingX};spacingTop=-2;fontSize=${smallFontSize};`;
+      cells.push(mxVertex({
+        id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
+        parent: '1',
+        x: frag.x + tabW + fragLabelGap, y: frag.y, width: frag.width - tabW - fragLabelGap * 2, height: condH,
+      }));
+    }
   }
 
   // Sections: separator lines + labels + optional fill rects

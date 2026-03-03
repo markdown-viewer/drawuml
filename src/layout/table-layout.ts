@@ -178,8 +178,11 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
     const lo = Math.min(fi, ti);
     const hi = Math.max(fi, ti);
-    const rawLabel = (msg.numberPrefix || '') + (msg.label || '');
-    const labelWidth = measureHtmlWidth(rawLabel) + smallPad * 2;
+    // Include space between number prefix and label to match the actual rendered text
+    const rawLabel = msg.numberPrefix
+      ? (msg.label ? msg.numberPrefix + ' ' + msg.label : msg.numberPrefix)
+      : (msg.label || '');
+    const labelWidth = measureHtmlWidth(rawLabel) + minGap;
 
     // Subtract endpoint half-widths and intermediate full widths.
     // Also account for activation bar extensions that eat into the gap space:
