@@ -67,15 +67,18 @@ function buildNodeAttrs(gn: LayoutGraphNode, hasPortEdges: boolean): string {
 function buildPortHtmlLabel(gn: LayoutGraphNode): string | null {
   if (!gn.ports || gn.ports.length === 0) return null;
 
+  // DOT HTML labels require integer pixel values
+  const W = Math.round(gn.width);
+  const H = Math.round(gn.height);
   const rows: string[] = [];
   let prevBottom = 0;
 
   for (const port of gn.ports) {
-    const portY = port.y ?? prevBottom;
+    const portY = Math.round(port.y ?? prevBottom);
     // Fill gap between previous port bottom and current port top
     const gap = portY - prevBottom;
     if (gap > 0) {
-      rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${gap}" WIDTH="${gn.width}"> </TD></TR>`);
+      rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${gap}" WIDTH="${W}"> </TD></TR>`);
     }
     // Port row with PORT attribute
     const portName = port.id.includes('::') ? port.id.split('::').slice(1).join('::') : port.id;
@@ -84,17 +87,18 @@ function buildPortHtmlLabel(gn: LayoutGraphNode): string | null {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
-    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${port.height}" WIDTH="${gn.width}" PORT="${safePort}"> </TD></TR>`);
-    prevBottom = portY + port.height;
+    const pH = Math.round(port.height);
+    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${pH}" WIDTH="${W}" PORT="${safePort}"> </TD></TR>`);
+    prevBottom = portY + pH;
   }
 
   // Fill remaining space at the bottom
-  const remaining = gn.height - prevBottom;
+  const remaining = H - prevBottom;
   if (remaining > 0) {
-    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${remaining}" WIDTH="${gn.width}"> </TD></TR>`);
+    rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${remaining}" WIDTH="${W}"> </TD></TR>`);
   }
 
-  return `<\n<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0" FIXEDSIZE="TRUE" WIDTH="${gn.width}" HEIGHT="${gn.height}">\n${rows.join('\n')}\n</TABLE>\n>`;
+  return `<\n<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0" FIXEDSIZE="TRUE" WIDTH="${W}" HEIGHT="${H}">\n${rows.join('\n')}\n</TABLE>\n>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +213,7 @@ function buildNodeDotLines(
   // shapes get a larger label area than non-titlebar shapes.
   const renderer = ctx.renderers.get(gn.id);
   const titleArea = renderer ? renderer.groupTopPadding - ctx.groupPadding : 0;
-  const fs = Math.max(1, (titleArea - 8) / 1.2);
+  const fs = Math.round(Math.max(1, (titleArea - 8) / 1.2));
   lines.push(`${inner}  fontsize=${fs}`);
   lines.push(`${inner}  style=rounded`);
   // Concurrent region parents need zero inner margin — regions fill the full area.
@@ -284,10 +288,10 @@ export function layoutGraphToDot(
   theme?: Theme,
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
-  const nodesepPx = theme?.padL ?? 30;
-  const ranksepPx = theme?.padXL ?? 40;
+  const nodesepPx = Math.round(theme?.padL ?? 30);
+  const ranksepPx = Math.round(theme?.padXL ?? 40);
   const maxRowWidth = theme?.maxRowWidth ?? 800;
-  const layoutFontSize = theme?.layoutFontSize ?? 10;
+  const layoutFontSize = Math.round(theme?.layoutFontSize ?? 10);
   const dotMinH = ((theme?.dotMinNodeH ?? 25) / PX_PER_INCH).toFixed(6);
   const dotMinW = ((theme?.dotMinNodeW ?? 40) / PX_PER_INCH).toFixed(6);
   const nodesepInch = pxToInch(nodesepPx);
@@ -461,9 +465,9 @@ export function layoutGraphToDot(
 
   // --- Build adapter context ---
 
-  const smallFontSize = theme?.smallFontSize ?? 10;
-  const groupPadding = theme?.padXL ?? 20;
-  const groupSpacing = theme?.padS ?? 8;
+  const smallFontSize = Math.round(theme?.smallFontSize ?? 10);
+  const groupPadding = Math.round(theme?.padXL ?? 20);
+  const groupSpacing = Math.round(theme?.padS ?? 8);
 
   const ctx: DotAdapterContext = {
     portNodes,
