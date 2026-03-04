@@ -10,7 +10,7 @@
  */
 
 import { Content } from '../shared/content.ts';
-import { escapeXml, mxVertex } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, cellId } from '../shared/xml-utils.ts';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
 import { RichRenderer } from './shapes/rich-renderer.ts';
 
@@ -131,9 +131,9 @@ export class SwimlaneContainerRenderer extends Renderer {
 
     // Invisible group container
     const cells: string[] = [
-      `<mxCell id="${escapeXml(this.id)}" value="" `
+      `<mxCell id="${escapeXml(cellId(this.id))}" value="" `
       + `style="group;strokeColor=none;fillColor=none;" `
-      + `vertex="1" parent="${escapeXml(parentCellId)}">`
+      + `vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
       + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
       + `</mxCell>`,
     ];
@@ -293,7 +293,7 @@ export class ConcurrentRegionRenderer extends Renderer {
       + `fontStyle=0;fontSize=${this.theme.smallFontSize};`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
-      `<mxCell id="${escapeXml(this.id)}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(parentCellId)}">`
+      `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
       + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
       + `</mxCell>`,
     ];
@@ -397,7 +397,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const parentCellId = this.parentId || '1';
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
       const style = stateGroupStyle(this.theme, this.nodeStyle, hasConcurrentRegions);
-      const cells = [`<mxCell id="${escapeXml(this.id)}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(parentCellId)}">`
+      const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
         + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
         + `</mxCell>`];
 

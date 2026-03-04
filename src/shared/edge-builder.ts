@@ -11,7 +11,7 @@
  * all PlantUML unescape, Creole, and HTML conversion is handled here.
  */
 
-import { escapeXml } from './xml-utils.ts';
+import { escapeXml, cellId } from './xml-utils.ts';
 import { Content } from './content.ts';
 
 export interface EdgeCellSpec {
@@ -69,9 +69,9 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   if (spec.fontSize && !style.includes('fontSize=')) style += `fontSize=${spec.fontSize};`;
   if (spec.fontFamily && !style.includes('fontFamily=')) style += `fontFamily=${spec.fontFamily};`;
 
-  const parent = spec.parent || '1';
-  const srcAttr = spec.source != null ? ` source="${escapeXml(spec.source)}"` : '';
-  const tgtAttr = spec.target != null ? ` target="${escapeXml(spec.target)}"` : '';
+  const parent = cellId(spec.parent || '1');
+  const srcAttr = spec.source != null ? ` source="${escapeXml(cellId(spec.source))}"` : '';
+  const tgtAttr = spec.target != null ? ` target="${escapeXml(cellId(spec.target))}"` : '';
 
   // Build geometry inner XML
   const geo = spec.geometry;
@@ -99,7 +99,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
 
   if (geoContent) {
     cells.push(
-      `<mxCell id="${escapeXml(spec.id)}" value="${value}" style="${style}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
+      `<mxCell id="${escapeXml(cellId(spec.id))}" value="${value}" style="${style}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
       + `<mxGeometry relative="1" as="geometry"${geoAttrs}>`
       + geoContent
       + `</mxGeometry>`
@@ -107,7 +107,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
     );
   } else {
     cells.push(
-      `<mxCell id="${escapeXml(spec.id)}" value="${value}" style="${style}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
+      `<mxCell id="${escapeXml(cellId(spec.id))}" value="${value}" style="${style}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
       + `<mxGeometry relative="1" as="geometry"${geoAttrs}/>`
       + `</mxCell>`
     );
@@ -118,7 +118,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   if (spec.cardFrom) {
     const cardHtml = escapeXml(Content.inline(spec.cardFrom, fontOpts).html);
     cells.push(
-      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
+      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(spec.id))}">`
       + `<mxGeometry x="-1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );
@@ -126,7 +126,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   if (spec.cardTo) {
     const cardHtml = escapeXml(Content.inline(spec.cardTo, fontOpts).html);
     cells.push(
-      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(spec.id)}">`
+      `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(spec.id))}">`
       + `<mxGeometry x="1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );

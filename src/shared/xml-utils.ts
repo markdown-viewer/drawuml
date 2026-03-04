@@ -13,8 +13,27 @@ export function escapeXml(value) {
 }
 
 /**
+ * Prefix a semantic-model id so it never collides with JavaScript
+ * built-in property names (toString, constructor, map, keys, values …).
+ *
+ * draw.io's mxCodec stores decoded cells in a plain `{}` object.
+ * Accessing `objects[id]` for ids like "map" or "toString" returns
+ * the built-in prototype method instead of `undefined`, which causes
+ * `d.setId is not a function` at decode time.
+ *
+ * Root cell ids "0" and "1" are hard-coded by draw.io and must NOT
+ * be prefixed.
+ */
+export function cellId(id: string): string {
+  if (id === '0' || id === '1') return id;
+  return '_' + id;
+}
+
+/**
  * Build a vertex mxCell XML string with mxGeometry.
  * `id`, `value` and `parent` are auto-escaped.
+ * Cell ids are automatically prefixed via `cellId()` to avoid
+ * collisions with JavaScript built-in property names in draw.io.
  */
 export function mxVertex(opts: {
   id?: string;
@@ -26,9 +45,9 @@ export function mxVertex(opts: {
   width: number;
   height: number;
 }): string {
-  const idAttr = opts.id != null ? ` id="${escapeXml(opts.id)}"` : '';
+  const idAttr = opts.id != null ? ` id="${escapeXml(cellId(opts.id))}"` : '';
   const value = escapeXml(opts.value);
-  const parent = escapeXml(opts.parent);
+  const parent = escapeXml(cellId(opts.parent));
   const xAttr = opts.x != null ? ` x="${opts.x}"` : '';
   const yAttr = ` y="${opts.y}"`;
   return `<mxCell${idAttr} value="${value}" style="${opts.style}" vertex="1" parent="${parent}">`

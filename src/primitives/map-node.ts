@@ -9,7 +9,7 @@
 import { measureText } from '@markdown-viewer/text-measure';
 import { Content } from '../shared/content.ts';
 import { buildTitleHtml, classNodeStyle } from './class-node.ts';
-import { mxVertex, escapeXml } from '../shared/xml-utils.ts';
+import { mxVertex, escapeXml, cellId } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
@@ -149,7 +149,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(rowId)}" value="${escapeXml(entry.key)}" style="${rowStyle}" vertex="1" parent="${escapeXml(this.node.id)}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(entry.key)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${y}" width="${box.width}" height="${rowH}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -173,7 +173,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(rowId)}" value="${escapeXml(entry.value)}" style="${rowStyle}" vertex="1" parent="${escapeXml(this.node.id)}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(entry.value)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${y}" width="${box.width}" height="${rowH}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -198,7 +198,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(keyId)}" value="${escapeXml(entry.key)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(rowId)}">`
+          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(entry.key)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
           + `<mxGeometry width="${keyColW}" height="${rowH}" as="geometry"/>`
           + `</mxCell>`
         );

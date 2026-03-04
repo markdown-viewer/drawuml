@@ -1,4 +1,4 @@
-import { escapeXml, mxVertex, wrapMxfile } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, wrapMxfile, cellId } from '../shared/xml-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import {
@@ -106,7 +106,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
       const noteCells = r.render({ x: nx, y: ny, width: note.width, height: note.height });
       if (pc) {
         // Re-parent root cell to the lifeline participant
-        cells.push(noteCells[0].replace(' parent="1"', ` parent="${escapeXml(note.parentId!)}"`));
+        cells.push(noteCells[0].replace(' parent="1"', ` parent="${escapeXml(cellId(note.parentId!))}"`));
         for (let ci = 1; ci < noteCells.length; ci++) cells.push(noteCells[ci]);
       } else {
         cells.push(...noteCells);
