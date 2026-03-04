@@ -451,6 +451,7 @@ function mapNode(
         elk.ports = (elk.ports || []).concat(groupPortElks);
         if (!elk.layoutOptions) elk.layoutOptions = {};
         elk.layoutOptions['elk.portConstraints'] = 'FIXED_SIDE';
+        elk.layoutOptions['elk.spacing.portPort'] = es.nodeNode;
       }
     }
 
