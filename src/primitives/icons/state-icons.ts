@@ -15,6 +15,7 @@ import { IconRenderer } from './icon-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Start
@@ -80,7 +81,7 @@ class StateHistoryRenderer extends IconRenderer {
     return [mxVertex({
       id: this.id,
       value: this.historyLabel,
-      style: `ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontSize=${this.theme.smallFontSize};fontStyle=1;`,
+      style: `ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontSize=${this.theme.smallFontSize};fontStyle=1;${fontFamilyStyle(this.theme)}`,
       parent: this.parentId || '1',
       x, y, width: d, height: d,
     })];

@@ -16,6 +16,7 @@ import { RichRenderer } from './shapes/rich-renderer.ts';
 
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import type { Theme } from '../shared/theme.ts';
+import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
@@ -293,7 +294,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=${this.theme.strokeWidth};fillColor=${fill};strokeColor=${this.theme.colorDark};`
-      + `fontStyle=0;fontSize=${this.theme.smallFontSize};`;
+      + `fontStyle=0;fontSize=${this.theme.smallFontSize};${fontFamilyStyle(this.theme)}`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
       `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`

@@ -22,6 +22,7 @@ import { normalizeColor } from '../../shared/color-utils.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { Theme } from '../../shared/theme.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 /**
  * Shape decoration padding returned by each subclass.
@@ -287,6 +288,9 @@ export abstract class RichRenderer extends Renderer {
 
     let s = this.buildStyle();
 
+    // Inject custom fontFamily when user overrides the default
+    s += fontFamilyStyle(this.theme);
+
     // Apply color override (subclass hook)
     s = this.applyColorOverride(s);
 
@@ -320,7 +324,8 @@ export abstract class RichRenderer extends Renderer {
       if (bodyHtml && bodyHtml !== frameValue) {
         const stereoStyle = `text;html=1;align=center;verticalAlign=middle;`
           + `resizable=0;points=[];autosize=0;strokeColor=none;fillColor=none;`
-          + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};`;
+          + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};`
+          + fontFamilyStyle(this.theme);
         cells.push(mxVertex({
           id: `${this.id}__body`,
           value: bodyHtml,
@@ -333,7 +338,7 @@ export abstract class RichRenderer extends Renderer {
       cells.push(...this.renderChildren());
     } else if (bodyHtml) {
       // Content label as child cell
-      const labelStyle = `fontSize=${this.theme.fontSize};${fontColorOverride || `fontColor=${this.theme.colorDark};`}`;
+      const labelStyle = `fontSize=${this.theme.fontSize};${fontColorOverride || `fontColor=${this.theme.colorDark};`}${fontFamilyStyle(this.theme)}`;
       const pad = this.shapePadding(this.computeContentRect());
       cells.push(mxContentLabel(
         this.id, bodyHtml,

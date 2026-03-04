@@ -11,6 +11,7 @@ import { RichRenderer } from './rich-renderer.ts';
 import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
+import { DEFAULT_FONT_FAMILY } from '@markdown-viewer/text-measure';
 
 // ---------------------------------------------------------------------------
 // Shared umlFrame style builder
@@ -27,6 +28,7 @@ export interface UmlFrameStyleOpts {
   fillColor?: string;
   strokeColor?: string;
   fontColor?: string;
+  fontFamily?: string;
   arcSize?: number;
   container?: boolean;
 }
@@ -52,6 +54,7 @@ export function buildUmlFrameStyle(opts: UmlFrameStyleOpts): string {
   if (opts.fillColor != null) parts.push(`fillColor=${opts.fillColor}`);
   if (opts.strokeColor != null) parts.push(`strokeColor=${opts.strokeColor}`);
   if (opts.fontColor != null) parts.push(`fontColor=${opts.fontColor}`);
+  if (opts.fontFamily != null && opts.fontFamily !== DEFAULT_FONT_FAMILY) parts.push(`fontFamily=${opts.fontFamily}`);
   if (opts.container) parts.push('collapsible=0', 'container=1');
   return parts.join(';') + ';';
 }

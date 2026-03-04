@@ -14,6 +14,7 @@ import { parseNodeStyle } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer
@@ -66,7 +67,8 @@ class ActorRenderer extends IconRenderer {
       + `${lineStyleStr}`
       + (isBusiness ? 'business=1;' : '')
       + actorStyleAttr
-      + `fontSize=${this.theme.fontSize};fontColor=${this.textColor};align=center;`;
+      + `fontSize=${this.theme.fontSize};fontColor=${this.textColor};align=center;`
+      + fontFamilyStyle(this.theme);
 
     // Center the stick figure within the box
     const cx = box.x + (box.width - this.iconWidth) / 2;

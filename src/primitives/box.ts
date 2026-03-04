@@ -12,6 +12,7 @@ import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor, darkenColor } from '../shared/color-utils.ts';
 import { Renderer } from './renderer.ts';
 import type { Theme } from '../shared/theme.ts';
+import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -52,7 +53,7 @@ class BoxRenderer extends Renderer {
       x: box.x, y: box.y, width: box.width, height: box.height,
     }));
     if (this.htmlLabel) {
-      const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${Math.round(this.theme.titleFontSize)};fontStyle=1;`;
+      const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${Math.round(this.theme.titleFontSize)};fontStyle=1;${fontFamilyStyle(this.theme)}`;
       cells.push(mxVertex({
         id: this.id + '_label', value: this.htmlLabel, style: labelStyle,
         parent: this.parentId || '1',

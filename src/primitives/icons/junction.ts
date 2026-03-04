@@ -12,6 +12,7 @@ import { normalizeColor } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer
@@ -45,7 +46,7 @@ export class JunctionRenderer extends IconRenderer {
       'align=center',
       'html=1',
       `fontSize=${this.theme.fontSize}`,
-    ].join(';') + ';';
+    ].join(';') + ';' + fontFamilyStyle(this.theme);
     return [mxVertex({
       id: this.id,
       value: this.label,

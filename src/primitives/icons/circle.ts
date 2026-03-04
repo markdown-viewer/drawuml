@@ -14,6 +14,7 @@ import { buildLabelHtml } from '../label.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer
@@ -59,7 +60,8 @@ class CircleRenderer extends IconRenderer {
       + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.titleFontSize};fontColor=${this.theme.colorDark};`
       + 'verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;align=center;'
-      + `labelWidth=${labelWidth};`;
+      + `labelWidth=${labelWidth};`
+      + fontFamilyStyle(this.theme);
     const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);

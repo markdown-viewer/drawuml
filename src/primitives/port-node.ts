@@ -17,6 +17,7 @@ import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 import { parseNodeStyle } from '../shared/color-utils.ts';
 import { measureText } from '@markdown-viewer/text-measure';
+import { fontFamilyStyle } from '../shared/theme.ts';
 
 const LABEL_PAD_DEFAULT = 3;      // gap between square edge and label (fallback)
 const DEFAULT_FILL = '#F1F1F1';
@@ -96,7 +97,7 @@ export class PortNodeRenderer extends Renderer {
       cells.push(mxVertex({
         id: `${this.id}__lbl`,
         value: this._label,
-        style: `text;align=center;verticalAlign=middle;${textColor}fontSize=${this.theme.fontSize};`,
+        style: `text;align=center;verticalAlign=middle;${textColor}fontSize=${this.theme.fontSize};${fontFamilyStyle(this.theme)}`,
         parent: '1',
         x: labelX,
         y: labelY,

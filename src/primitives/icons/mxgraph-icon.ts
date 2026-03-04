@@ -12,6 +12,7 @@ import type { ContentBox } from '../../shared/content.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { lookupIcon, resolveShapeRef } from '../../shared/icon-registry.ts';
 import type { IconRecord } from '../../shared/icon-registry.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer
@@ -78,7 +79,7 @@ export class MxgraphIconRenderer extends IconRenderer {
       `fontColor=${this.theme.colorDark}`,
       `strokeWidth=${this.theme.strokeWidth}`,
       dataStyle,
-    ].filter(Boolean).join(';') + ';';
+    ].filter(Boolean).join(';') + ';' + fontFamilyStyle(this.theme);
 
     // Apply user inline style overrides (parseNodeStyle handles #fill ##stroke etc.)
     const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor, this.theme.boldStrokeWidth);

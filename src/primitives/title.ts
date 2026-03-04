@@ -12,6 +12,7 @@ import { Content } from '../shared/content.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
 import type { Theme } from '../shared/theme.ts';
+import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -36,7 +37,7 @@ class TitleRenderer extends Renderer {
 
   render(box: ContentBox) {
     // Render only the text portion (exclude the bottom gap from the cell)
-    const style = `text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${this.fontSize};`;
+    const style = `text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${this.fontSize};${fontFamilyStyle(this.theme)}`;
     return [mxVertex({
       id: this.id, value: this.htmlLabel, style,
       parent: this.parentId || '1',

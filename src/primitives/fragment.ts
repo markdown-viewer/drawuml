@@ -9,7 +9,7 @@ import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor } from '../shared/color-utils.ts';
 import { Content } from '../shared/content.ts';
 import { buildUmlFrameStyle } from './shapes/frame.ts';
-import { createTheme, type Theme } from '../shared/theme.ts';
+import { createTheme, fontFamilyStyle, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -72,6 +72,7 @@ export function renderFragment(frag: {
     tabWidth: tabW, tabHeight: tabH,
     fontSize, cornerClip, strokeWidth: sw,
     fontColor: colorDark, strokeColor: colorDark,
+    fontFamily: theme.fontFamily,
   });
   if (frag.lineColor) {
     const lc = normalizeColor(frag.lineColor);
@@ -106,14 +107,14 @@ export function renderFragment(frag: {
       // ref: label text centered in content area, no brackets
       const contentY = frag.y + tabH;
       const contentH = frag.height - tabH;
-      const labelStyle = `text;html=1;align=center;verticalAlign=middle;fontSize=${smallFontSize};`;
+      const labelStyle = `text;html=1;align=center;verticalAlign=middle;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
       cells.push(mxVertex({
         id: frag.id + '_label', value: condHtml, style: labelStyle,
         parent: '1',
         x: frag.x, y: contentY, width: frag.width, height: contentH,
       }));
     } else {
-      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${labelSpacingX};spacingTop=-2;fontSize=${smallFontSize};`;
+      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${labelSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
       cells.push(mxVertex({
         id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
         parent: '1',
@@ -150,7 +151,7 @@ export function renderFragment(frag: {
     }));
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
-      style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};`,
+      style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`,
       parent: '1',
       x: frag.x + labelGap, y: y + 2, width: frag.width - labelGap * 2, height: sectionH,
     }));

@@ -5,7 +5,7 @@
 
 import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { Content } from '../shared/content.ts';
-import { createTheme, type Theme } from '../shared/theme.ts';
+import { createTheme, fontFamilyStyle, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -37,7 +37,7 @@ export function renderDivider(divider: {
     const labelHtml = Content.inline(divider.label).html;
     const theme = divider.theme ?? createTheme();
     const fontSize = theme.fontSize;
-    const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};`;
+    const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};${fontFamilyStyle(theme)}`;
     const hh = divider.halfHeight;
     cells.push(mxVertex({
       id: divider.id, value: labelHtml, style: divStyle,
@@ -69,7 +69,7 @@ export function renderDivider(divider: {
   const hh = divider.halfHeight;
   const largeArcSize = theme.largeArcSize;
   const fontSize = theme.fontSize;
-  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};`;
+  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
     parent: '1',

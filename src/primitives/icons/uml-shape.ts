@@ -15,6 +15,7 @@ import { normalizeColor } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
 import type { RenderDescriptor } from '../registry.ts';
+import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Shape configuration
@@ -59,7 +60,8 @@ class UmlShapeRenderer extends IconRenderer {
     const cx = box.x + (box.width - this.iconWidth) / 2;
     let s = `shape=${this.config.shape};verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
       + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
-      + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`;
+      + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`
+      + fontFamilyStyle(this.theme);
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
     const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth);
     s = styledS;

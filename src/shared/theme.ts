@@ -114,3 +114,10 @@ export function createTheme(config?: ThemeConfig): Theme {
   };
 }
 
+/**
+ * Return `fontFamily=<value>;` style fragment when theme uses a custom font,
+ * empty string when using the default font.
+ */
+export function fontFamilyStyle(theme: Theme): string {
+  return theme.fontFamily !== DEFAULT_FONT_FAMILY ? `fontFamily=${theme.fontFamily};` : '';
+}
