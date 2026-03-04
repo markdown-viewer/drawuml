@@ -572,7 +572,7 @@ export class Content {
     const ff = this._m.fontFamily;
     if (co?.portConstraint) {
       // Swimlane row: textRowStyle style with port constraint
-      const sx = co.spacingX ?? 4;
+      const sx = co.spacingX ?? this._theme.padXS;
       const parts = [
         'text', 'html=1', 'strokeColor=none', 'fillColor=none',
         `align=${co.align ?? 'left'}`, 'verticalAlign=middle',

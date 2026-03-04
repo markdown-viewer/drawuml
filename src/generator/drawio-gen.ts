@@ -261,8 +261,30 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
               geometry = { waypoints: [{ x: midX - 1, y: midY }, { x: midX + 1, y: midY }] };
             }
           } else {
-            // Polyline: pass all points as waypoints, no exit/entry constraints
-            geometry = { waypoints: points };
+            // Polyline: add exit/entry constraints from ELK endpoints
+            // so DrawIO pins the connection to the correct boundary point.
+            // Without constraints, SegmentConnector's contains() filter
+            // (using <=) removes waypoints exactly on the bounding box
+            // boundary, causing distorted routing for non-rectangular
+            // shapes (hexagon, diamond, etc.).
+            const srcNode = layout.nodes[edge.from] || layout.groups?.[edge.from];
+            const tgtNode = layout.nodes[edge.to] || layout.groups?.[edge.to];
+            let wp = points;
+            if (srcNode) {
+              const sp = wp[0];
+              const exitX = Math.max(0, Math.min(1, (sp.x - srcNode.x) / srcNode.width));
+              const exitY = Math.max(0, Math.min(1, (sp.y - srcNode.y) / srcNode.height));
+              style += `exitX=${n4(exitX)};exitY=${n4(exitY)};exitDx=0;exitDy=0;`;
+              wp = wp.slice(1);
+            }
+            if (tgtNode) {
+              const ep = wp[wp.length - 1];
+              const entryX = Math.max(0, Math.min(1, (ep.x - tgtNode.x) / tgtNode.width));
+              const entryY = Math.max(0, Math.min(1, (ep.y - tgtNode.y) / tgtNode.height));
+              style += `entryX=${n4(entryX)};entryY=${n4(entryY)};entryDx=0;entryDy=0;`;
+              wp = wp.slice(0, -1);
+            }
+            geometry = { waypoints: wp.length > 0 ? wp : undefined };
           }
         } else {
         const needSourcePt = omitSource || !hasPort;

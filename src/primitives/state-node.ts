@@ -383,7 +383,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
     return stateNodeStyle(titleHeight, this.theme, this.nodeStyle);
   }
 
-  protected getChildStyleOpts() { return { portConstraint: true as const }; }
+  protected getChildStyleOpts() { return { portConstraint: true as const, spacingX: this.theme.padXS }; }
 
   get clusterLabel(): string { return this._nodeLabel; }
 

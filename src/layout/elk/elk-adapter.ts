@@ -93,6 +93,9 @@ function elkSpacing(theme: Theme = createTheme()) {
     edgeNode: String(theme.padL),
     edgeNodeBetweenLayers: String(theme.padL),
     nodeSelfLoop: String(theme.padL),
+    // Spacing between disconnected components (independent sub-graphs).
+    // Without this, ELK uses a fixed 20px default that doesn't scale.
+    componentComponent: String(theme.padL),
     // Reduced same-layer spacing for root level when groups are present —
     // groups already have internal padding, so inter-group gaps
     // should be smaller than inter-node gaps.
@@ -171,6 +174,7 @@ export function layoutGraphToElkSimple(
     'elk.spacing.edgeNode': es.edgeNode,
     'elk.spacing.edgeEdge': es.edgeEdge,
     'elk.spacing.nodeSelfLoop': es.nodeSelfLoop,
+    'elk.spacing.componentComponent': es.componentComponent,
     'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
     'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
@@ -286,6 +290,7 @@ export function layoutGraphToElk(
     'elk.spacing.edgeNode': es.edgeNode,
     'elk.spacing.edgeEdge': es.edgeEdge,
     'elk.spacing.nodeSelfLoop': es.nodeSelfLoop,
+    'elk.spacing.componentComponent': es.componentComponent,
     'elk.layered.spacing.edgeEdgeBetweenLayers': es.edgeEdgeBetweenLayers,
     // Keep edge channels centered between layers so bend points
     // don't hug the node boundary (avoids cramped arrow decorations).
