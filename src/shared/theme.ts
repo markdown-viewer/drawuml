@@ -91,7 +91,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     // ── Stroke & corner ──
     strokeWidth: strokeWidth,
     boldStrokeWidth: r4(strokeWidth * 2),
-    arcSize: r4(fontSize / 3),
+    arcSize: r4(fontSize / 2),
     largeArcSize: fontSize,
     cornerClip: r4(fontSize * 6 / 12),
 
