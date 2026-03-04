@@ -484,12 +484,11 @@ export function alignFieldNotes(
   for (const group of Array.from(groups.values())) {
     if (group.length <= 1) continue;
     group.sort((a, b) => (nodes[a.id]?.y ?? 0) - (nodes[b.id]?.y ?? 0));
-    const GAP = theme.padS;
     for (let i = 1; i < group.length; i++) {
       const prev = nodes[group[i - 1].id];
       const cur = nodes[group[i].id];
       if (!prev || !cur) continue;
-      const minY = prev.y + prev.height + GAP;
+      const minY = prev.y + prev.height + theme.padS; // note overlap gap
       if (cur.y < minY) cur.y = minY;
     }
   }

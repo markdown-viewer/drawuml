@@ -90,15 +90,18 @@ export function renderFragment(frag: {
 
   // Condition label to the right of the tab (or centered in content area for ref)
   const smallFontSize = theme.smallFontSize;
+  const labelGap = theme.padXS;           // horizontal gap between tab / section line and label text
+  const labelSpacingX = theme.padXS;      // DrawIO spacingLeft for condition labels
+  const sectionSpacingX = theme.padS;     // DrawIO spacingLeft for section labels (wider for readability)
+  const sectionH = theme.sizeS;           // section label cell height
+
   const isRef = frag.type === 'ref';
   if (conditionLabel) {
     const condContent = Content.inline(conditionLabel, { fontSize: smallFontSize });
     const condHtml = condContent.html;
     const condSize = condContent.measure();
-    const fragCondMinH = theme.sizeS;
-    const condH = Math.max(fragCondMinH, Math.ceil(condSize.height) + theme.padXS);
-    const fragLabelSpacingX = theme.padXS;
-    const fragLabelGap = theme.padXS;
+    const condMinH = theme.sizeS;
+    const condH = Math.max(condMinH, Math.ceil(condSize.height) + theme.padXS);
     if (isRef) {
       // ref: label text centered in content area, no brackets
       const contentY = frag.y + tabH;
@@ -110,11 +113,11 @@ export function renderFragment(frag: {
         x: frag.x, y: contentY, width: frag.width, height: contentH,
       }));
     } else {
-      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${fragLabelSpacingX};spacingTop=-2;fontSize=${smallFontSize};`;
+      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${labelSpacingX};spacingTop=-2;fontSize=${smallFontSize};`;
       cells.push(mxVertex({
         id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
         parent: '1',
-        x: frag.x + tabW + fragLabelGap, y: frag.y, width: frag.width - tabW - fragLabelGap * 2, height: condH,
+        x: frag.x + tabW + labelGap, y: frag.y, width: frag.width - tabW - labelGap * 2, height: condH,
       }));
     }
   }
@@ -145,14 +148,11 @@ export function renderFragment(frag: {
       parent: '1',
       x: frag.x, y, width: frag.width, height: 1,
     }));
-    const fragSectionSpacingX = theme.padS;
-    const fragSectionH = theme.sizeS;
-    const fragLabelGap = theme.padXS;
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
-      style: `text;align=left;verticalAlign=top;spacingLeft=${fragSectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};`,
+      style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};`,
       parent: '1',
-      x: frag.x + fragLabelGap, y: y + 2, width: frag.width - fragLabelGap * 2, height: fragSectionH,
+      x: frag.x + labelGap, y: y + 2, width: frag.width - labelGap * 2, height: sectionH,
     }));
   }
 

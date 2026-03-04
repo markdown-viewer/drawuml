@@ -256,9 +256,12 @@ export class ConcurrentRegionRenderer extends Renderer {
   get isCluster(): boolean { return true; }
   get clusterLabel(): string { return this.regionLabel; }
 
+  /** Height of the region title bar (startSize in DrawIO swimlane). */
+  private get titleBarHeight(): number { return this.theme.sizeS; }
+
   // Uniform padding on all sides inside each region lane.
   override get groupTopPadding(): number {
-    const headerSize = this.regionLabel ? this.theme.sizeS : 0;
+    const headerSize = this.regionLabel ? this.titleBarHeight : 0;
     return this.theme.padXL + headerSize;
   }
 
@@ -283,7 +286,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     // Render as a standard DrawIO swimlane lane with visible borders.
     // Adjacent lanes naturally form visual separators.
     // LR mode: horizontal=0 puts the label on the left side (double header).
-    const headerH = this.theme.sizeS;
+    const headerH = this.titleBarHeight;
     const startSize = this.regionLabel ? (this._isHorizontalLane ? headerH * 2 : headerH) : 0;
     const fill = this.regionColor || 'none';
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
@@ -384,9 +387,12 @@ class StateNodeRenderer extends SwimlaneRenderer {
 
   get clusterLabel(): string { return this._nodeLabel; }
 
+  /** Height of the state title bar (startSize in DrawIO swimlane). */
+  private get titleBarHeight(): number { return this.theme.sizeS; }
+
   // State title bar is a fixed title area
   // +2 compensates for visual gap difference vs non-fixed shapes
-  override get groupTopPadding(): number { return this.theme.padXL + this.theme.sizeS + 2; }
+  override get groupTopPadding(): number { return this.theme.padXL + this.titleBarHeight + 2; }
 
   /**
    * Render: composite state → group container; leaf → swimlane.
@@ -435,7 +441,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
     regionInfos.sort((a, b) => a.elkBox.x - b.elkBox.x);
 
     // Lane vertical extent: from title bottom to container bottom
-    const laneY = this.theme.sizeS;
+    const laneY = this.titleBarHeight;
     const laneH = box.height - laneY;
 
     // Proportional-width lanes filling the container:
@@ -478,17 +484,18 @@ class StateNodeRenderer extends SwimlaneRenderer {
 /** DrawIO style for a composite state container with optional color. */
 function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boolean): string {
   const parsed = parseNodeStyle(style);
+  const titleBarHeight = theme.sizeS; // swimlane startSize = title bar height
   const base = noRounding ? [
     'swimlane', 'html=1', 'rounded=0',
     'align=center', 'verticalAlign=top',
-    `startSize=${theme.sizeS}`,
+    `startSize=${titleBarHeight}`,
     'collapsible=0', 'marginBottom=0',
     `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
   ] : [
     'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', `arcSize=${theme.largeArcSize}`,
     'align=center', 'verticalAlign=top',
-    `startSize=${theme.sizeS}`,
+    `startSize=${titleBarHeight}`,
     'collapsible=0', 'marginBottom=0',
     `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',

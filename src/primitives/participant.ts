@@ -209,11 +209,11 @@ export function measureBracketBody(bracketLines: string[], bodyFontSize?: number
   if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
   if (fontFamily != null) metrics.fontFamily = fontFamily;
   const size = Content.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
-  const cp = theme.padXS;
+  const contentPad = theme.padXS;
   const sw = theme.strokeWidth;
   return {
-    width: size.width + cp * 2 + sw * 2,
-    height: size.height + cp * 2 + sw * 2,
+    width: size.width + contentPad * 2 + sw * 2,
+    height: size.height + contentPad * 2 + sw * 2,
   };
 }
 
@@ -253,14 +253,14 @@ export function renderParticipant(
     // Content area algorithm copied from RichRenderer.renderRichBody:
     // childStartY = titlebarH + contentPad + padTop
     // Participant has no titlebar/shapePadding, so startY = contentPad.
-    const cp = theme.padXS;
+    const contentPad = theme.padXS;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(p.id, cellW, {
         align: opts?.participantAlign,
         spacingX: theme.padXS,
         fillColor,
         strokeColor,
-      }, cp));
+      }, contentPad));
     } else {
       cells.push(mxVertex({
         value: content.html,
@@ -315,14 +315,14 @@ export function renderFootbox(
       parent: '1',
       x: footX, y: footY, width: footW, height: footH,
     }));
-    const cp = theme.padXS;
+    const contentPad = theme.padXS;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(footId, footW, {
         align: opts?.participantAlign,
         spacingX: theme.padXS,
         fillColor,
         strokeColor,
-      }, cp));
+      }, contentPad));
     } else {
       cells.push(mxVertex({
         value: content.html,

@@ -29,13 +29,10 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const titlePadX = theme.padM;
   const titlePadY = theme.padS;
   const minGap = theme.padL;
-  const mediumPad = theme.padS;
   const marginX = model.mainframe ? minGap : 0;
   let marginTop = 0;
-  const minParticipantWidth = titleMinWidth;
   const tabHeight = theme.sizeS;
   const unitGap = theme.padXL;
-  const labelPadding = titlePadX;
   const smallPad = theme.padXS;
   const extBoundaryGap = theme.padXL;
 
@@ -62,7 +59,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
   // Measure text width (always as HTML since all text goes through pumlToHtml)
   // Apply unescapePlantUml so measurement matches rendering pipeline (\n → newline, etc.)
-  const measureLabel = (text) => measureText(unescapePlantUml(text), fontSize, fontFamily, 'normal', 'normal', true).width + labelPadding;
+  const measureLabel = (text) => measureText(unescapePlantUml(text), fontSize, fontFamily, 'normal', 'normal', true).width + titlePadX;
   const measureHtmlWidth = (html) => measureText(unescapePlantUml(html), fontSize, fontFamily, 'normal', 'normal', true).width;
 
   const maxRowIndex = Math.max(getRowCount(model) - 1, 0);
@@ -97,11 +94,11 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     if (p.bracketLines && p.bracketLines.length > 0) {
       // Bracket body participant: measure rich content
       const bodySize = measureBracketBody(p.bracketLines, fontSize, fontFamily, theme);
-      const w = Math.max(minParticipantWidth, bodySize.width);
+      const w = Math.max(titleMinWidth, bodySize.width);
       const iconHeight = Math.max(baseH, bodySize.height);
       return { geomWidth: w, visualWidth: w, iconHeight };
     }
-    const w = Math.max(minParticipantWidth, labelW);
+    const w = Math.max(titleMinWidth, labelW);
     const textH = measureText(displayLabel, fontSize, fontFamily, 'normal', 'normal', true).height;
     const boxPadding = titlePadY; // vertical padding inside box
     const iconHeight = Math.max(baseH, textH + boxPadding);
@@ -226,7 +223,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Expand gaps for concurrent notes on the same row to prevent overlap.
   // For each row, collect notes and sort by participant position, then ensure
   // adjacent notes have enough spacing between their anchoring participants.
-  const noteOverlapMargin = mediumPad; // minimum pixel gap between concurrent notes
+  const noteOverlapMargin = theme.padS; // minimum pixel gap between concurrent notes
   const notesByRow: Record<number, { noteIdx: number; anchorLeft: number; anchorRight: number; extendLeft: number; extendRight: number }[]> = {};
   (model.notes || []).forEach((n, idx) => {
     if (n.across) return; // across notes span all participants, skip
@@ -453,12 +450,12 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // Ref fragments: compute body content height from label text
     if (f.type === 'ref' && f.label) {
       const labelH = measureText(unescapePlantUml(f.label), fontSize, fontFamily, 'normal', 'normal', true).height;
-      const refH = tabHeight + labelH + mediumPad; // tab + body text + bottom padding
+      const refH = tabHeight + labelH + theme.padS; // tab + body text + bottom padding
       refContentHeightByRow[f.startRow] = Math.max(refContentHeightByRow[f.startRow] || 0, refH);
     }
   }
 
-  const fragmentBottomPad = mediumPad;  // internal padding below last content to frame bottom line
+  const fragmentBottomPad = theme.padS;  // internal padding below last content to frame bottom line
 
   // Unified row layout: compute centerline Y and unit height for each row.
   // The arrow sits at the centerline. Each row's bounding box is computed from
@@ -599,7 +596,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
   // Default right boundary (before label adjustment)
   const rightBoundaryDefault = (() => {
-    if (pList.length === 0) return marginX + minParticipantWidth;
+    if (pList.length === 0) return marginX + titleMinWidth;
     const lastIdx = pList.length - 1;
     return centerXs[lastIdx] + participantSizes[lastIdx].visualWidth / 2 + extBoundaryGap;
   })();
@@ -929,7 +926,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     ? participants[model.participants[model.participants.length - 1].id]
     : null;
   const lastVW = lastP ? participantSizes[model.participants.length - 1].visualWidth : 0;
-  const right = lastP ? lastP.centerX + lastVW / 2 : marginX + minParticipantWidth;
+  const right = lastP ? lastP.centerX + lastVW / 2 : marginX + titleMinWidth;
 
   // Compute nesting depth for each fragment (outermost = 0)
   const modelFragments = model.fragments || [];
@@ -1094,7 +1091,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
   const dividers = (model.dividers || []).map((d, idx) => {
     const divCenterX = (left + right) / 2;
-    const labelW = measureHtmlWidth(d.label || '') + labelPadding; // text width + padding
+    const labelW = measureHtmlWidth(d.label || '') + titlePadX; // text width + padding
     const row = d.row ?? 0;
     const halfHeight = dividerHalfHeightByRow[row] || smallPad;
     return {
@@ -1180,7 +1177,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     }
     const y1 = rowY(dc.startRow);
     const y2 = rowY(dc.endRow);
-    const labelW = measureHtmlWidth(dc.label || '') + mediumPad;
+    const labelW = measureHtmlWidth(dc.label || '') + theme.padS; // label width + padding
     return {
       id: `dc${idx + 1}`,
       label: dc.label,
@@ -1204,7 +1201,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     maxRight = Math.max(maxRight, dc.labelX + dc.labelWidth);
   }
   const finalWidth = Math.max(width, maxRight + marginX);
-  const height = totalRows > 0 ? lastRowBottom + unitGap + maxIconHeight + unitGap : rowTop + lifelineMinHeight + mediumPad;
+  const height = totalRows > 0 ? lastRowBottom + unitGap + maxIconHeight + unitGap : rowTop + lifelineMinHeight + theme.padS;
 
   // Center title over participant content area (left ~ right)
   if (titleLayout) {

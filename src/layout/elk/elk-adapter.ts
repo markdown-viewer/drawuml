@@ -85,7 +85,6 @@ function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string
 // ---------------------------------------------------------------------------
 
 function elkSpacing(theme: Theme = createTheme()) {
-  const groupSpacing = theme.padS;
   return {
     nodeNode: String(theme.padL),
     nodeNodeBetweenLayers: String(theme.padXXL),
@@ -98,7 +97,7 @@ function elkSpacing(theme: Theme = createTheme()) {
     // groups already have internal padding, so inter-group gaps
     // should be smaller than inter-node gaps.
     // Between-layers spacing stays normal so edge channels aren't cramped.
-    groupNodeNode: String(groupSpacing),
+    groupNodeNode: String(theme.padS),
     groupNodeNodeBetweenLayers: String(theme.padXXL),
   };
 }
