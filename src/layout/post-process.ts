@@ -800,14 +800,16 @@ export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme
           ? next.x - (prev.x + prev.width)
           : next.y - (prev.y + prev.height);
 
-        if (gap < requiredGap) {
+        // Use 0.5px tolerance to avoid infinite loop from floating-point rounding
+        if (gap < requiredGap - 0.5) {
           const delta = requiredGap - gap;
 
           if (isLR) {
             const threshold = next.x;
             // Push ALL nodes at or beyond threshold to the right
+            // (exclude prev to avoid pushing both when prev.x == next.x)
             Object.keys(nodes).forEach(nid => {
-              if (nodes[nid].x >= threshold) {
+              if (nid !== prev.id && nodes[nid].x >= threshold) {
                 nodes[nid].x += delta;
               }
             });
@@ -825,8 +827,9 @@ export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme
           } else {
             const threshold = next.y;
             // Push ALL nodes at or below threshold down
+            // (exclude prev to avoid pushing both when prev.y == next.y)
             Object.keys(nodes).forEach(nid => {
-              if (nodes[nid].y >= threshold) {
+              if (nid !== prev.id && nodes[nid].y >= threshold) {
                 nodes[nid].y += delta;
               }
             });

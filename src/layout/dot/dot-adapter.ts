@@ -25,7 +25,7 @@ const PX_PER_INCH = 72;
  * Convert pixel dimensions to DOT inches string.
  */
 function pxToInch(px: number): string {
-  return (px / PX_PER_INCH).toFixed(6);
+  return String(px / PX_PER_INCH);
 }
 
 /**
@@ -292,8 +292,8 @@ export function layoutGraphToDot(
   const ranksepPx = Math.round(theme?.padXL ?? 40);
   const maxRowWidth = theme?.maxRowWidth ?? 800;
   const layoutFontSize = Math.round(theme?.layoutFontSize ?? 10);
-  const dotMinH = ((theme?.dotMinNodeH ?? 25) / PX_PER_INCH).toFixed(6);
-  const dotMinW = ((theme?.dotMinNodeW ?? 40) / PX_PER_INCH).toFixed(6);
+  const dotMinH = String((theme?.dotMinNodeH ?? 25) / PX_PER_INCH);
+  const dotMinW = String((theme?.dotMinNodeW ?? 40) / PX_PER_INCH);
   const nodesepInch = pxToInch(nodesepPx);
   const ranksepInch = pxToInch(ranksepPx);
 
