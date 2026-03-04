@@ -10,7 +10,7 @@
  */
 
 import { Content } from '../shared/content.ts';
-import { escapeXml, mxVertex, cellId } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, cellId, n4 } from '../shared/xml-utils.ts';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
 import { RichRenderer } from './shapes/rich-renderer.ts';
 
@@ -63,7 +63,7 @@ class StateChoiceRenderer extends RichRenderer {
   protected buildStyle(): string {
     const hasText = !!this.label;
     const shape = hasText
-      ? `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=${this._hexSize};whiteSpace=wrap;html=1;`
+      ? `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=${n4(this._hexSize)};whiteSpace=wrap;html=1;`
       : `rhombus;whiteSpace=wrap;html=1;`;
     const s = shape
       + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
@@ -134,7 +134,7 @@ export class SwimlaneContainerRenderer extends Renderer {
       `<mxCell id="${escapeXml(cellId(this.id))}" value="" `
       + `style="group;strokeColor=none;fillColor=none;" `
       + `vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
-      + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
+      + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
       + `</mxCell>`,
     ];
 
@@ -294,7 +294,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
       `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
-      + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
+      + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
       + `</mxCell>`,
     ];
     // Render children positioned relative to this Lane's actual absolute position.
@@ -352,7 +352,7 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${theme.strokeWidth * 2}`);
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.strokeWidth * 2)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
@@ -398,7 +398,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
       const style = stateGroupStyle(this.theme, this.nodeStyle, hasConcurrentRegions);
       const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
-        + `<mxGeometry x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" as="geometry"/>`
+        + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
         + `</mxCell>`];
 
       // If has concurrent regions, render them as tiled lanes filling the
@@ -504,7 +504,7 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${theme.strokeWidth * 2}`);
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.strokeWidth * 2)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);

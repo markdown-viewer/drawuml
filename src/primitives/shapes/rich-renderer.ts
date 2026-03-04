@@ -15,7 +15,7 @@
  */
 
 import { Content } from '../../shared/content.ts';
-import { mxVertex, mxContentLabel, escapeXml } from '../../shared/xml-utils.ts';
+import { mxVertex, mxContentLabel, escapeXml, n4 } from '../../shared/xml-utils.ts';
 import { Renderer } from '../renderer.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
@@ -367,7 +367,7 @@ export abstract class RichRenderer extends Renderer {
       shapeFragment.replace(/;$/, ''),
       `fillColor=${fill}`, `strokeColor=${stroke}`, `strokeWidth=${this.theme.strokeWidth}`,
       'align=left', 'verticalAlign=top',
-      `spacingLeft=${cp}`, `spacingRight=${cp}`, `spacingTop=${cp + this.resolvedTopPad}`, `spacingBottom=${cp}`,
+      `spacingLeft=${cp}`, `spacingRight=${cp}`, `spacingTop=${n4(cp + this.resolvedTopPad)}`, `spacingBottom=${cp}`,
       'overflow=hidden',
       `fontSize=${this.theme.fontSize}`, `fontFamily=${this.theme.fontFamily}`,
     ];

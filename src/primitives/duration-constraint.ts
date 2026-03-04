@@ -3,7 +3,7 @@
  * Renders a vertical arrow line with an optional label.
  */
 
-import { escapeXml, mxVertex, cellId } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, cellId, n4 } from '../shared/xml-utils.ts';
 import { Content } from '../shared/content.ts';
 import type { Theme } from '../shared/theme.ts';
 
@@ -29,8 +29,8 @@ export function renderDurationConstraint(dc: {
   cells.push(
     `<mxCell id="${escapeXml(cellId(dc.id + '_line'))}" value="" style="${lineStyle}" edge="1" parent="1">`
     + `<mxGeometry relative="1" as="geometry">`
-    + `<mxPoint x="${dc.x}" y="${dc.y1}" as="sourcePoint"/>`
-    + `<mxPoint x="${dc.x}" y="${dc.y2}" as="targetPoint"/>`
+    + `<mxPoint x="${n4(dc.x)}" y="${n4(dc.y1)}" as="sourcePoint"/>`
+    + `<mxPoint x="${n4(dc.x)}" y="${n4(dc.y2)}" as="targetPoint"/>`
     + `</mxGeometry>`
     + `</mxCell>`
   );

@@ -1,4 +1,4 @@
-import { escapeXml, mxVertex, wrapMxfile, cellId } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, wrapMxfile, cellId, n4 } from '../shared/xml-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import {
@@ -223,11 +223,11 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
         const srcAct = actLayoutMap.get(msg.sourceActId);
         if (srcAct) {
           const relY = Math.max(0, Math.min(1, (msg.y - srcAct.y) / Math.max(srcAct.height, 1)));
-          selfStyleExtra += `exitX=${dir.toFixed(1)};exitY=${relY.toFixed(4)};exitPerimeter=0;`;
+          selfStyleExtra += `exitX=${n4(dir)};exitY=${n4(relY)};exitPerimeter=0;`;
         }
       } else if (pLayoutMap[msg.from]) {
         selfSource = msg.from;
-        selfStyleExtra += `exitX=0.5;exitY=${msg.fromRelY.toFixed(4)};exitPerimeter=0;`;
+        selfStyleExtra += `exitX=0.5;exitY=${n4(msg.fromRelY)};exitPerimeter=0;`;
       }
       if (msg.targetActId) {
         selfTarget = msg.targetActId;
@@ -235,13 +235,13 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
         const tgtAct = actLayoutMap.get(msg.targetActId);
         if (tgtAct) {
           const relY = Math.max(0, Math.min(1, (msg.toY - tgtAct.y) / Math.max(tgtAct.height, 1)));
-          selfStyleExtra += `entryX=${dir.toFixed(1)};entryY=${relY.toFixed(4)};entryPerimeter=0;`;
+          selfStyleExtra += `entryX=${n4(dir)};entryY=${n4(relY)};entryPerimeter=0;`;
         }
       } else if (pLayoutMap[msg.from]) {
         selfTarget = msg.from;
         const pl = pLayoutMap[msg.from];
         const entryRelY = Math.max(0, Math.min(1, (msg.toY - pl.y) / Math.max(pl.height, 1)));
-        selfStyleExtra += `entryX=0.5;entryY=${entryRelY.toFixed(4)};entryPerimeter=0;`;
+        selfStyleExtra += `entryX=0.5;entryY=${n4(entryRelY)};entryPerimeter=0;`;
       }
 
       // Merge self-ref extra style into the edge style,

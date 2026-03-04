@@ -11,6 +11,7 @@ import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { ContentBox } from '../../shared/content.ts';
+import { n4 } from '../../shared/xml-utils.ts';
 
 class ActionRenderer extends RichRenderer {
   // Render-time width for computing arrowSize ratio
@@ -19,7 +20,7 @@ class ActionRenderer extends RichRenderer {
   protected buildStyle(): string {
     // arrowSize is a ratio of width; compute from cornerClip / actual width
     const arrowRatio = this._renderWidth > 0
-      ? (this.theme.cornerClip / this._renderWidth).toFixed(4) : '0.12';
+      ? n4(this.theme.cornerClip / this._renderWidth) : '0.12';
     return `shape=singleArrow;arrowWidth=1;arrowSize=${arrowRatio};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;collapsible=0;container=1;`;
   }
   // Extra padding for the arrow tip

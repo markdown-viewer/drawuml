@@ -2,6 +2,14 @@
  * Shared XML utilities for DrawIO generation.
  */
 
+/**
+ * Round a number to at most 4 decimal places for XML output.
+ * Strips trailing zeroes so e.g. 10.0000 → "10".
+ */
+export function n4(v: number): string {
+  return +v.toFixed(4) + '';
+}
+
 export function escapeXml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -48,10 +56,10 @@ export function mxVertex(opts: {
   const idAttr = opts.id != null ? ` id="${escapeXml(cellId(opts.id))}"` : '';
   const value = escapeXml(opts.value);
   const parent = escapeXml(cellId(opts.parent));
-  const xAttr = opts.x != null ? ` x="${opts.x}"` : '';
-  const yAttr = ` y="${opts.y}"`;
+  const xAttr = opts.x != null ? ` x="${n4(opts.x)}"` : '';
+  const yAttr = ` y="${n4(opts.y)}"`;
   return `<mxCell${idAttr} value="${value}" style="${opts.style}" vertex="1" parent="${parent}">`
-    + `<mxGeometry${xAttr}${yAttr} width="${opts.width}" height="${opts.height}" as="geometry"/>`
+    + `<mxGeometry${xAttr}${yAttr} width="${n4(opts.width)}" height="${n4(opts.height)}" as="geometry"/>`
     + `</mxCell>`;
 }
 

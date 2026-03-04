@@ -93,20 +93,23 @@ export interface Theme {
   readonly padXL: number;               //  30 — extra large    (@base12: fontSize×30/12)
 }
 
+/** Round a number to at most 4 decimal places, stripping trailing zeros. */
+function r4(v: number): number { return +v.toFixed(4); }
+
 /** Create a fully computed Theme from minimal config. */
 export function createTheme(config?: ThemeConfig): Theme {
   const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
   const fontFamily = config?.fontFamily ?? DEFAULT_FONT_FAMILY;
-  const strokeWidth = parseFloat((fontSize / 12).toFixed(1));
+  const strokeWidth = r4(fontSize / 12);
 
   return {
     // ── Typography ──
     fontSize,
     fontFamily,
-    smallFontSize: fontSize / 1.15,
-    labelFontSize: fontSize * 1.15,
-    titleFontSize: fontSize * 1.2,
-    spotFontSize: fontSize * 14 / 12,
+    smallFontSize: r4(fontSize / 1.15),
+    labelFontSize: r4(fontSize * 1.15),
+    titleFontSize: r4(fontSize * 1.2),
+    spotFontSize: r4(fontSize * 14 / 12),
     layoutFontSize: fontSize,
 
     // ── Colors & fills ──
@@ -120,56 +123,56 @@ export function createTheme(config?: ThemeConfig): Theme {
 
     // ── Stroke & corner ──
     strokeWidth: strokeWidth,
-    arcSize: fontSize / 3,
+    arcSize: r4(fontSize / 3),
     largeArcSize: fontSize,
-    cornerClip: fontSize * 6 / 12,
+    cornerClip: r4(fontSize * 6 / 12),
 
     // ── Sizes (sorted small → large @base12) ──
-    spotMargin: fontSize * 5 / 12,              //   5
-    stateForkHeight: fontSize * 5 / 12,        //  5
-    seqDestroyCrossSize: fontSize * 10 / 12,   //  10
-    capHeight: fontSize * 10 / 12,             //  10
-    seqActBarWidth: fontSize * 10 / 12,        //  10
-    classSepHeight: fontSize * 10 / 12,        //  10
-    portSize: fontSize * 10 / 12,              //  10
-    iconMinLabelH: fontSize * 20 / 12,         //  20
-    mxIconMinLabelH: fontSize * 20 / 12,       //  20
-    titledSepHeight: fontSize * 20 / 12,       //  20
-    fragCondMinH: fontSize * 20 / 12,          //  20
-    fragSectionH: fontSize * 20 / 12,          //  20
-    classRowHeight: fontSize * 20 / 12,        //  20
-    portLabelH: fontSize * 20 / 12,            //  20
-    archimateIconSize: fontSize * 20 / 12,     //  20
-    spotSize: fontSize * 20 / 12,              //  20
-    titleBarHeight: fontSize * 20 / 12,        //  20
-    dotMinNodeH: fontSize * 20 / 12,           //  20
-    mapRowHeight: fontSize * 20 / 12,          //  20
-    iconSize: fontSize * 30 / 12,              //  30
-    containerMinH: fontSize * 30 / 12,         //  30
-    noteMinW: fontSize * 30 / 12,              //  30
-    legendMinW: fontSize * 30 / 12,            //  30
-    containerMinW: fontSize * 30 / 12,         //  30
-    archimateTabW: fontSize * 30 / 12,         //  30
-    tabMinWidth: fontSize * 30 / 12,           //  30
-    dotMinNodeW: fontSize * 40 / 12,           //  40
-    personHeadH: fontSize * 40 / 12,           //  40
-    fragMinH: fontSize * 40 / 12,              //  40
-    seqLifelineMinH: fontSize * 40 / 12,       //  40
-    seqSelfRefLoop: fontSize * 40 / 12,        //  40
-    defaultIconSize: fontSize * 60 / 12,       //  60
-    mxgraphIconSize: fontSize * 60 / 12,       //  60
-    titleMinWidth: fontSize * 60 / 12,         //  60
-    classMinWidth: fontSize * 60 / 12,         //  60
-    stateForkWidth: fontSize * 60 / 12,        //  60
-    seqMinShortArrow: fontSize * 60 / 12,      //  60
-    maxRowWidth: fontSize * 720 / 12,          // 720
+    spotMargin: r4(fontSize * 5 / 12),              //   5
+    stateForkHeight: r4(fontSize * 5 / 12),        //  5
+    seqDestroyCrossSize: r4(fontSize * 10 / 12),   //  10
+    capHeight: r4(fontSize * 10 / 12),             //  10
+    seqActBarWidth: r4(fontSize * 10 / 12),        //  10
+    classSepHeight: r4(fontSize * 10 / 12),        //  10
+    portSize: r4(fontSize * 10 / 12),              //  10
+    iconMinLabelH: r4(fontSize * 20 / 12),         //  20
+    mxIconMinLabelH: r4(fontSize * 20 / 12),       //  20
+    titledSepHeight: r4(fontSize * 20 / 12),       //  20
+    fragCondMinH: r4(fontSize * 20 / 12),          //  20
+    fragSectionH: r4(fontSize * 20 / 12),          //  20
+    classRowHeight: r4(fontSize * 20 / 12),        //  20
+    portLabelH: r4(fontSize * 20 / 12),            //  20
+    archimateIconSize: r4(fontSize * 20 / 12),     //  20
+    spotSize: r4(fontSize * 20 / 12),              //  20
+    titleBarHeight: r4(fontSize * 20 / 12),        //  20
+    dotMinNodeH: r4(fontSize * 20 / 12),           //  20
+    mapRowHeight: r4(fontSize * 20 / 12),          //  20
+    iconSize: r4(fontSize * 30 / 12),              //  30
+    containerMinH: r4(fontSize * 30 / 12),         //  30
+    noteMinW: r4(fontSize * 30 / 12),              //  30
+    legendMinW: r4(fontSize * 30 / 12),            //  30
+    containerMinW: r4(fontSize * 30 / 12),         //  30
+    archimateTabW: r4(fontSize * 30 / 12),         //  30
+    tabMinWidth: r4(fontSize * 30 / 12),           //  30
+    dotMinNodeW: r4(fontSize * 40 / 12),           //  40
+    personHeadH: r4(fontSize * 40 / 12),           //  40
+    fragMinH: r4(fontSize * 40 / 12),              //  40
+    seqLifelineMinH: r4(fontSize * 40 / 12),       //  40
+    seqSelfRefLoop: r4(fontSize * 40 / 12),        //  40
+    defaultIconSize: r4(fontSize * 60 / 12),       //  60
+    mxgraphIconSize: r4(fontSize * 60 / 12),       //  60
+    titleMinWidth: r4(fontSize * 60 / 12),         //  60
+    classMinWidth: r4(fontSize * 60 / 12),         //  60
+    stateForkWidth: r4(fontSize * 60 / 12),        //  60
+    seqMinShortArrow: r4(fontSize * 60 / 12),      //  60
+    maxRowWidth: r4(fontSize * 720 / 12),          // 720
 
     // ── Spacing — 5 unified tiers ──
-    padXS: fontSize * 5 / 12,                   //   5
-    padS: fontSize * 10 / 12,                   //  10
-    padM: fontSize * 15 / 12,                   //  15
-    padL: fontSize * 20 / 12,                   //  20
-    padXL: fontSize * 30 / 12,                  //  30
+    padXS: r4(fontSize * 5 / 12),                   //   5
+    padS: r4(fontSize * 10 / 12),                   //  10
+    padM: r4(fontSize * 15 / 12),                   //  15
+    padL: r4(fontSize * 20 / 12),                   //  20
+    padXL: r4(fontSize * 30 / 12),                  //  30
   };
 }
 

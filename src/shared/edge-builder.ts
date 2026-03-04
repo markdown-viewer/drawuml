@@ -11,7 +11,7 @@
  * all PlantUML unescape, Creole, and HTML conversion is handled here.
  */
 
-import { escapeXml, cellId } from './xml-utils.ts';
+import { escapeXml, cellId, n4 } from './xml-utils.ts';
 import { Content } from './content.ts';
 
 export interface EdgeCellSpec {
@@ -79,20 +79,20 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   let geoAttrs = '';
 
   if (geo) {
-    if (geo.x != null) geoAttrs += ` x="${geo.x}"`;
-    if (geo.y != null) geoAttrs += ` y="${geo.y}"`;
+    if (geo.x != null) geoAttrs += ` x="${n4(geo.x)}"`;
+    if (geo.y != null) geoAttrs += ` y="${n4(geo.y)}"`;
 
     if (geo.offset) {
-      geoContent += `<mxPoint x="${geo.offset.x}" y="${geo.offset.y}" as="offset"/>`;
+      geoContent += `<mxPoint x="${n4(geo.offset.x)}" y="${n4(geo.offset.y)}" as="offset"/>`;
     }
     if (geo.sourcePoint) {
-      geoContent += `<mxPoint x="${geo.sourcePoint.x}" y="${geo.sourcePoint.y}" as="sourcePoint"/>`;
+      geoContent += `<mxPoint x="${n4(geo.sourcePoint.x)}" y="${n4(geo.sourcePoint.y)}" as="sourcePoint"/>`;
     }
     if (geo.targetPoint) {
-      geoContent += `<mxPoint x="${geo.targetPoint.x}" y="${geo.targetPoint.y}" as="targetPoint"/>`;
+      geoContent += `<mxPoint x="${n4(geo.targetPoint.x)}" y="${n4(geo.targetPoint.y)}" as="targetPoint"/>`;
     }
     if (geo.waypoints && geo.waypoints.length > 0) {
-      const entries = geo.waypoints.map(p => `<mxPoint x="${p.x}" y="${p.y}"/>`).join('');
+      const entries = geo.waypoints.map(p => `<mxPoint x="${n4(p.x)}" y="${n4(p.y)}"/>`).join('');
       geoContent += `<Array as="points">${entries}</Array>`;
     }
   }

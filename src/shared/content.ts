@@ -22,7 +22,7 @@
  */
 
 import { measureText } from '@markdown-viewer/text-measure';
-import { mxVertex } from './xml-utils.ts';
+import { mxVertex, n4 } from './xml-utils.ts';
 import { unescapePlantUml } from './puml-unescape.ts';
 import { creoleInline } from './creole-inline.ts';
 import { parseCreoleBlocks } from './creole-parser.ts';
@@ -287,7 +287,7 @@ function adjustSeparatorStyle(
       // Solid (--) renders slightly bolder than default (official uses stroke-width:1 vs 0.5 default)
       style = style.replace(/strokeWidth=[\d.]+/, (m) => {
         const v = parseFloat(m.split('=')[1]) || 1;
-        return `strokeWidth=${v * 1.2}`;
+        return `strokeWidth=${n4(v * 1.2)}`;
       });
       break;
     // 'strong' (__) → default strokeWidth, plain separator (no change)

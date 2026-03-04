@@ -11,7 +11,7 @@
  */
 
 import { Renderer } from './renderer.ts';
-import { mxVertex } from '../shared/xml-utils.ts';
+import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
@@ -60,14 +60,14 @@ export class PortNodeRenderer extends Renderer {
       if (parsed.strokeColor) strokeColor = parsed.strokeColor;
       if (parsed.lineStyle === 'dashed') extraStyle += 'dashed=1;';
       else if (parsed.lineStyle === 'dotted') extraStyle += 'dashed=1;dashPattern=1 2;';
-      else if (parsed.lineStyle === 'bold') extraStyle += `strokeWidth=${this.theme.strokeWidth * 3};`;
+      else if (parsed.lineStyle === 'bold') extraStyle += `strokeWidth=${n4(this.theme.strokeWidth * 3)};`;
     }
 
     const portSize = this.theme.portSize;
     const portHalf = portSize / 2;
     const portLabelH = this.theme.portLabelH;
     const squareStyle =
-      `rounded=0;fillColor=${fillColor};strokeColor=${strokeColor};strokeWidth=${this.theme.strokeWidth * 1.5};${extraStyle}`;
+      `rounded=0;fillColor=${fillColor};strokeColor=${strokeColor};strokeWidth=${n4(this.theme.strokeWidth * 1.5)};${extraStyle}`;
 
     // Square cell — parent='1' (root level) so coordinates are absolute
     cells.push(mxVertex({

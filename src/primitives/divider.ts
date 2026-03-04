@@ -3,7 +3,7 @@
  * Handles three types: ellipsis (spacer), delay (text), section (== text ==).
  */
 
-import { mxVertex } from '../shared/xml-utils.ts';
+import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { Content } from '../shared/content.ts';
 import type { Theme } from '../shared/theme.ts';
 
@@ -67,7 +67,7 @@ export function renderDivider(divider: {
   const hh = divider.halfHeight;
   const largeArcSize = divider.theme?.largeArcSize ?? 12;
   const fontSize = divider.theme?.fontSize ?? 12;
-  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${sw * 2};`;
+  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
     parent: '1',

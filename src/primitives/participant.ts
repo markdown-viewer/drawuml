@@ -3,7 +3,7 @@
  * Shared by table-layout.ts (sizing) and sequence-gen.ts (rendering).
  */
 
-import { mxVertex } from '../shared/xml-utils.ts';
+import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { darkenColor } from '../shared/color-utils.ts';
 import { Content, richTextStyle } from '../shared/content.ts';
 import { buildLabelHtml } from './label.ts';
@@ -120,7 +120,7 @@ export function participantStyle(
     'collapsible=0',
     'recursiveResize=0',
     'outlineConnect=0',
-    `size=${size}`,
+    `size=${n4(size)}`,
     'rounded=1',
     'absoluteArcSize=1',
     `arcSize=${opts.arcSize ?? 4}`,

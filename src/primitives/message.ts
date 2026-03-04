@@ -2,6 +2,8 @@
  * Message arrow primitive — style generation for sequence diagram arrows.
  */
 
+import { n4 } from '../shared/xml-utils.ts';
+
 // ---------------------------------------------------------------------------
 // Message style
 // ---------------------------------------------------------------------------
@@ -101,10 +103,10 @@ export function messageStyle(msg: any, strokeWidth?: number): string {
     'jettySize=auto',
     'sourcePerimeterSpacing=0',
     'targetPerimeterSpacing=0',
-    `exitX=${Number.isFinite(msg?.exitX) ? msg.exitX.toFixed(1) : '0.5'}`,
-    `exitY=${Number.isFinite(msg?.fromRelY) ? msg.fromRelY.toFixed(4) : '0.5'}`,
-    `entryX=${Number.isFinite(msg?.entryX) ? msg.entryX.toFixed(1) : '0.5'}`,
-    `entryY=${Number.isFinite(msg?.toRelY) ? msg.toRelY.toFixed(4) : '0.5'}`,
+    `exitX=${Number.isFinite(msg?.exitX) ? n4(msg.exitX) : '0.5'}`,
+    `exitY=${Number.isFinite(msg?.fromRelY) ? n4(msg.fromRelY) : '0.5'}`,
+    `entryX=${Number.isFinite(msg?.entryX) ? n4(msg.entryX) : '0.5'}`,
+    `entryY=${Number.isFinite(msg?.toRelY) ? n4(msg.toRelY) : '0.5'}`,
   ];
 
   // Stroke width from theme

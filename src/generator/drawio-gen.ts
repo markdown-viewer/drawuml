@@ -1,5 +1,5 @@
 import { edgeStyleForArrow, edgeStyleForType } from '../parsers/arrow.ts';
-import { escapeXml, mxVertex, wrapMxfile } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, wrapMxfile, n4 } from '../shared/xml-utils.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { parseBracketEdgeStyle, parseEdgeInlineStyle } from '../shared/color-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
@@ -127,7 +127,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (es.thickness) style += `strokeWidth=${es.thickness};`;
     if (es.lineStyle === 'dashed') style += 'dashed=1;';
     else if (es.lineStyle === 'dotted') style += 'dashed=1;dashPattern=1 2;';
-    else if (es.lineStyle === 'bold') style += `strokeWidth=${defaultStrokeWidth * 2};`;
+    else if (es.lineStyle === 'bold') style += `strokeWidth=${n4(defaultStrokeWidth * 2)};`;
     else if (es.lineStyle === 'plain') { /* default solid — no extra style */ }
 
     // Apply default strokeWidth for edges (scaled from theme)
@@ -164,10 +164,10 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (hasPort && points && points.length >= 2) {
       const sides = computePortEdgeSides(points, edge, layout, renderers, options?.theme?.padS);
       if (sides.exitX != null) {
-        style += `exitX=${sides.exitX};exitY=${sides.exitY};exitDx=0;exitDy=0;`;
+        style += `exitX=${n4(sides.exitX)};exitY=${n4(sides.exitY)};exitDx=0;exitDy=0;`;
       }
       if (sides.entryX != null) {
-        style += `entryX=${sides.entryX};entryY=${sides.entryY};entryDx=0;entryDy=0;`;
+        style += `entryX=${n4(sides.entryX)};entryY=${n4(sides.entryY)};entryDx=0;entryDy=0;`;
       }
       // Strip endpoints that are handled by constraints; keep the rest
       const startIdx = sides.exitX != null ? 1 : 0;
@@ -191,14 +191,14 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         const sp = points[0];
         const exitX = Math.max(0, Math.min(1, (sp.x - srcNode.x) / srcNode.width));
         const exitY = Math.max(0, Math.min(1, (sp.y - srcNode.y) / srcNode.height));
-        style += `exitX=${+exitX.toFixed(4)};exitY=${+exitY.toFixed(4)};exitDx=0;exitDy=0;`;
+        style += `exitX=${n4(exitX)};exitY=${n4(exitY)};exitDx=0;exitDy=0;`;
         points = points.slice(1); // strip source endpoint, now constrained
       }
       if (tgtNode) {
         const ep = points[points.length - 1];
         const entryX = Math.max(0, Math.min(1, (ep.x - tgtNode.x) / tgtNode.width));
         const entryY = Math.max(0, Math.min(1, (ep.y - tgtNode.y) / tgtNode.height));
-        style += `entryX=${+entryX.toFixed(4)};entryY=${+entryY.toFixed(4)};entryDx=0;entryDy=0;`;
+        style += `entryX=${n4(entryX)};entryY=${n4(entryY)};entryDx=0;entryDy=0;`;
         points = points.slice(0, -1); // strip target endpoint, now constrained
       }
     }
