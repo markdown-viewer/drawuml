@@ -327,12 +327,12 @@ class ArchimateRenderer extends RichRenderer {
       const iw = bw * this.theme.archimateIconSize / BASE_ICON_SIZE * 0.8;
       const ih = bh * this.theme.archimateIconSize / BASE_ICON_SIZE * 0.8;
       // Vertically center the icon within the titlebar band.
-      const iy = this.theme.padXS + (BASE_ICON_SIZE - ih) / 2;
+      const iy = this.theme.padXS + (this.theme.archimateIconSize - ih) / 2;
       // For 'archimate' keyword nodes the icon is horizontally centered;
       // for all other archimate nodes it sits at the top-right corner.
       const ix = this.desc.centeredIcon
         ? (box.width - iw) / 2
-        : box.width - this.theme.padXS - (BASE_ICON_SIZE + iw) / 2;
+        : box.width - this.theme.padXS - (this.theme.archimateIconSize + iw) / 2;
       // Resolve icon stroke color from inline style override
       const parsedStyle = parseNodeStyle(this.desc.style);
       const iconStroke = parsedStyle?.strokeColor || this.theme.colorDark;
