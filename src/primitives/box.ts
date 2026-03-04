@@ -52,7 +52,7 @@ class BoxRenderer extends Renderer {
       x: box.x, y: box.y, width: box.width, height: box.height,
     }));
     if (this.htmlLabel) {
-      const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${this.theme.labelFontSize};fontStyle=1;`;
+      const labelStyle = `text;html=1;align=center;verticalAlign=bottom;fontSize=${Math.round(this.theme.titleFontSize)};fontStyle=1;`;
       cells.push(mxVertex({
         id: this.id + '_label', value: this.htmlLabel, style: labelStyle,
         parent: this.parentId || '1',

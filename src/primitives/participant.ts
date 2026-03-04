@@ -7,7 +7,7 @@ import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { darkenColor } from '../shared/color-utils.ts';
 import { Content, richTextStyle } from '../shared/content.ts';
 import { buildLabelHtml } from './label.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -30,7 +30,7 @@ export const PARTICIPANT_CONFIG: Record<string, { participant: string; iconSize:
 };
 
 /**
- * Compute PARTICIPANT_CONFIG scaled to a given iconSize (theme.iconSize).
+ * Compute PARTICIPANT_CONFIG scaled to a given iconSize (theme.sizeM).
  * Uses the same base aspect ratios as IconRenderer subclasses so that
  * lifeline icon dimensions stay consistent with standalone icon nodes.
  *
@@ -204,13 +204,13 @@ function bracketTextStyle(align: 'left' | 'center' | 'right' = 'center', fontSiz
  *   contentRect = content.measure() + contentPad*2 + strokeWidth*2
  * Participant has no shapePadding/titlebar, so final size = contentRect.
  */
-export function measureBracketBody(bracketLines: string[], bodyFontSize?: number, fontFamily?: string, theme?: Theme): { width: number; height: number } {
+export function measureBracketBody(bracketLines: string[], bodyFontSize?: number, fontFamily?: string, theme: Theme = createTheme()): { width: number; height: number } {
   const metrics: Partial<any> = {};
   if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
   if (fontFamily != null) metrics.fontFamily = fontFamily;
   const size = Content.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
-  const cp = theme?.padXS ?? 5;
-  const sw = theme?.strokeWidth ?? 1;
+  const cp = theme.padXS;
+  const sw = theme.strokeWidth;
   return {
     width: size.width + cp * 2 + sw * 2,
     height: size.height + cp * 2 + sw * 2,
@@ -230,17 +230,18 @@ export function renderParticipant(
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
-  const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width, opts?.theme?.iconSize);
+  const theme = opts?.theme ?? createTheme();
+  const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width, theme.sizeM);
 
   if (p.bracketLines && p.bracketLines.length > 0) {
     // Bracket body participant: container + rich content children
     const bracketMetrics: Partial<any> = {};
-    if (opts?.theme?.fontSize != null) bracketMetrics.bodyFontSize = opts.theme.fontSize;
-    if (opts?.theme?.fontFamily != null) bracketMetrics.fontFamily = opts.theme.fontFamily;
-    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, opts?.theme);
+    if (theme.fontSize != null) bracketMetrics.bodyFontSize = theme.fontSize;
+    if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
+    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const cells: string[] = [];
-    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth });
-    const colorDark = opts?.theme?.colorDark ?? '#181818';
+    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
+    const colorDark = theme.colorDark;
     const fillColor = containerStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = containerStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
     cells.push(mxVertex({
@@ -252,18 +253,18 @@ export function renderParticipant(
     // Content area algorithm copied from RichRenderer.renderRichBody:
     // childStartY = titlebarH + contentPad + padTop
     // Participant has no titlebar/shapePadding, so startY = contentPad.
-    const cp = opts?.theme?.padXS ?? 5;
+    const cp = theme.padXS;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(p.id, cellW, {
         align: opts?.participantAlign,
-        spacingX: opts?.theme?.padXS,
+        spacingX: theme.padXS,
         fillColor,
         strokeColor,
       }, cp));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.padXS),
+        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.padXS),
         parent: p.id,
         y: 0, width: cellW, height: layout.iconHeight || 28,
       }));
@@ -271,10 +272,10 @@ export function renderParticipant(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize, spotSize: opts?.theme?.spotSize, spotFontSize: opts?.theme?.spotFontSize, spotMargin: opts?.theme?.spotMargin });
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
   return [mxVertex({
     id: p.id, value: labelHtml,
-    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth }),
+    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
     parent: '1',
     x: cellX, y: layout.y, width: cellW, height: layout.height,
   })];
@@ -289,7 +290,8 @@ export function renderFootbox(
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
-  const pCfg = opts?.theme ? getScaledParticipantConfig(opts.theme.iconSize) : PARTICIPANT_CONFIG;
+  const theme = opts?.theme ?? createTheme();
+  const pCfg = getScaledParticipantConfig(theme.sizeM);
   const cfg = pCfg[p.type] || pCfg.participant;
   const footY = layout.y + layout.height;
   const footW = cfg.iconW > 0 ? cfg.iconW : layout.width;
@@ -298,13 +300,13 @@ export function renderFootbox(
 
   if (p.bracketLines && p.bracketLines.length > 0) {
     const bracketMetrics: Partial<any> = {};
-    if (opts?.theme?.fontSize != null) bracketMetrics.bodyFontSize = opts.theme.fontSize;
-    if (opts?.theme?.fontFamily != null) bracketMetrics.fontFamily = opts.theme.fontFamily;
-    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, opts?.theme);
+    if (theme.fontSize != null) bracketMetrics.bodyFontSize = theme.fontSize;
+    if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
+    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const footId = p.id + '_foot';
     const cells: string[] = [];
-    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth });
-    const colorDark = opts?.theme?.colorDark ?? '#181818';
+    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
+    const colorDark = theme.colorDark;
     const fillColor = footStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = footStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
     cells.push(mxVertex({
@@ -313,18 +315,18 @@ export function renderFootbox(
       parent: '1',
       x: footX, y: footY, width: footW, height: footH,
     }));
-    const cp = opts?.theme?.padXS ?? 5;
+    const cp = theme.padXS;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(footId, footW, {
         align: opts?.participantAlign,
-        spacingX: opts?.theme?.padXS,
+        spacingX: theme.padXS,
         fillColor,
         strokeColor,
       }, cp));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, opts?.theme?.fontSize, opts?.theme?.fontFamily, opts?.theme?.padXS),
+        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.padXS),
         parent: footId,
         y: 0, width: footW, height: footH,
       }));
@@ -332,10 +334,10 @@ export function renderFootbox(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: opts?.theme?.fontSize, spotSize: opts?.theme?.spotSize, spotFontSize: opts?.theme?.spotFontSize, spotMargin: opts?.theme?.spotMargin });
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
-    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: opts?.theme?.fontSize, fontFamily: opts?.theme?.fontFamily, arcSize: opts?.theme?.arcSize, strokeWidth: opts?.theme?.strokeWidth }),
+    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
     parent: '1',
     x: footX, y: footY, width: footW, height: footH,
   })];

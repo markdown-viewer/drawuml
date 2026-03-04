@@ -48,9 +48,9 @@ export function buildLabelHtml(opts: {
   }
 
   // Spot circle HTML — sizes from theme or derived from font size
-  const spotSize = opts.spotSize ?? fs * 22 / 12;
-  const spotFont = opts.spotFontSize ?? fs * 14 / 12;
-  const spotMar = opts.spotMargin ?? fs * 4 / 12;
+  const spotSize = opts.spotSize ?? fs * 20 / 12;     // = theme.sizeS
+  const spotFont = opts.spotFontSize ?? fs * 14 / 12;  // ≈ theme.spotFontSize
+  const spotMar = opts.spotMargin ?? fs * 5 / 12;      // = theme.padXS
   const borderColor = darkenColor(spot!.color);
   const circleHtml =
     `<span style="display:inline-block;width:${spotSize}px;height:${spotSize}px;line-height:${spotSize}px;`

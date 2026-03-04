@@ -4,7 +4,7 @@
 
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor, darkenColor } from '../shared/color-utils.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Destroy marker
@@ -20,11 +20,11 @@ export function renderDestroyMarker(
   cy: number,
   parentId?: string,
   parentGeom?: { x: number; y: number },
-  theme?: Theme,
+  theme: Theme = createTheme(),
 ): string {
-  const s = theme?.seqDestroyCrossSize ?? 9;
-  const destroyStroke = theme?.destroyStroke ?? '#181818';
-  const destroyStyle = `shape=umlDestroy;strokeColor=${destroyStroke};strokeWidth=${(theme?.strokeWidth ?? 1) * 2};`;
+  const s = theme.sizeXS;
+  const destroyStroke = theme.destroyStroke;
+  const destroyStyle = `shape=umlDestroy;strokeColor=${destroyStroke};strokeWidth=${theme.boldStrokeWidth};`;
   if (parentId && parentGeom) {
     const relX = cx - s - parentGeom.x;
     const relY = cy - s - parentGeom.y;
@@ -45,8 +45,8 @@ export function renderDestroyMarker(
 // ---------------------------------------------------------------------------
 
 /** Generate DrawIO style for an activation bar. */
-export function activationBarStyle(fillColor?: string, theme?: Theme): string {
-  const fill = normalizeColor(fillColor) || theme?.classFill || '#FFFFFF';
+export function activationBarStyle(fillColor?: string, theme: Theme = createTheme()): string {
+  const fill = normalizeColor(fillColor) || theme.classFill;
   const stroke = darkenColor(fill);
   return [
     'html=1',
@@ -57,7 +57,7 @@ export function activationBarStyle(fillColor?: string, theme?: Theme): string {
     'portConstraint=eastwest',
     `fillColor=${fill}`,
     `strokeColor=${stroke}`,
-    `strokeWidth=${theme?.strokeWidth ?? 1}`,
+    `strokeWidth=${theme.strokeWidth}`,
   ].join(';') + ';';
 }
 

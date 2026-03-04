@@ -212,14 +212,14 @@ export {
 import { createRenderer as createRendererFn } from './registry.ts';
 import type { SemanticModel } from '../model/class-model.ts';
 import { Renderer as RendererBase } from './renderer.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 /**
  * Create renderers for model-level (global) elements: title, legend.
  * Uses the global registry — no direct factory references.
  */
 export function createGlobalRenderers(model: SemanticModel, options?: { theme?: Theme }): Map<string, RendererBase> {
-  const theme = options?.theme;
+  const theme = options?.theme ?? createTheme();
   const map = new Map<string, RendererBase>();
   if (model.title) {
     map.set('__title__', createRendererFn('title', { id: '__title__', label: model.title, theme }));

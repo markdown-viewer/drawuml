@@ -63,6 +63,11 @@ export function mxVertex(opts: {
     + `</mxCell>`;
 }
 
+/** Default DrawIO page width. */
+export const PAGE_WIDTH = 850;
+/** Default DrawIO page height. */
+export const PAGE_HEIGHT = 1100;
+
 /**
  * Wrap an array of mxCell strings into a complete mxfile XML document.
  */
@@ -73,8 +78,8 @@ export function wrapMxfile(cells: string[], options?: {
   diagramName?: string;
 }) {
   const {
-    pageWidth = 850,
-    pageHeight = 1100,
+    pageWidth = PAGE_WIDTH,
+    pageHeight = PAGE_HEIGHT,
     diagramId = 'diagram-1',
     diagramName = 'Diagram',
   } = options || {};

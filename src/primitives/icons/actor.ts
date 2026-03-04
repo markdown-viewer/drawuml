@@ -57,7 +57,7 @@ class ActorRenderer extends IconRenderer {
     let strokeWidth = this.theme.strokeWidth;
     if (this.lineStyle === 'dashed') lineStyleStr = 'dashed=1;';
     else if (this.lineStyle === 'dotted') lineStyleStr = 'dashed=1;dashPattern=1 2;';
-    else if (this.lineStyle === 'bold') strokeWidth = this.theme.strokeWidth * 2;
+    else if (this.lineStyle === 'bold') strokeWidth = this.theme.boldStrokeWidth;
 
     const isBusiness = this.desc.stereotype === 'actor/';
     const actorStyleAttr = this.desc.actorStyle ? `actorStyle=${this.desc.actorStyle};` : '';

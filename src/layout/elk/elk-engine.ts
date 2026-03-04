@@ -39,7 +39,7 @@ export interface ElkLayoutResult {
   renderers: Map<string, Renderer>;
 }
 
-import type { Theme } from '../../shared/theme.ts';
+import { createTheme, type Theme } from '../../shared/theme.ts';
 
 /**
  * Lay out a SemanticModel using the ELK layered algorithm.
@@ -91,8 +91,8 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
   // 9. Enforce minimum edge-edge spacing (ELK doesn't guarantee it for cross-hierarchy edges)
-  const theme = options?.theme;
-  separateOverlappingEdges(layout, theme?.padXS ?? 8);
+  const theme = options?.theme ?? createTheme();
+  separateOverlappingEdges(layout, theme.padXS);
 
   // 10. Swimlane column rearrangement (if activity swimlanes present)
   rearrangeSwimlanes(layout, model, theme);

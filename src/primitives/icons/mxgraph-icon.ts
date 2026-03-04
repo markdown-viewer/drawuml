@@ -29,14 +29,14 @@ export class MxgraphIconRenderer extends IconRenderer {
   }
 
   // Use icon-data dimensions as aspect-ratio base; scale via mxgraphIconSize
-  protected override get baseIconWidth(): number { return this.iconRecord?.w ?? this.theme.defaultIconSize; }
-  protected override get baseIconHeight(): number { return this.iconRecord?.h ?? this.theme.defaultIconSize; }
+  protected override get baseIconWidth(): number { return this.iconRecord?.w ?? this.theme.sizeXL; }
+  protected override get baseIconHeight(): number { return this.iconRecord?.h ?? this.theme.sizeXL; }
   // Normalise the *wide* side to mxgraphIconSize so the icon fits within bounds
   protected override get iconScale(): number {
-    return this.theme.mxgraphIconSize / Math.max(this.baseIconWidth, this.baseIconHeight);
+    return this.theme.sizeXL / Math.max(this.baseIconWidth, this.baseIconHeight);
   }
   protected override get paddingX(): number { return this.theme.padM; }
-  protected override get minLabelHeight(): number { return this.theme.mxIconMinLabelH; }
+  protected override get minLabelHeight(): number { return this.theme.sizeS; }
 
   // Override: padding applies to icon width too
   protected override doMeasure(): { width: number; height: number } {
@@ -81,7 +81,7 @@ export class MxgraphIconRenderer extends IconRenderer {
     ].filter(Boolean).join(';') + ';';
 
     // Apply user inline style overrides (parseNodeStyle handles #fill ##stroke etc.)
-    const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor, this.theme.strokeWidth * 2);
+    const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor, this.theme.boldStrokeWidth);
     style = styledStyle;
 
     // Center icon horizontally within the DOT-allocated box

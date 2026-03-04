@@ -9,7 +9,7 @@ import type { LayoutGraphNode, LayoutPort } from '../layout-graph.ts';
 import type { SemanticModel, SemanticEdge, SemanticGroup } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { unescapePlantUml } from '../../shared/puml-unescape.ts';
-import type { Theme } from '../../shared/theme.ts';
+import { createTheme, type Theme } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -120,12 +120,14 @@ interface DotAdapterContext {
   groupById: Map<string, SemanticGroup>;
   /** Greedy bin-packing for orphan nodes into rows */
   buildRowPacking: (nodeIds: string[], indent: string, maxRowWidth: number, maxPerRow: number) => string[];
+  /** Maximum row width for bin-packing */
+  maxRowWidth: number;
   /** Nodesep value in pixels */
   nodesepPx: number;
   /** Font size for region/lane cluster labels (matches ConcurrentRegionRenderer) */
   smallFontSize: number;
-  /** Font size for cluster labels (matches layoutFontSize) */
-  layoutFontSize: number;
+  /** Font size for cluster labels */
+  fontSize: number;
   /** Group container inner padding (DOT cluster margin) */
   groupPadding: number;
   /** Inter-group spacing (DOT outer protection margin) */
@@ -264,7 +266,7 @@ function buildNodeDotLines(
   const totalItems = normalChildren.length;
   const targetCols = Math.max(Math.ceil(Math.sqrt(totalItems)), 2);
   const leafIds = leafNormal.map(c => c.id);
-  lines.push(...ctx.buildRowPacking(leafIds, inner + '  ', 700, targetCols));
+  lines.push(...ctx.buildRowPacking(leafIds, inner + '  ', ctx.maxRowWidth, targetCols));
 
   lines.push(`${inner}}`);
   lines.push(`${indent}}`);
@@ -285,15 +287,15 @@ export function layoutGraphToDot(
   rootNodes: LayoutGraphNode[],
   model: SemanticModel,
   renderers: Map<string, Renderer>,
-  theme?: Theme,
+  theme: Theme = createTheme(),
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
-  const nodesepPx = Math.round(theme?.padL ?? 30);
-  const ranksepPx = Math.round(theme?.padXL ?? 40);
-  const maxRowWidth = theme?.maxRowWidth ?? 800;
-  const layoutFontSize = Math.round(theme?.layoutFontSize ?? 10);
-  const dotMinH = String((theme?.dotMinNodeH ?? 25) / PX_PER_INCH);
-  const dotMinW = String((theme?.dotMinNodeW ?? 40) / PX_PER_INCH);
+  const nodesepPx = Math.round(theme.padL);
+  const ranksepPx = Math.round(theme.padXXL);
+  const maxRowWidth = theme.sizeMax;
+  const layoutFontSize = Math.round(theme.fontSize);
+  const dotMinH = String(theme.sizeS / PX_PER_INCH);
+  const dotMinW = String(theme.sizeL / PX_PER_INCH);
   const nodesepInch = pxToInch(nodesepPx);
   const ranksepInch = pxToInch(ranksepPx);
 
@@ -465,9 +467,9 @@ export function layoutGraphToDot(
 
   // --- Build adapter context ---
 
-  const smallFontSize = Math.round(theme?.smallFontSize ?? 10);
-  const groupPadding = Math.round(theme?.padXL ?? 20);
-  const groupSpacing = Math.round(theme?.padS ?? 8);
+  const smallFontSize = Math.round(theme.smallFontSize);
+  const groupPadding = Math.round(theme.padXL);
+  const groupSpacing = Math.round(theme.padS);
 
   const ctx: DotAdapterContext = {
     portNodes,
@@ -477,9 +479,10 @@ export function layoutGraphToDot(
     renderers,
     groupById,
     buildRowPacking,
+    maxRowWidth,
     nodesepPx,
     smallFontSize,
-    layoutFontSize,
+    fontSize: layoutFontSize,
     groupPadding,
     groupSpacing,
   };

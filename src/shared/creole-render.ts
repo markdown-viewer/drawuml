@@ -9,7 +9,7 @@
 import type { CreoleBlock, CreoleListItem, CreoleTableRow, CreoleTreeItem } from './creole-parser.ts';
 import { creoleInline } from './creole-inline.ts';
 
-// Heading level → offset from base font size (matching PlantUML: base 14 + offset → 18,16,15,14)
+// Heading level → offset from base font size (PlantUML: base + offset → heading px)
 const HEADING_OFFSETS: Record<number, number> = {
   1: 4,
   2: 2,
@@ -22,9 +22,9 @@ const HEADING_OFFSETS: Record<number, number> = {
  * The output is semantic HTML — callers should pass it through `toDrawioHtml()`
  * for DrawIO-specific normalization.
  *
- * @param baseFontSize — base font size for computing heading sizes (default 14)
+ * @param baseFontSize — base font size for computing heading sizes (default 12, matching theme)
  */
-export function renderCreoleToHtml(blocks: CreoleBlock[], baseFontSize: number = 14): string {
+export function renderCreoleToHtml(blocks: CreoleBlock[], baseFontSize: number = 12): string {
   const parts: string[] = [];
 
   for (const block of blocks) {

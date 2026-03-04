@@ -61,7 +61,7 @@ class UmlShapeRenderer extends IconRenderer {
       + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`;
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({

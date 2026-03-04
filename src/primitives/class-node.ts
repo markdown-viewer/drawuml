@@ -17,7 +17,7 @@ import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // Re-export layout constants for consumers (e.g. DOT port-label building)
 
@@ -56,7 +56,7 @@ const SPOT_TYPES = new Set(Object.keys(SPOT_MAP));
  * Build HTML for the title area of a class node.
  * Delegates to shared buildLabelHtml with class-specific spot/italic resolution.
  */
-export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string }; theme?: { fontSize: number; fontFamily: string; spotSize?: number; spotFontSize?: number; spotMargin?: number } }): string {
+export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string }; theme?: { fontSize: number; fontFamily: string; sizeS?: number; spotFontSize?: number; padXS?: number } }): string {
   const stype = node.stereotype || node.type || '';
   // Custom spot from <<(X,color)>> overrides the default SPOT_MAP lookup.
   const spotInfo = node.hideCircle ? undefined : (node.spot || SPOT_MAP[stype]);
@@ -68,9 +68,9 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
     spot: spotInfo ? { char: spotInfo.char, color: spotInfo.color } : undefined,
     italic: ITALIC_TYPES.has(stype),
     fontSize: node.theme?.fontSize,
-    spotSize: node.theme?.spotSize,
+    spotSize: node.theme?.sizeS,
     spotFontSize: node.theme?.spotFontSize,
-    spotMargin: node.theme?.spotMargin,
+    spotMargin: node.theme?.padXS,
   });
 }
 
@@ -82,8 +82,8 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
  * FinalizeBody callback for entities that skip auto-separator
  * (e.g. object, state). Returns emptyBodyPad for empty body.
  */
-function skipAutoSeparator(ctx: FinalizeBodyCtx, theme?: Theme): Partial<Record<string, any>> {
-  if (ctx.lines.length === 0) return { emptyBodyPad: theme?.padS ?? 10 };
+function skipAutoSeparator(ctx: FinalizeBodyCtx, theme: Theme = createTheme()): Partial<Record<string, any>> {
+  if (ctx.lines.length === 0) return { emptyBodyPad: theme.padS };
   return {};
 }
 
@@ -135,7 +135,7 @@ export function computeTitleH(node: { label: string; stereotype?: string | null;
 // ---------------------------------------------------------------------------
 
 /** Generate swimlane style string for a class node mxCell. */
-export function classNodeStyle(node: { stereotype?: string | null; type?: string; label: string; stereotypeLabel?: string; style?: string | null; hideCircle?: boolean }, startSize?: number, theme?: { arcSize: number; classFill: string; strokeWidth: number; fontSize?: number; fontFamily?: string }): string {
+export function classNodeStyle(node: { stereotype?: string | null; type?: string; label: string; stereotypeLabel?: string; style?: string | null; hideCircle?: boolean }, startSize?: number, theme: Theme = createTheme()): string {
   const stype = node.stereotype || node.type || '';
   const resolvedSize = startSize ?? computeTitleH(node);
   const parsed = parseNodeStyle(node.style);
@@ -155,14 +155,14 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     'marginBottom=0',
     'rounded=1',
     'absoluteArcSize=1',
-    `arcSize=${theme?.arcSize ?? 4}`,
+    `arcSize=${theme.arcSize}`,
     'shadow=0',
-    `strokeWidth=${theme?.strokeWidth ?? 1}`,
+    `strokeWidth=${theme.strokeWidth}`,
   ];
 
   // Font size / family
-  if (theme?.fontSize) base.push(`fontSize=${theme.fontSize}`);
-  if (theme?.fontFamily) base.push(`fontFamily=${theme.fontFamily}`);
+  if (theme.fontSize) base.push(`fontSize=${theme.fontSize}`);
+  if (theme.fontFamily) base.push(`fontFamily=${theme.fontFamily}`);
 
   if (ITALIC_TYPES.has(stype)) base.push('fontStyle=2');
   else base.push('fontStyle=0');
@@ -178,12 +178,12 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${(theme?.strokeWidth ?? 1) * 2}`);
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${theme.boldStrokeWidth}`);
   }
 
   // Default white fill when no custom fill specified
   if (!base.some(s => s.startsWith('fillColor='))) {
-    base.push(`fillColor=${theme?.classFill ?? '#FFFFFF'}`);
+    base.push(`fillColor=${theme.classFill}`);
   }
 
   return base.join(';') + ';';

@@ -4,7 +4,7 @@ import { Renderer } from '../primitives/renderer.ts';
 import { parseBracketEdgeStyle, parseEdgeInlineStyle } from '../shared/color-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { LabelRenderer } from '../primitives/shapes/label.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 export interface DrawioGenOptions {
   /** Layout engine used. Affects edge style (curved vs orthogonal). */
@@ -15,6 +15,7 @@ export interface DrawioGenOptions {
 
 export function semanticToDrawioXml(model, layout, renderers: Map<string, Renderer>, options?: DrawioGenOptions) {
   const engine = options?.engine ?? 'dot';
+  const theme = options?.theme ?? createTheme();
   const diagramId = 'diagram-1';
   const diagramName = 'Diagram';
 
@@ -88,7 +89,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   }
 
   // Edges
-  const defaultStrokeWidth = options?.theme?.strokeWidth ?? 1;
+  const defaultStrokeWidth = theme.strokeWidth;
   for (const edge of model.edges) {
     let style: string;
     if (edge.arrow) {
@@ -105,7 +106,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (engine !== 'elk') {
       style += 'curved=1;';
     } else {
-      style += `edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=${options?.theme?.arcSize ?? 4};`;
+      style += `edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=${theme.arcSize};`;
     }
 
     // Merge bracket style from arrowMeta.color or bodyToken bracket content
@@ -127,7 +128,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (es.thickness) style += `strokeWidth=${es.thickness};`;
     if (es.lineStyle === 'dashed') style += 'dashed=1;';
     else if (es.lineStyle === 'dotted') style += 'dashed=1;dashPattern=1 2;';
-    else if (es.lineStyle === 'bold') style += `strokeWidth=${n4(defaultStrokeWidth * 2)};`;
+    else if (es.lineStyle === 'bold') style += `strokeWidth=${n4(theme.boldStrokeWidth)};`;
     else if (es.lineStyle === 'plain') { /* default solid — no extra style */ }
 
     // Apply default strokeWidth for edges (scaled from theme)
@@ -162,7 +163,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // layout endpoints and add constraints so drawio2svg pins the connection
     // to the field cell's left/right border.
     if (hasPort && points && points.length >= 2) {
-      const sides = computePortEdgeSides(points, edge, layout, renderers, options?.theme?.padS);
+      const sides = computePortEdgeSides(points, edge, layout, renderers, theme.padS);
       if (sides.exitX != null) {
         style += `exitX=${n4(sides.exitX)};exitY=${n4(sides.exitY)};exitDx=0;exitDy=0;`;
       }
@@ -300,19 +301,19 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       // positioned labels are emitted as standalone absolute-position cells below.
       cardFrom: layoutCardFromPos ? undefined : edge.cardFrom,
       cardTo: layoutCardToPos ? undefined : edge.cardTo,
-      fontSize: options?.theme?.fontSize,
-      fontFamily: options?.theme?.fontFamily,
+      fontSize: theme.fontSize,
+      fontFamily: theme.fontFamily,
     }));
     // Edge center label at layout-computed absolute position
     if (edge.label && layoutLabelPos) {
-      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme: options?.theme });
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme });
       const m = lr.measure();
       const w = layoutLabelSize?.width || m.width;
       const h = layoutLabelSize?.height || m.height;
       // Adjust label position to maintain gap from edge line
       const adjustedPos = adjustLabelAwayFromEdge(
         layoutLabelPos, { width: w, height: h },
-        layoutEdge?.points, options?.theme?.padXS ?? 4,
+        layoutEdge?.points, theme.padXS,
       );
       cells.push(...lr.render({
         x: adjustedPos.x - w / 2,
@@ -322,7 +323,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     }
     // Cardinality labels at Graphviz-computed taillabel/headlabel positions
     if (edge.cardFrom && layoutCardFromPos) {
-      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme: options?.theme });
+      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme });
       const m = cfr.measure();
       cells.push(...cfr.render({
         x: layoutCardFromPos.x - m.width / 2,
@@ -331,7 +332,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       }));
     }
     if (edge.cardTo && layoutCardToPos) {
-      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme: options?.theme });
+      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme });
       const m = ctr.measure();
       cells.push(...ctr.render({
         x: layoutCardToPos.x - m.width / 2,
@@ -348,7 +349,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     const targetLayout = layout.nodes[note.target];
     if (!noteLayout || !targetLayout) continue;
     const edgeId = `__note_edge_${note.id}`;
-    const noteLinkColor = options?.theme?.noteLinkColor ?? '#AEAE8F';
+    const noteLinkColor = theme.noteLinkColor;
     const style = `endArrow=none;dashed=1;strokeColor=${noteLinkColor};strokeWidth=${defaultStrokeWidth};`;
     // Resolve member-level target: match "A::counter" to field cell id "A::int counter"
     let edgeTarget = note.target;
@@ -395,8 +396,8 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       style: fullStyle,
       source: note.id,
       target: edgeTarget,
-      fontSize: options?.theme?.fontSize,
-      fontFamily: options?.theme?.fontFamily,
+      fontSize: theme.fontSize,
+      fontFamily: theme.fontFamily,
     }));
   }
 

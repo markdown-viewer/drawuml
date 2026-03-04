@@ -1,7 +1,7 @@
 /**
  * Diamond icon renderer — small filled rhombus with no text label.
  *
- * Extends IconRenderer so diamond size follows theme.iconSize like all other
+ * Extends IconRenderer so diamond size follows theme.sizeM like all other
  * icon-based nodes (circle, actor, boundary, control, entity, junction…).
  */
 

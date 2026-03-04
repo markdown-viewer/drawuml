@@ -1,7 +1,7 @@
 /**
  * State pseudo-node icon renderers — small symbol-only nodes for state diagrams.
  *
- * Extends IconRenderer so sizes follow theme.iconSize like all other
+ * Extends IconRenderer so sizes follow theme.sizeM like all other
  * icon-based nodes (circle, actor, diamond, junction…).
  *
  *   - state_start  : filled black circle (initial pseudo-state)

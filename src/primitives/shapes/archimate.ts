@@ -322,17 +322,17 @@ class ArchimateRenderer extends RichRenderer {
   render(box: ContentBox): string[] {
     const cells = super.render(box);
     if (this.icon) {
-      // Scale icon dimensions from BASE_ICON_SIZE table to theme.iconSize.
+      // Scale icon dimensions from BASE_ICON_SIZE table to theme.sizeS.
       const [bw, bh] = ARCHIMATE3_ICON_SIZE[this.icon] ?? [BASE_ICON_SIZE, BASE_ICON_SIZE];
-      const iw = bw * this.theme.archimateIconSize / BASE_ICON_SIZE * 0.8;
-      const ih = bh * this.theme.archimateIconSize / BASE_ICON_SIZE * 0.8;
+      const iw = bw * this.theme.sizeS / BASE_ICON_SIZE * 0.8;
+      const ih = bh * this.theme.sizeS / BASE_ICON_SIZE * 0.8;
       // Vertically center the icon within the titlebar band.
-      const iy = this.theme.padXS + (this.theme.archimateIconSize - ih) / 2;
+      const iy = this.theme.padXS + (this.theme.sizeS - ih) / 2;
       // For 'archimate' keyword nodes the icon is horizontally centered;
       // for all other archimate nodes it sits at the top-right corner.
       const ix = this.desc.centeredIcon
         ? (box.width - iw) / 2
-        : box.width - this.theme.padXS - (this.theme.archimateIconSize + iw) / 2;
+        : box.width - this.theme.padXS - (this.theme.sizeS + iw) / 2;
       // Resolve icon stroke color from inline style override
       const parsedStyle = parseNodeStyle(this.desc.style);
       const iconStroke = parsedStyle?.strokeColor || this.theme.colorDark;
@@ -362,7 +362,7 @@ class FolderArchimateRenderer extends ArchimateRenderer {
 
   constructor(desc: RenderDescriptor, folderFill: string, extraStyle = '') {
     // Pass extraStyle as part of shapeStyle so buildStyle() picks it up.
-    super(desc, `shape=folder;tabWidth=${desc.theme.archimateTabW};tabHeight=${desc.theme.titleBarHeight};tabPosition=left;${extraStyle}`, null, '');
+    super(desc, `shape=folder;tabWidth=${desc.theme.sizeM};tabHeight=${desc.theme.sizeS};tabPosition=left;${extraStyle}`, null, '');
     this.folderFill = folderFill;
   }
 

@@ -12,7 +12,7 @@ import type { NodeDescriptor } from '../primitives/registry.ts';
 import { resolveGroupShape } from '../primitives/group.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { ConcurrentRegionRenderer } from '../primitives/state-node.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer creation
@@ -25,7 +25,7 @@ import type { Theme } from '../shared/theme.ts';
  * component style) are applied here so callers don't repeat the logic.
  */
 export function createRenderers(model: SemanticModel, options?: { theme?: Theme }): Map<string, Renderer> {
-  const theme = options?.theme;
+  const theme = options?.theme ?? createTheme();
   const visIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   const activityShape = model.skinparams?.activityShape;
   const actorStyle = model.skinparams?.actorStyle;
@@ -68,7 +68,7 @@ export function buildRendererTree(
   renderers: Map<string, Renderer>,
   options?: { theme?: Theme },
 ): Renderer[] {
-  const theme = options?.theme;
+  const theme = options?.theme ?? createTheme();
   const groups = model.groups || [];
   if (groups.length === 0) {
     // No groups — all node renderers are roots (preserving document order)

@@ -31,7 +31,7 @@ class CollectionsRenderer extends RichRenderer {
   protected renderExtraCells(box: ContentBox): string[] {
     let bs = `rounded=0;fillColor=none;strokeColor=${this.theme.colorDark};`;
     if (this.color) bs = bs.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
-    { const r = Renderer.applyInlineStyle(bs, this.desc.style, this.theme.strokeWidth * 2); bs = r.style; }
+    { const r = Renderer.applyInlineStyle(bs, this.desc.style, this.theme.boldStrokeWidth); bs = r.style; }
     return [mxVertex({
       id: `${this.id}__back`, value: '', style: bs,
       parent: this.parentId || '1',

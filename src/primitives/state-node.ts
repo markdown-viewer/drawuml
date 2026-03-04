@@ -37,15 +37,15 @@ class StateForkJoinRenderer extends Renderer {
   constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
-    return { width: this.theme.stateForkWidth, height: this.theme.stateForkHeight };
+    return { width: this.theme.sizeXL, height: this.theme.sizeXXS };
   }
 
   render(box: ContentBox) {
-    const w = this.theme.stateForkWidth;
-    const h = this.theme.stateForkHeight;
+    const w = this.theme.sizeXL;
+    const h = this.theme.sizeXXS;
     const x = box.x + (box.width - w) / 2;
     const y = box.y + (box.height - h) / 2;
-    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=${this.theme.stateForkHeight};strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
+    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=${this.theme.sizeXXS};strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
   }
 }
 
@@ -68,14 +68,14 @@ class StateChoiceRenderer extends RichRenderer {
     const s = shape
       + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.fontSize};fontFamily=${this.theme.fontFamily};`;
-    return Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2).style;
+    return Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth).style;
   }
 
   // Shape style is complete — no fragment extraction needed
   protected get richBodyStyleComplete(): boolean { return true; }
 
   protected doMeasure() {
-    const choiceSize = this.theme.iconSize;
+    const choiceSize = this.theme.sizeM;
     const hasText = !!this.label;
     if (!hasText) {
       // No text → rhombus; fixed square for 45° diamond
@@ -258,7 +258,7 @@ export class ConcurrentRegionRenderer extends Renderer {
 
   // Uniform padding on all sides inside each region lane.
   override get groupTopPadding(): number {
-    const headerSize = this.regionLabel ? this.theme.titleBarHeight : 0;
+    const headerSize = this.regionLabel ? this.theme.sizeS : 0;
     return this.theme.padXL + headerSize;
   }
 
@@ -283,7 +283,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     // Render as a standard DrawIO swimlane lane with visible borders.
     // Adjacent lanes naturally form visual separators.
     // LR mode: horizontal=0 puts the label on the left side (double header).
-    const headerH = this.theme.titleBarHeight;
+    const headerH = this.theme.sizeS;
     const startSize = this.regionLabel ? (this._isHorizontalLane ? headerH * 2 : headerH) : 0;
     const fill = this.regionColor || 'none';
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
@@ -352,7 +352,7 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.strokeWidth * 2)}`);
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.boldStrokeWidth)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
@@ -372,7 +372,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
-    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme?.padS ?? 10 };
+    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme.padS };
     return {};
   }
 
@@ -386,7 +386,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
 
   // State title bar is a fixed title area
   // +2 compensates for visual gap difference vs non-fixed shapes
-  override get groupTopPadding(): number { return this.theme.padXL + this.theme.titleBarHeight + 2; }
+  override get groupTopPadding(): number { return this.theme.padXL + this.theme.sizeS + 2; }
 
   /**
    * Render: composite state → group container; leaf → swimlane.
@@ -435,7 +435,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
     regionInfos.sort((a, b) => a.elkBox.x - b.elkBox.x);
 
     // Lane vertical extent: from title bottom to container bottom
-    const laneY = this.theme.titleBarHeight;
+    const laneY = this.theme.sizeS;
     const laneH = box.height - laneY;
 
     // Proportional-width lanes filling the container:
@@ -481,14 +481,14 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
   const base = noRounding ? [
     'swimlane', 'html=1', 'rounded=0',
     'align=center', 'verticalAlign=top',
-    `startSize=${theme.titleBarHeight}`,
+    `startSize=${theme.sizeS}`,
     'collapsible=0', 'marginBottom=0',
     `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
   ] : [
     'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', `arcSize=${theme.largeArcSize}`,
     'align=center', 'verticalAlign=top',
-    `startSize=${theme.titleBarHeight}`,
+    `startSize=${theme.sizeS}`,
     'collapsible=0', 'marginBottom=0',
     `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
@@ -504,7 +504,7 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
     if (parsed.textColor) base.push(`fontColor=${parsed.textColor}`);
     if (parsed.lineStyle === 'dashed') base.push('dashed=1');
     else if (parsed.lineStyle === 'dotted') base.push('dashed=1', 'dashPattern=1 2');
-    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.strokeWidth * 2)}`);
+    else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.boldStrokeWidth)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);

@@ -9,7 +9,7 @@ import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor } from '../shared/color-utils.ts';
 import { Content } from '../shared/content.ts';
 import { buildUmlFrameStyle } from './shapes/frame.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -63,10 +63,11 @@ export function renderFragment(frag: {
   const tabH = frag.tabHeight || 20;
 
   // Build style via shared umlFrame style builder
-  const cornerClip = frag.theme?.cornerClip ?? 10;
-  const fontSize = frag.theme?.fontSize ?? 12;
-  const sw = frag.theme?.strokeWidth ?? 1;
-  const colorDark = frag.theme?.colorDark ?? '#181818';
+  const theme = frag.theme ?? createTheme();
+  const cornerClip = theme.cornerClip;
+  const fontSize = theme.fontSize;
+  const sw = theme.strokeWidth;
+  const colorDark = theme.colorDark;
   let style = buildUmlFrameStyle({
     tabWidth: tabW, tabHeight: tabH,
     fontSize, cornerClip, strokeWidth: sw,
@@ -88,15 +89,16 @@ export function renderFragment(frag: {
   }));
 
   // Condition label to the right of the tab (or centered in content area for ref)
-  const smallFontSize = frag.theme?.smallFontSize ?? 10;
+  const smallFontSize = theme.smallFontSize;
   const isRef = frag.type === 'ref';
   if (conditionLabel) {
-    const condHtml = Content.inline(conditionLabel).html;
-    const condLines = conditionLabel.split('\n').length;
-    const fragCondMinH = frag.theme?.fragCondMinH ?? 20;
-    const condH = Math.max(fragCondMinH, condLines * smallFontSize * 1.4) + 4;
-    const fragLabelSpacingX = frag.theme?.padXS ?? 4;
-    const fragLabelGap = frag.theme?.padXS ?? 4;
+    const condContent = Content.inline(conditionLabel, { fontSize: smallFontSize });
+    const condHtml = condContent.html;
+    const condSize = condContent.measure();
+    const fragCondMinH = theme.sizeS;
+    const condH = Math.max(fragCondMinH, Math.ceil(condSize.height) + theme.padXS);
+    const fragLabelSpacingX = theme.padXS;
+    const fragLabelGap = theme.padXS;
     if (isRef) {
       // ref: label text centered in content area, no brackets
       const contentY = frag.y + tabH;
@@ -137,15 +139,15 @@ export function renderFragment(frag: {
     }
 
     // Section separator: dashed line + label text
-    const lineStyle = `shape=line;strokeWidth=${frag.theme?.strokeWidth ?? 1};strokeColor=${colorDark};dashed=1;dashPattern=5 5;`;
+    const lineStyle = `shape=line;strokeWidth=${theme.strokeWidth};strokeColor=${colorDark};dashed=1;dashPattern=5 5;`;
     cells.push(mxVertex({
       id: frag.id + '_sec_line_' + (i + 1), value: '', style: lineStyle,
       parent: '1',
       x: frag.x, y, width: frag.width, height: 1,
     }));
-    const fragSectionSpacingX = frag.theme?.padS ?? 8;
-    const fragSectionH = frag.theme?.fragSectionH ?? 20;
-    const fragLabelGap = frag.theme?.padXS ?? 4;
+    const fragSectionSpacingX = theme.padS;
+    const fragSectionH = theme.sizeS;
+    const fragLabelGap = theme.padXS;
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
       style: `text;align=left;verticalAlign=top;spacingLeft=${fragSectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};`,

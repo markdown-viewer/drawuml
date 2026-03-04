@@ -1,8 +1,8 @@
 import { measureText } from '@markdown-viewer/text-measure';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 import { unescapePlantUml } from '../shared/puml-unescape.ts';
 import { createRenderer } from '../primitives/index.ts';
-import { PARTICIPANT_CONFIG, getScaledParticipantConfig, buildParticipantLabel, measureBracketBody } from '../primitives/participant.ts';
+import { getScaledParticipantConfig, buildParticipantLabel, measureBracketBody } from '../primitives/participant.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import type { LayoutNote } from '../model/common.ts';
 
@@ -22,22 +22,22 @@ function getRowCount(model) {
 }
 
 export function sequenceTableLayout(model, options?: { theme?: Theme }) {
-  const theme = options?.theme;
-  const fontSize = theme?.fontSize ?? 12;
-  const fontFamily = theme?.fontFamily ?? 'Arial';
-  const titleMinWidth = theme?.titleMinWidth ?? 100;
-  const titlePadX = theme?.padM ?? 20;
-  const titlePadY = theme?.padS ?? 10;
-  const minGap = theme?.padL ?? 20;
-  const mediumPad = theme?.padS ?? 10;
+  const theme = options?.theme ?? createTheme();
+  const fontSize = theme.fontSize;
+  const fontFamily = theme.fontFamily;
+  const titleMinWidth = theme.sizeXL;
+  const titlePadX = theme.padM;
+  const titlePadY = theme.padS;
+  const minGap = theme.padL;
+  const mediumPad = theme.padS;
   const marginX = model.mainframe ? minGap : 0;
   let marginTop = 0;
   const minParticipantWidth = titleMinWidth;
-  const tabHeight = theme?.titleBarHeight ?? 26;
-  const unitGap = theme?.padXL ?? 30;
+  const tabHeight = theme.sizeS;
+  const unitGap = theme.padXL;
   const labelPadding = titlePadX;
-  const smallPad = theme?.padXS ?? 5;
-  const extBoundaryGap = theme?.padXL ?? 60;
+  const smallPad = theme.padXS;
+  const extBoundaryGap = theme.padXL;
 
   // Title: compute height and push participants down by title height + gap
   const renderers = new Map<string, Renderer>();
@@ -73,7 +73,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   pList.forEach((p, idx) => { pIndex[p.id] = idx; });
 
   // Use theme-scaled participant config for icon dimensions
-  const pConfig = theme ? getScaledParticipantConfig(theme.iconSize) : PARTICIPANT_CONFIG;
+  const pConfig = getScaledParticipantConfig(theme.sizeM);
 
   // Calculate dynamic participant sizes (width and height).
   // For icon types (actor, boundary, etc.) with external labels:
@@ -86,7 +86,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const pcfg = pConfig[p.type] || pConfig.participant;
     const iconW = pcfg.iconW;
     const label = p.label || p.id;
-    const displayLabel = buildParticipantLabel(p, { stereotypePosition: model.stereotypePosition, fontSize, spotSize: theme?.spotSize, spotFontSize: theme?.spotFontSize, spotMargin: theme?.spotMargin });
+    const displayLabel = buildParticipantLabel(p, { stereotypePosition: model.stereotypePosition, fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
     const labelW = measureLabel(displayLabel);
     const baseH = pcfg.iconSize;
     if (iconW > 0) {
@@ -131,9 +131,9 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
   // Pre-compute max activation nesting depth per participant to account for
   // activation bar width extending past the participant center.
-  const actBarWidth = theme?.seqActBarWidth ?? 10;
+  const actBarWidth = theme.sizeXS;
 
-  const selfRefLoopOffset = theme?.seqSelfRefLoop ?? 45;
+  const selfRefLoopOffset = theme.sizeL;
   const maxActDepthByParticipant: Record<string, number> = {};
   for (const a of (model.activations || [])) {
     const cur = maxActDepthByParticipant[a.participant] || 0;
@@ -334,7 +334,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Pre-scan external messages to check if left-boundary arrows need more space.
   // If a label is wider than the distance from leftBoundaryX(0) to its target,
   // we need extra left margin — shift all participants rightward.
-  const minShortArrowLen = theme?.seqMinShortArrow ?? 80;
+  const minShortArrowLen = theme.sizeXL;
   const extLabelPadding = smallPad * 2;
   let extraLeftMargin = 0;
   for (const msg of model.messages) {
@@ -399,7 +399,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // their label below the arrow, so their label height contributes to the
   // below-center space instead of above-center.
   // Scale factor for timed (slanted) message delay values
-  const delayScale = theme?.strokeWidth ?? 1;
+  const delayScale = theme.strokeWidth;
 
   const responseBelow = !!model.responseMessageBelowArrow;
   const msgLabelHeightByRow = {};      // any label height (for hasMsg check)
@@ -465,7 +465,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // actual content: label height above the arrow, note height expanding both
   // above and below. The gap between adjacent bounding boxes is fixed (unitGap),
   // so rows with less content take less space, keeping visual spacing uniform.
-  const arrowPad = theme?.padXS ?? 4;
+  const arrowPad = theme.padXS;
 
   // Compute per-row unit dimensions using above/below center approach
   const rowUnits = [];
@@ -547,7 +547,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Helper: map a row index to its centerline Y (where the arrow sits)
   const rowY = (row) => rowCenterYs[row] ?? rowTop;
   // Bottom edge of the last row's unit (or minimal lifeline if no rows)
-  const lifelineMinHeight = theme?.seqLifelineMinH ?? 40;
+  const lifelineMinHeight = theme.sizeL;
   const lastRowBottom = totalRows > 0
     ? rowTopYs[totalRows - 1] + rowUnits[totalRows - 1].height
     : rowTop + lifelineMinHeight;
@@ -910,7 +910,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // endRow points to the deactivate/destroy row; the activation bar should
     // visually end at the last connected message row (endRow - 1).
     const bottomRow = Math.max(a.startRow, a.endRow - 1);
-    const height = Math.max(16, rowY(bottomRow) - y);
+    const height = Math.max(theme.sizeXS, rowY(bottomRow) - y);
     return {
       id: `act${idx + 1}`,
       participant: a.participant,
@@ -1059,11 +1059,11 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const endPlaceholderRow = (f.endRow ?? f.startRow + 2) - 1;
     const fragBottom = (rowTopYs[endPlaceholderRow] ?? rowTop);
     // Minimum height: for ref type, account for body text content lines
-    let minFragH = theme?.fragMinH ?? 40;
+    let minFragH = theme.sizeL;
     if (f.type === 'ref' && f.label) {
       const labelLines = f.label.split('\n').length;
-      const lineH = theme?.titleFontSize ?? fontSize * 1.2;
-      minFragH = tabHeight + labelLines * lineH + (theme?.arcSize ?? fontSize / 3);
+      const lineH = theme.titleFontSize;
+      minFragH = tabHeight + labelLines * lineH + theme.arcSize;
     }
     const fragH = Math.max(minFragH, fragBottom - fragY);
     // Tab width: based on actual tab text width + padding (aligned with FrameRenderer)
@@ -1071,7 +1071,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const isGroupLike = f.type === 'group' || f.type === 'partition';
     const tabLabel = isGroupLike ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
     const tabTextW = measureText(tabLabel || f.type, fontSize, fontFamily, 'bold', 'normal', false).width;
-    const tabWidth = Math.max(Math.ceil(tabTextW) + fontSize, 50);
+    const tabWidth = Math.max(Math.ceil(tabTextW) + fontSize, theme.sizeL);
 
     return {
       id: `frag${idx + 1}`,

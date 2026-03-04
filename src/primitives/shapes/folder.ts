@@ -23,12 +23,12 @@ class FolderRenderer extends RichRenderer {
 
   /** Tab width: text width + fontSize padding (left+right spacing). */
   private computeTabWidth(): number {
-    return Math.max(Math.ceil(measureText(this.label, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', false).width) + this.theme.fontSize, this.theme.tabMinWidth);
+    return Math.max(Math.ceil(measureText(this.label, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', false).width) + this.theme.fontSize, this.theme.sizeM);
   }
 
   protected buildStyle(): string {
     const tabWidth = this.computeTabWidth();
-    return `shape=folder;html=1;whiteSpace=wrap;fontStyle=1;tabWidth=${tabWidth};tabHeight=${this.theme.titleBarHeight};tabPosition=left;tabFill=1;labelInHeader=1;boundedLbl=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=${this.theme.cornerClip};verticalAlign=middle;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
+    return `shape=folder;html=1;whiteSpace=wrap;fontStyle=1;tabWidth=${tabWidth};tabHeight=${this.theme.sizeS};tabPosition=left;tabFill=1;labelInHeader=1;boundedLbl=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=${this.theme.cornerClip};verticalAlign=middle;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
   }
 
   protected override doMeasure() {

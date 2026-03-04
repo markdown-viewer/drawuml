@@ -96,7 +96,7 @@ export abstract class RichRenderer extends Renderer {
    * non-titlebar shapes render label in the content area.
    */
   protected get titleAreaHeight(): number {
-    return this.hasTitlebar ? this.theme.titleBarHeight : 0;
+    return this.hasTitlebar ? this.theme.sizeS : 0;
   }
 
   /**
@@ -129,8 +129,8 @@ export abstract class RichRenderer extends Renderer {
   override get groupTopPadding(): number {
     const pad = this.shapePadding(this.computeContentRect());
     const shapeTop = pad.top ?? 0;
-    const titleH = this.hasTitlebar ? this.theme.titleBarHeight
-      : this.label ? this.theme.capHeight : 0;
+    const titleH = this.hasTitlebar ? this.theme.sizeS
+      : this.label ? this.theme.sizeXS : 0;
     return this.theme.padXL + titleH + shapeTop;
   }
 
@@ -270,7 +270,7 @@ export abstract class RichRenderer extends Renderer {
       };
     }
     return {
-      width: Math.max(this.theme.titleMinWidth, size.width + this.theme.padM + padLeft + padRight),
+      width: Math.max(this.theme.sizeXL, size.width + this.theme.padM + padLeft + padRight),
       height: size.height + this.theme.padS + padTop + padBottom + this.titleAreaHeight,
     };
   }
@@ -294,7 +294,7 @@ export abstract class RichRenderer extends Renderer {
     if (!this.isCluster) s = s.replace('container=1;', '');
 
     // Apply inline style overrides
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth);
     s = styledS;
     // Apply text color override to frame fontColor (e.g. package tab text)
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
@@ -327,7 +327,7 @@ export abstract class RichRenderer extends Renderer {
           style: stereoStyle,
           parent: this.id,
           x: 0, y: this.resolvedTopPad,
-          width: fb.width, height: 20,
+          width: fb.width, height: this.theme.sizeS,
         }));
       }
       cells.push(...this.renderChildren());
@@ -380,7 +380,7 @@ export abstract class RichRenderer extends Renderer {
   private renderRichBody(box: ContentBox): string[] {
     let s = this.buildRichBodyContainerStyle();
     s = this.applyColorOverride(s);
-    const { style: styledS } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
+    const { style: styledS } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth);
     s = styledS;
     s = this.postProcessStyle(s);
 

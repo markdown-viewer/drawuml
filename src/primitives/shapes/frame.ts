@@ -66,9 +66,9 @@ class FrameShapeRenderer extends RichRenderer {
   protected buildStyle(): string {
     // Measure tab text after Creole processing (strip markup like **bold** etc.)
     const labelHtml = Content.inline(this.label).html;
-    const tabW = Math.max(Math.ceil(measureText(labelHtml, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', true).width) + this.theme.fontSize, this.theme.tabMinWidth);
+    const tabW = Math.max(Math.ceil(measureText(labelHtml, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', true).width) + this.theme.fontSize, this.theme.sizeM);
     if (this.isMainframe) {
-      const tabH = this.desc.fixedHeight ?? this.theme.titleBarHeight;
+      const tabH = this.desc.fixedHeight ?? this.theme.sizeS;
       return buildUmlFrameStyle({
         tabWidth: tabW, tabHeight: tabH,
         fontSize: this.theme.fontSize, cornerClip: this.theme.cornerClip,
@@ -77,7 +77,7 @@ class FrameShapeRenderer extends RichRenderer {
       });
     }
     return buildUmlFrameStyle({
-      tabWidth: tabW, tabHeight: this.theme.titleBarHeight,
+      tabWidth: tabW, tabHeight: this.theme.sizeS,
       fontSize: this.theme.fontSize, cornerClip: this.theme.cornerClip,
       strokeWidth: this.theme.strokeWidth, arcSize: this.theme.arcSize,
       fillColor: 'none', strokeColor: this.theme.colorDark,

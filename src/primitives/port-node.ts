@@ -16,6 +16,7 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
 import type { ContentBox } from '../shared/content.ts';
 import { parseNodeStyle } from '../shared/color-utils.ts';
+import { measureText } from '@markdown-viewer/text-measure';
 
 const LABEL_PAD_DEFAULT = 3;      // gap between square edge and label (fallback)
 const DEFAULT_FILL = '#F1F1F1';
@@ -41,7 +42,7 @@ export class PortNodeRenderer extends Renderer {
 
   protected doMeasure(): { width: number; height: number } {
     // DOT sees only the square (portSize × portSize); label is rendered outside the bounding box.
-    const ps = this.theme.portSize;
+    const ps = this.theme.sizeXS;
     return { width: ps, height: ps };
   }
 
@@ -63,9 +64,9 @@ export class PortNodeRenderer extends Renderer {
       else if (parsed.lineStyle === 'bold') extraStyle += `strokeWidth=${n4(this.theme.strokeWidth * 3)};`;
     }
 
-    const portSize = this.theme.portSize;
+    const portSize = this.theme.sizeXS;
     const portHalf = portSize / 2;
-    const portLabelH = this.theme.portLabelH;
+    const portLabelH = this.theme.sizeS;
     const squareStyle =
       `rounded=0;fillColor=${fillColor};strokeColor=${strokeColor};strokeWidth=${n4(this.theme.strokeWidth * 1.5)};${extraStyle}`;
 
@@ -84,7 +85,8 @@ export class PortNodeRenderer extends Renderer {
     // Label cell — positioned above (portin) or below (portout) the square
     if (this._label) {
       const labelPad = this.theme.padXS || LABEL_PAD_DEFAULT;
-      const labelWidth = Math.max(this._label.length * 9, portSize + 20);
+      const textW = measureText(this._label, this.theme.fontSize, this.theme.fontFamily).width;
+      const labelWidth = Math.max(Math.ceil(textW) + this.theme.padS, portSize + this.theme.sizeS);
       const labelX = box.x + portHalf - labelWidth / 2;
       const labelY = this._portKind === 'portout'
         ? box.y + portSize + labelPad       // below the square

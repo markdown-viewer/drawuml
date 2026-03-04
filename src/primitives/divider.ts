@@ -5,7 +5,7 @@
 
 import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { Content } from '../shared/content.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -35,7 +35,8 @@ export function renderDivider(divider: {
   // Delay dividers: plain text, no lines
   if (divider.type === 'delay') {
     const labelHtml = Content.inline(divider.label).html;
-    const fontSize = divider.theme?.fontSize ?? 12;
+    const theme = divider.theme ?? createTheme();
+    const fontSize = theme.fontSize;
     const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};`;
     const hh = divider.halfHeight;
     cells.push(mxVertex({
@@ -47,9 +48,10 @@ export function renderDivider(divider: {
   }
 
   // Section dividers (== text ==): two horizontal lines + bordered text box
-  const colorDark = divider.theme?.colorDark ?? '#181818';
-  const dividerFill = divider.theme?.dividerFill ?? '#EEEEEE';
-  const sw = divider.theme?.strokeWidth ?? 1;
+  const theme = divider.theme ?? createTheme();
+  const colorDark = theme.colorDark;
+  const dividerFill = theme.dividerFill;
+  const sw = theme.strokeWidth;
   const lineY1 = divider.y - 1;
   const lineY2 = divider.y + 2;
   cells.push(mxVertex({
@@ -65,8 +67,8 @@ export function renderDivider(divider: {
   // Bordered text box centered between the lines
   const labelHtml = Content.inline(divider.label).html;
   const hh = divider.halfHeight;
-  const largeArcSize = divider.theme?.largeArcSize ?? 12;
-  const fontSize = divider.theme?.fontSize ?? 12;
+  const largeArcSize = theme.largeArcSize;
+  const fontSize = theme.fontSize;
   const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,

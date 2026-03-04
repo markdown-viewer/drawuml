@@ -1,8 +1,7 @@
-import { escapeXml, mxVertex, wrapMxfile, cellId, n4 } from '../shared/xml-utils.ts';
+import { escapeXml, mxVertex, wrapMxfile, cellId, n4, PAGE_WIDTH, PAGE_HEIGHT } from '../shared/xml-utils.ts';
 import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import {
-  PARTICIPANT_CONFIG,
   getScaledParticipantConfig,
   participantCellGeom,
   participantStyle,
@@ -14,9 +13,9 @@ import { renderDestroyMarker, renderActivationBar } from '../primitives/activati
 import { renderFragment } from '../primitives/fragment.ts';
 import { renderDivider } from '../primitives/divider.ts';
 import { renderDurationConstraint } from '../primitives/duration-constraint.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
-export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Renderer>, theme?: Theme) {
+export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Renderer>, theme: Theme = createTheme()) {
   const cells = [];
   cells.push('<mxCell id="0"/>');
   cells.push('<mxCell id="1" parent="0"/>');
@@ -70,7 +69,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
     if (!lp) continue;
-    const { cellX } = participantCellGeom(p.type, lp.x, lp.width, theme?.iconSize);
+    const { cellX } = participantCellGeom(p.type, lp.x, lp.width, theme.sizeM);
     participantCellMap[p.id] = { cellX, cellY: lp.y };
   }
 
@@ -121,7 +120,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   }
 
   // Build participant layout map for lifeline-connected edges (no activation)
-  const pConfig = theme ? getScaledParticipantConfig(theme.iconSize) : PARTICIPANT_CONFIG;
+  const pConfig = getScaledParticipantConfig(theme.sizeM);
   const pLayoutMap: Record<string, { x: number; y: number; width: number; height: number; centerX: number }> = {};
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
@@ -145,7 +144,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     const labelBelow = model.responseMessageBelowArrow && isLeftward;
     const vAlign = labelBelow ? 'top' : 'bottom';
     const isTimed = !msg.self && (msg.toY ?? msg.y) !== msg.y;
-    const labelPad = theme?.padXS ?? 5;
+    const labelPad = theme.padXS;
 
     if (msg.self) {
       const dir = msg.arrowStyle?.direction || 'right';
@@ -206,7 +205,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
       }
     }
 
-    let style = messageStyle(msgForStyle, theme?.strokeWidth);
+    let style = messageStyle(msgForStyle, theme.strokeWidth);
 
     if (msg.self) {
       // Self-reference: 3-segment path using sourcePoint + waypoints + targetPoint.
@@ -267,8 +266,8 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
           targetPoint: { x: msg.toX, y: msg.toY },
           waypoints: wp,
         },
-        fontSize: theme?.fontSize,
-        fontFamily: theme?.fontFamily,
+        fontSize: theme.fontSize,
+        fontFamily: theme.fontFamily,
       }));
       continue;
     }
@@ -315,14 +314,14 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
         sourcePoint: { x: msg.fromX, y: msg.y },
         targetPoint: { x: msg.toX, y: msg.toY ?? msg.y },
       },
-      fontSize: theme?.fontSize,
-      fontFamily: theme?.fontFamily,
+      fontSize: theme.fontSize,
+      fontFamily: theme.fontFamily,
     }));
   }
 
   return wrapMxfile(cells, {
-    pageWidth: Math.max(850, Math.ceil(layout.width)),
-    pageHeight: Math.max(1100, Math.ceil(layout.height)),
+    pageWidth: Math.max(PAGE_WIDTH, Math.ceil(layout.width)),
+    pageHeight: Math.max(PAGE_HEIGHT, Math.ceil(layout.height)),
     diagramName: 'Sequence Diagram',
   });
 }

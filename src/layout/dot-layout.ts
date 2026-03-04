@@ -14,7 +14,7 @@ import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
 import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions } from './post-process.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // Node size estimation
@@ -315,7 +315,7 @@ export interface DotLayoutResult {
  */
 export async function dotLayout(model: SemanticModel, options?: { ortho?: boolean; theme?: Theme }): Promise<DotLayoutResult> {
   const useOrtho = options?.ortho ?? false;
-  const theme = options?.theme;
+  const theme = options?.theme ?? createTheme();
 
   // 1. Create renderers for each node
   const renderers = createRenderers(model, { theme });

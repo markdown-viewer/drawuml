@@ -11,7 +11,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup } from '../../model/ind
 import { NodeType } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { LabelRenderer } from '../../primitives/shapes/label.ts';
-import type { Theme } from '../../shared/theme.ts';
+import { createTheme, type Theme } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
 // ELK JSON type definitions (subset used by this adapter)
@@ -84,22 +84,22 @@ function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string
 // ELK spacing — helper to extract layout spacing strings from theme
 // ---------------------------------------------------------------------------
 
-function elkSpacing(theme?: Theme) {
-  const groupSpacing = theme?.padS ?? 8;
+function elkSpacing(theme: Theme = createTheme()) {
+  const groupSpacing = theme.padS;
   return {
-    nodeNode: String(theme?.padL ?? 12),
-    nodeNodeBetweenLayers: String(theme?.padXL ?? 40),
-    edgeEdge: String(theme?.padXS ?? 8),
-    edgeEdgeBetweenLayers: String(theme?.padXS ?? 8),
-    edgeNode: String(theme?.padL ?? 10),
-    edgeNodeBetweenLayers: String(theme?.padL ?? 20),
-    nodeSelfLoop: String(theme?.padL ?? 10),
+    nodeNode: String(theme.padL),
+    nodeNodeBetweenLayers: String(theme.padXXL),
+    edgeEdge: String(theme.padXS),
+    edgeEdgeBetweenLayers: String(theme.padXS),
+    edgeNode: String(theme.padL),
+    edgeNodeBetweenLayers: String(theme.padL),
+    nodeSelfLoop: String(theme.padL),
     // Reduced same-layer spacing for root level when groups are present —
     // groups already have internal padding, so inter-group gaps
     // should be smaller than inter-node gaps.
     // Between-layers spacing stays normal so edge channels aren't cramped.
     groupNodeNode: String(groupSpacing),
-    groupNodeNodeBetweenLayers: String(theme?.padXL ?? 40),
+    groupNodeNodeBetweenLayers: String(theme.padXXL),
   };
 }
 
@@ -292,7 +292,7 @@ export function layoutGraphToElk(
     // don't hug the node boundary (avoids cramped arrow decorations).
     'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
     // Edge-label gap — scaled with font size
-    'elk.spacing.edgeLabel': String(theme?.padXS ?? 4),
+    'elk.spacing.edgeLabel': String(theme.padXS),
     // Post-layout compaction removes unnecessary vertical gaps
     'elk.layered.compaction.postCompaction.strategy': 'LEFT',
     // Node placement & alignment
@@ -397,7 +397,7 @@ function mapNode(
           'elk.direction': perpDir,
           'elk.spacing.nodeNode': '0',
           'elk.layered.spacing.nodeNodeBetweenLayers': '0',
-          'elk.padding': `[top=${gn.padding?.top ?? theme?.titleBarHeight ?? 26},left=0,bottom=0,right=0]`,
+          'elk.padding': `[top=${gn.padding?.top ?? renderers.get(gn.children[0]?.id)?.theme?.sizeS ?? createTheme().sizeS},left=0,bottom=0,right=0]`,
         };
       }
     } else {
@@ -860,7 +860,7 @@ function mapNodeSimple(gn: LayoutGraphNode, renderers: Map<string, Renderer>, gr
           'elk.direction': perpDir,
           'elk.spacing.nodeNode': '0',
           'elk.layered.spacing.nodeNodeBetweenLayers': '0',
-          'elk.padding': `[top=${gn.padding?.top ?? renderers.values().next().value?.theme?.titleBarHeight ?? 26},left=0,bottom=0,right=0]`,
+          'elk.padding': `[top=${gn.padding?.top ?? renderers.values().next().value?.theme?.sizeS ?? createTheme().sizeS},left=0,bottom=0,right=0]`,
         };
       }
     } else {

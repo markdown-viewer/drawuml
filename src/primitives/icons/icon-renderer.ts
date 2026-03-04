@@ -28,12 +28,12 @@ export abstract class IconRenderer extends Renderer {
   protected get baseIconHeight(): number { return 16; }
 
   /**
-   * Scale factor: ensures the narrow side equals theme.iconSize.
+   * Scale factor: ensures the narrow side equals theme.sizeM.
    * Subclasses only define aspect ratio via baseIconWidth/baseIconHeight;
-   * the base class normalises so min(iconWidth, iconHeight) === iconSize.
+   * the base class normalises so min(iconWidth, iconHeight) === sizeM.
    */
   protected get iconScale(): number {
-    return this.theme.iconSize / Math.min(this.baseIconWidth, this.baseIconHeight);
+    return this.theme.sizeM / Math.min(this.baseIconWidth, this.baseIconHeight);
   }
 
   /** Computed icon width (baseIconWidth × iconScale). Override for non-scaled icons. */
@@ -48,7 +48,7 @@ export abstract class IconRenderer extends Renderer {
   /** Horizontal padding added to label width (px). */
   protected get paddingX(): number { return this.theme.padL; }
   /** Minimum label height — single-line floor (px). */
-  protected get minLabelHeight(): number { return this.theme.iconMinLabelH; }
+  protected get minLabelHeight(): number { return this.theme.sizeS; }
 
   // ── Label ──────────────────────────────────────────────────────────────────
 

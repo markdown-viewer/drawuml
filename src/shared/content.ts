@@ -29,7 +29,7 @@ import { parseCreoleBlocks } from './creole-parser.ts';
 import { renderCreoleToHtml } from './creole-render.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-measure';
-import type { Theme } from './theme.ts';
+import { createTheme, type Theme } from './theme.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types
@@ -149,39 +149,26 @@ const DEFAULTS: ContentMetrics = {
 
 
 
-/** Build class metrics from theme or use hardcoded defaults. */
-function classMetrics(theme?: Theme): Partial<ContentMetrics> {
-  if (theme) return {
+/** Build class metrics from theme. */
+function classMetrics(theme: Theme = createTheme()): Partial<ContentMetrics> {
+  return {
     paddingX: theme.padXL,
     titlePaddingY: theme.fontSize,
     bodyPaddingY: theme.padXS,
-    rowHeight: theme.classRowHeight,
-    separatorHeight: theme.classSepHeight,
-    titledSeparatorHeight: theme.titledSepHeight,
-    minWidth: theme.classMinWidth,
-  };
-  return {
-    paddingX: 40,
-    titlePaddingY: 12,
-    bodyPaddingY: 5,
-    rowHeight: 22,
-    separatorHeight: 10,
-    titledSeparatorHeight: 20,
-    minWidth: 80,
+    rowHeight: theme.sizeS,
+    separatorHeight: theme.sizeXS,
+    titledSeparatorHeight: theme.sizeS,
+    minWidth: theme.sizeXL,
   };
 }
 
-/** Build rich body metrics from theme or use hardcoded defaults. */
-function richBodyMetrics(theme?: Theme): Partial<ContentMetrics> {
+/** Build rich body metrics from theme. */
+function richBodyMetrics(theme: Theme = createTheme()): Partial<ContentMetrics> {
   // paddingX and bodyPaddingY are intentionally omitted (default 0).
   // RichRenderer.contentPad provides unified four-side content padding.
-  if (theme) return {
-    separatorHeight: theme.classSepHeight,
-    titledSeparatorHeight: theme.titledSepHeight,
-  };
   return {
-    separatorHeight: 10,
-    titledSeparatorHeight: 20,
+    separatorHeight: theme.sizeXS,
+    titledSeparatorHeight: theme.sizeS,
   };
 }
 
@@ -568,9 +555,9 @@ export class Content {
   private _blocks: ContentBlock[];
   private _m: ContentMetrics;
   /** Theme reference for child style generation in renderChildren. */
-  private _theme?: Theme;
+  private _theme: Theme;
 
-  private constructor(blocks: ContentBlock[], metrics: Partial<ContentMetrics> = {}, theme?: Theme) {
+  private constructor(blocks: ContentBlock[], metrics: Partial<ContentMetrics> = {}, theme: Theme = createTheme()) {
     this._blocks = blocks;
     this._m = { ...DEFAULTS, ...metrics };
     this._theme = theme;
@@ -598,11 +585,11 @@ export class Content {
       if (co.childStroke) parts.push(`strokeColor=${co.childStroke}`);
       if (co.childLineStyle === 'dashed') parts.push('dashed=1');
       else if (co.childLineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
-      else if (co.childLineStyle === 'bold') parts.push(`strokeWidth=${(this._theme?.strokeWidth ?? 1) * 2}`);
+      else if (co.childLineStyle === 'bold') parts.push(`strokeWidth=${this._theme.boldStrokeWidth}`);
       return parts.join(';') + ';';
     }
     // Rich body row: richTextStyle
-    const sx = co?.spacingX ?? (this._theme?.padXS ?? 10);
+    const sx = co?.spacingX ?? this._theme.padXS;
     return richTextStyle(sx, sx, co?.align ?? 'left', fs, ff);
   }
 
@@ -611,7 +598,7 @@ export class Content {
    */
   private _buildSepStyle(co?: ChildStyleOpts): string {
     return separatorStyle({
-      strokeWidth: this._theme?.strokeWidth,
+      strokeWidth: this._theme.strokeWidth,
       fontSize: this._m.bodyFontSize,
       fontFamily: this._m.fontFamily,
       strokeColor: co?.childStroke,

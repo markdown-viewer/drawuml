@@ -3,7 +3,7 @@
  *
  * Used for archimate Junction_And (filled black) and Junction_Or (empty).
  * Extends IconRenderer with the standard icon-below-label layout,
- * using theme.iconSize for consistent sizing across all icon renderers.
+ * using theme.sizeM for consistent sizing across all icon renderers.
  */
 
 import { IconRenderer } from './icon-renderer.ts';

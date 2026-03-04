@@ -60,7 +60,7 @@ class CircleRenderer extends IconRenderer {
       + `fontSize=${this.theme.titleFontSize};fontColor=${this.theme.colorDark};`
       + 'verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;align=center;'
       + `labelWidth=${labelWidth};`;
-    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.strokeWidth * 2);
+    const { style: styledS, fontColorOverride } = Renderer.applyInlineStyle(s, this.desc.style, this.theme.boldStrokeWidth);
     s = styledS;
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({

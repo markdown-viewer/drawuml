@@ -12,8 +12,8 @@ import { n4 } from '../../shared/xml-utils.ts';
 
 class DatabaseRenderer extends RichRenderer {
   private get capHeight(): number {
-    return this.isCluster ? this.theme.capHeight * 4 / 3 :
-      this.theme.capHeight * 2 / 3;
+    return this.isCluster ? this.theme.sizeXS * 4 / 3 :
+      this.theme.sizeXS * 2 / 3;
   }
   protected buildStyle(): string {
     return `shape=cylinder3;whiteSpace=wrap;size=${n4(this.capHeight)};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=2;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;

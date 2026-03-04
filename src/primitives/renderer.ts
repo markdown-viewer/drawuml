@@ -134,7 +134,7 @@ export abstract class Renderer {
    */
   get groupTopPadding(): number {
     const base = this.theme.padXL;
-    return base + (this.clusterLabel ? this.theme.capHeight : 0);
+    return base + (this.clusterLabel ? this.theme.sizeXS : 0);
   }
 
   /**

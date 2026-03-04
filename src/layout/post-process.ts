@@ -8,7 +8,7 @@
 
 import type { LayoutResult, LayoutNode, LayoutGroup, LayoutEdge } from '../model/index.ts';
 import type { SemanticModel, SemanticNode } from '../model/index.ts';
-import type { Theme } from '../shared/theme.ts';
+import { createTheme, type Theme } from '../shared/theme.ts';
 import { computeTitleH } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 
@@ -281,10 +281,10 @@ export function snapPortNodes(
   layout: LayoutResult,
   model: SemanticModel,
   renderers: Map<string, Renderer>,
-  theme?: Theme,
+  theme: Theme = createTheme(),
   elkPortIds?: Set<string>,
 ): void {
-  const PORT_SIZE = theme?.portSize ?? 12;
+  const PORT_SIZE = theme.sizeXS;
   const PORT_HALF = PORT_SIZE / 2;
   const nodeGroupMap = new Map<string, string>();
   for (const group of model.groups || []) {
@@ -433,7 +433,7 @@ export function alignFieldNotes(
   nodes: Record<string, LayoutNode>,
   notes: Array<{ id: string; position?: string; target?: string; memberTarget?: string }>,
   modelNodes: SemanticNode[],
-  theme?: Theme,
+  theme: Theme = createTheme(),
 ): void {
   for (const note of notes) {
     if (!note.memberTarget || !note.target) continue;
@@ -484,7 +484,7 @@ export function alignFieldNotes(
   for (const group of Array.from(groups.values())) {
     if (group.length <= 1) continue;
     group.sort((a, b) => (nodes[a.id]?.y ?? 0) - (nodes[b.id]?.y ?? 0));
-    const GAP = theme?.padS ?? 10;
+    const GAP = theme.padS;
     for (let i = 1; i < group.length; i++) {
       const prev = nodes[group[i - 1].id];
       const cur = nodes[group[i].id];
@@ -540,7 +540,7 @@ export function positionTitle(layout: LayoutResult, renderers: Map<string, Rende
  * For DOT engine: nodes are already in correct columns (DOT clusters).
  *   Only normalizes region heights to span full container.
  */
-export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, theme?: Theme): void {
+export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, theme: Theme = createTheme()): void {
   if (!model.groups) return;
 
   for (const group of model.groups) {
@@ -628,12 +628,12 @@ function _rearrangeSwimlaneDotLR(
   layout: LayoutResult,
   group: { id: string; concurrentRegions: string[][]; children: string[] },
   containerPos: LayoutGroup,
-  theme?: Theme,
+  theme: Theme = createTheme(),
 ): void {
   const regions = group.concurrentRegions;
   const numLanes = regions.length;
-  const LANE_PAD = theme?.padXL ?? 20;
-  const LANE_HEADER = theme?.titleBarHeight ?? 40; // left-side title width for horizontal lanes
+  const LANE_PAD = theme.padXL;
+  const LANE_HEADER = theme.sizeS; // left-side title width for horizontal lanes
 
   // Build node→lane index map
   const nodeLane = new Map<string, number>();
@@ -651,7 +651,7 @@ function _rearrangeSwimlaneDotLR(
       const n = layout.nodes[nid];
       if (n) maxH = Math.max(maxH, n.height);
     }
-    const minLaneH = (theme?.padL ?? 40) * 2; // 80 at base 12
+    const minLaneH = theme.padL * 2; // 80 at base 12
     laneHeights.push(Math.max(maxH + 2 * LANE_PAD, minLaneH));
   }
 
@@ -748,10 +748,10 @@ function _rearrangeSwimlaneDotLR(
  * Must be called BEFORE fixOrthoEdges (which rebuilds edge paths from
  * corrected node positions).
  */
-export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme?: Theme): void {
+export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme: Theme = createTheme()): void {
   if (!model.groups) return;
 
-  const minGap = theme?.padL ?? 40;
+  const minGap = theme.padL;
 
   const swimContainer = model.groups.find(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
@@ -1054,8 +1054,8 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
  *   3. Build two detour paths around the expanded rect (CW and CCW).
  *   4. Pick the shorter one, splice it in, and remove bypassed points.
  */
-export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, theme?: Theme): void {
-  const margin = theme ? theme.padL / 3 : 10;
+export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, theme: Theme = createTheme()): void {
+  const margin = theme.padL / 3;
   const edges = layout.edges;
   if (!edges || edges.length === 0) return;
   const nodes = layout.nodes;
