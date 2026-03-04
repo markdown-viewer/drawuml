@@ -487,14 +487,14 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
   const titleBarHeight = theme.sizeS; // swimlane startSize = title bar height
   const base = noRounding ? [
     'swimlane', 'html=1', 'rounded=0',
-    'align=center', 'verticalAlign=top',
+    'align=center', 'verticalAlign=middle',
     `startSize=${titleBarHeight}`,
     'collapsible=0', 'marginBottom=0',
     `strokeWidth=${theme.strokeWidth}`,
     'fontStyle=0',
   ] : [
     'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', `arcSize=${theme.largeArcSize}`,
-    'align=center', 'verticalAlign=top',
+    'align=center', 'verticalAlign=middle',
     `startSize=${titleBarHeight}`,
     'collapsible=0', 'marginBottom=0',
     `strokeWidth=${theme.strokeWidth}`,
