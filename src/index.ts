@@ -31,7 +31,7 @@ export type LayoutEngine = 'dot' | 'elk';
 
 /** Options for textToDrawioXml. */
 export interface ConvertOptions {
-  /** Layout engine to use. Default: 'dot'. */
+  /** Layout engine to use. Default: 'elk'. */
   engine?: LayoutEngine;
   /** Theme configuration. Default: computed from fontSize=12. */
   theme?: ThemeConfig;
@@ -41,15 +41,33 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
   // Clear warnings from previous render pass
   clearRenderWarnings();
 
-  const engine = options?.engine ?? 'dot';
   const theme = createTheme(options?.theme);
   const { diagramType, body, parsed, diagramContext } = dispatch(dsl);
   const { source, pragmas } = preprocess(body);
 
+  // Sequence diagrams always use table layout (fixed, cannot be changed)
   if (diagramType === DiagramType.Sequence) {
     const model = parseSequenceDiagram(source, { strict: true });
     const { renderers, ...layout } = sequenceTableLayout(model, { theme });
     return sequenceToDrawioXml(model, layout, renderers, theme);
+  }
+
+  // Determine layout engine:
+  // 1. Check !pragma layout directive
+  // 2. Fall back to options.engine parameter
+  // 3. Default to 'elk' if neither specified
+  let engine: LayoutEngine = 'elk';
+  
+  if (pragmas.layout) {
+    const layoutValue = pragmas.layout.toLowerCase();
+    if (layoutValue === 'elk') {
+      engine = 'elk';
+    } else if (layoutValue === 'vizjs' || layoutValue === 'smetana') {
+      engine = 'dot';
+    }
+    // Other values are ignored, keep default
+  } else if (options?.engine) {
+    engine = options.engine;
   }
 
   const model = diagramContext === 'activity'
