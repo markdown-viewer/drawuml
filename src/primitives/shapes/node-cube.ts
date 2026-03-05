@@ -11,7 +11,7 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class NodeCubeRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=cube;whiteSpace=wrap;size=${this.theme.cornerClip};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=6;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    return `shape=cube;whiteSpace=wrap;size=${this.theme.cornerClip};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${this.theme.cornerClip};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
   // 3D cube: top face + left face overlap (left offset for label)
   protected shapePadding(): ShapePadding { return { top: this.theme.cornerClip, left: this.theme.cornerClip }; }
