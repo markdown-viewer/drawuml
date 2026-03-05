@@ -323,7 +323,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         width: w, height: h,
       }));
     }
-    // Cardinality labels at Graphviz-computed taillabel/headlabel positions
+    // Cardinality labels at layout-computed positions (both DOT and ELK)
     if (edge.cardFrom && layoutCardFromPos) {
       const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme });
       const m = cfr.measure();

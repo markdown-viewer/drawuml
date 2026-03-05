@@ -239,17 +239,46 @@ function extractEdges(
       points.reverse();
     }
 
-    // Extract edge label position (ELK places it in edge.labels[0])
+    // Extract label positions from ELK's layout
+    // ELK layouts all 3 labels (main center + 2 cardinalities at endpoints)
+    // We identify them by their text content:
+    // - Main label: contains the actual edge label text
+    // - Source cardinality: contains edge.cardFrom text
+    // - Target cardinality: contains edge.cardTo text
     let labelPos: { x: number; y: number } | undefined;
     let labelSize: { width: number; height: number } | undefined;
+    let cardFromPos: { x: number; y: number } | undefined;
+    let cardToPos: { x: number; y: number } | undefined;
+    
     if (elkEdge.labels && elkEdge.labels.length > 0) {
-      const lbl = elkEdge.labels[0];
-      if (lbl.x !== undefined && lbl.y !== undefined) {
-        labelPos = {
+      for (const lbl of elkEdge.labels) {
+        if (lbl.x === undefined || lbl.y === undefined) {
+          // Defensive check (ELK should always return coordinates when edgeLabels.inline is set)
+          continue;
+        }
+        
+        const lblCenter = {
           x: offset.x + lbl.x + (lbl.width || 0) / 2,
           y: offset.y + lbl.y + (lbl.height || 0) / 2,
         };
-        labelSize = { width: Math.ceil(lbl.width || 0), height: Math.ceil(lbl.height || 0) };
+        
+        // Identify which label this is by its text content
+        // We stored them in collectEdges() with known text values
+        const lblText = lbl.text || '';
+        
+        if (lblText === semanticEdge.cardFrom) {
+          // Source cardinality label
+          cardFromPos = lblCenter;
+        } else if (lblText === semanticEdge.cardTo) {
+          // Target cardinality label
+          cardToPos = lblCenter;
+        } else if (lblText === semanticEdge.label || (!cardFromPos && !cardToPos && !labelPos)) {
+          // Main label (center)
+          if (!labelPos) {
+            labelPos = lblCenter;
+            labelSize = { width: Math.ceil(lbl.width || 0), height: Math.ceil(lbl.height || 0) };
+          }
+        }
       }
     }
 
@@ -260,6 +289,8 @@ function extractEdges(
       points,
       labelPos,
       labelSize,
+      cardFromPos,
+      cardToPos,
       fromGroup: groupIds.has(semanticEdge.from) ? semanticEdge.from : undefined,
       toGroup: groupIds.has(semanticEdge.to) ? semanticEdge.to : undefined,
     });

@@ -33,6 +33,8 @@ export interface ElkLabel {
   x?: number;
   y?: number;
   layoutOptions?: Record<string, string | number>;
+  /** Label placement: 'center' (default), 'tail' (source end), 'head' (target end) */
+  placement?: 'center' | 'tail' | 'head';
 }
 
 export interface ElkEdge {
@@ -815,15 +817,60 @@ function collectEdges(
       targets: [target],
     };
 
-    // Edge label — use LabelRenderer for proper multi-line measurement
+    // Create edge labels - with placement properties for ELK to compute positions
+    // PlantUML creates 3 separate labels: main center label + 2 cardinality labels
+    // Key insight: EDGE_LABELS_INLINE is set on the EDGE, not on individual labels
+    const labels: ElkLabel[] = [];
+
+    // Main edge label (center)
     if (edge.label) {
       const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme });
       const m = lr.measure();
-      elkEdge.labels = [{
+      labels.push({
         text: edge.label,
         width: m.width,
         height: m.height,
-      }];
+        placement: 'center',
+      });
+    }
+
+    // Source cardinality label (tail/source end)
+    if (edge.cardFrom) {
+      const lr = new LabelRenderer({ id: edge.id + '__card_from', label: edge.cardFrom, theme });
+      const m = lr.measure();
+      labels.push({
+        text: edge.cardFrom,
+        width: m.width,
+        height: m.height,
+        placement: 'tail',
+        layoutOptions: {
+          'org.eclipse.elk.edgeLabels.placement': 'TAIL',
+        },
+      });
+    }
+
+    // Target cardinality label (head/target end)
+    if (edge.cardTo) {
+      const lr = new LabelRenderer({ id: edge.id + '__card_to', label: edge.cardTo, theme });
+      const m = lr.measure();
+      labels.push({
+        text: edge.cardTo,
+        width: m.width,
+        height: m.height,
+        placement: 'head',
+        layoutOptions: {
+          'org.eclipse.elk.edgeLabels.placement': 'HEAD',
+        },
+      });
+    }
+
+    if (labels.length > 0) {
+      elkEdge.labels = labels;
+      // Set EDGE_LABELS_INLINE on the edge itself (not on individual labels)
+      // This tells ELK to compute positions for all edge labels
+      elkEdge.layoutOptions = {
+        'org.eclipse.elk.edgeLabels.inline': 'true',
+      };
     }
 
     elkEdges.push(elkEdge);
