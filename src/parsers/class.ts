@@ -2038,6 +2038,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               };
             }
             // Create edge: child --▷ parent (inheritance/implementation)
+            // Direction 'up' ensures parent appears above child in layout
             const edgeId = `e${edges.length + 1}`;
             const edgeType = st.relation === 'implements' ? EdgeType.Implementation : EdgeType.Inheritance;
             edges.push({
@@ -2046,6 +2047,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               to: targetId,
               type: edgeType,
               label: '',
+              direction: 'up',
             });
           }
         }
