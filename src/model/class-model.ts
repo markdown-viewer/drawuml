@@ -103,6 +103,8 @@ export interface SemanticGroup {
 
 export interface SemanticModel {
   diagramType: DiagramTypeName;
+  /** Diagram context for stereotype-to-shape resolution (class, deployment, state, etc.). */
+  diagramContext?: string;
   nodes: SemanticNode[];
   edges: SemanticEdge[];
   notes?: ClassNote[];

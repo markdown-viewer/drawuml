@@ -34,7 +34,7 @@ export function createRenderers(model: SemanticModel, options?: { theme?: Theme 
   const renderers = new Map<string, Renderer>();
 
   for (const node of model.nodes) {
-    const desc: NodeDescriptor = { ...node, theme };
+    const desc: NodeDescriptor = { ...node, theme, diagramContext: model.diagramContext };
     if (!visIcons) desc.visibilityIcons = false;
     if (activityShape) desc.activityShape = activityShape;
     if (actorStyle) desc.actorStyle = actorStyle;

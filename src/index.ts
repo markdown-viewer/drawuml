@@ -74,6 +74,7 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
     ? parseActivityDiagram(parsed.statements, { pragmas })
     : parseClassDiagram(parsed.statements, { pragmas, diagramContext });
   model.diagramType = diagramType;
+  model.diagramContext = diagramContext;
 
   const { layout, renderers } = engine === 'elk'
     ? await elkLayout(model, { theme })

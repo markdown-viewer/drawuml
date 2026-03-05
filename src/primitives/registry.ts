@@ -74,6 +74,10 @@ export interface RenderDescriptor {
   /** Computed theme for this conversion pass. */
   theme?: Theme;
 
+  // ── Diagram context ─────────────────────────────────────────────────
+  /** Diagram context (class, deployment, state, usecase, activity, object). */
+  diagramContext?: string;
+
   // ── Element-specific ────────────────────────────────────────────────
   /** Text alignment ('left' | 'center' | 'right'). */
   align?: string;
