@@ -1728,7 +1728,7 @@ function peg$parse(input: string, options?: ParseOptions) {
   const peg$c869 = peg$literalExpectation("implements", true);
   const peg$c870 = "extends";
   const peg$c871 = peg$literalExpectation("extends", true);
-  const peg$c872 = function(abs: any, kind: any, name: any, rel: any, target: any): any {
+  const peg$c872 = function(abs: any, kind: any, name: any, rel: any, target: any, b: any): any {
         return makeStatement('class_declaration', text(), location(), {
           type: String(kind).toLowerCase(),
           abstract: Boolean(abs),
@@ -1736,6 +1736,7 @@ function peg$parse(input: string, options?: ParseOptions) {
           stereotypes: [],
           relation: String(rel).toLowerCase(),
           relationTarget: target,
+          block: Boolean(b),
         });
       };
   const peg$c873 = function(abs: any, kind: any, name: any, tags: any, sts: any, style: any, b: any): any {
@@ -33446,11 +33447,29 @@ function peg$parse(input: string, options?: ParseOptions) {
                               s10 = null;
                             }
                             if (s10 as any !== peg$FAILED) {
-                              s11 = peg$parseEOL();
+                              s11 = peg$parseBlockStart();
+                              if (s11 as any === peg$FAILED) {
+                                s11 = null;
+                              }
                               if (s11 as any !== peg$FAILED) {
-                                peg$savedPos = s0;
-                                s1 = peg$c872(s2, s3, s5, s7, s9);
-                                s0 = s1;
+                                s12 = peg$parse_();
+                                if (s12 as any === peg$FAILED) {
+                                  s12 = null;
+                                }
+                                if (s12 as any !== peg$FAILED) {
+                                  s13 = peg$parseEOL();
+                                  if (s13 as any !== peg$FAILED) {
+                                    peg$savedPos = s0;
+                                    s1 = peg$c872(s2, s3, s5, s7, s9, s11);
+                                    s0 = s1;
+                                  } else {
+                                    peg$currPos = s0;
+                                    s0 = peg$FAILED;
+                                  }
+                                } else {
+                                  peg$currPos = s0;
+                                  s0 = peg$FAILED;
+                                }
                               } else {
                                 peg$currPos = s0;
                                 s0 = peg$FAILED;
