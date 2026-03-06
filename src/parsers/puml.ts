@@ -117,6 +117,8 @@ export function parsePlantUml(text) {
   let inActivityTextBlock = false;
   let inArrowLabelBlock = false;
   let styleBlockDepth = 0;
+  let inStyleTag = false;
+  let styleTagBraceDepth = 0;
   let inQuoteBlock = false;
   let inLegendBlock = false;
   let classBlockDepth = 0;
@@ -509,6 +511,31 @@ export function parsePlantUml(text) {
       continue;
     }
 
+    // <style> ... </style> tag block: use simple brace counting instead of
+    // PEG parsing, because PEG's StyleBlockStartLine excludes ComponentType
+    // keywords (actor, agent, etc.) which are valid CSS selector names.
+    if (inStyleTag) {
+      if (/^\s*<\/style>/i.test(trimmed)) {
+        inStyleTag = false;
+        styleTagBraceDepth = 0;
+        statements.push({ kind: 'markup_statement', line: lineNumber, raw: rawLine, text: '</style>' });
+        continue;
+      }
+      if (trimmed.endsWith('{')) {
+        const name = trimmed.slice(0, -1).trim();
+        styleTagBraceDepth += 1;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'style_block_start', name });
+        continue;
+      }
+      if (trimmed === '}') {
+        styleTagBraceDepth -= 1;
+        statements.push({ kind: 'block_statement', line: lineNumber, raw: rawLine, type: 'style_block_end' });
+        continue;
+      }
+      statements.push({ kind: 'style_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+      continue;
+    }
+
     if (styleBlockDepth > 0) {
       try {
         const st = parseStatementLine(rawLine);
@@ -615,6 +642,15 @@ export function parsePlantUml(text) {
       }
       if (st && st.kind === 'block_statement' && st.type === 'loose_block_start') {
         styleBlockDepth = 1;
+      }
+      // <style> tag triggers inStyleTag mode — all lines until </style>
+      // are parsed with simple brace counting (bypassing PEG) so that
+      // component-type keywords (actor, agent, etc.) used as CSS selectors
+      // are not misinterpreted as node declarations.
+      if (st && st.kind === 'markup_statement' && /^<style>/i.test(String(st.text || ''))) {
+        inStyleTag = true;
+        statements.push(st);
+        continue;
       }
       if (st && st.kind === 'block_statement' && st.type === 'legend_start') {
         inLegendBlock = true;
