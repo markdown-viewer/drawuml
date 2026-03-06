@@ -182,10 +182,11 @@ export function layoutGraphToElkSimple(
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
     // Post-layout compaction removes unnecessary vertical gaps
     'elk.layered.compaction.postCompaction.strategy': 'LEFT',
+    // Always set INCLUDE_CHILDREN (matching PlantUML behavior).
+    // This ensures all connected components share the same label-dummy
+    // layer, producing uniform layer spacing regardless of label count.
+    'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
   };
-  if (hasGroups) {
-    layoutOptions['elk.hierarchyHandling'] = 'INCLUDE_CHILDREN';
-  }
 
   const elkRoot: ElkNode = {
     id: 'root',
@@ -299,8 +300,6 @@ export function layoutGraphToElk(
     'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
     // Edge-label gap — scaled with font size
     'elk.spacing.edgeLabel': String(theme.padXS),
-    // Post-layout compaction removes unnecessary vertical gaps
-    'elk.layered.compaction.postCompaction.strategy': 'LEFT',
     // Node placement & alignment
     'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
     'elk.contentAlignment': 'H_CENTER V_CENTER',
@@ -312,10 +311,11 @@ export function layoutGraphToElk(
     // Do NOT merge parallel edges — each edge gets its own route
     // for better readability (merging causes overlapping lines).
     'elk.layered.mergeEdges': 'false',
+    // Always set INCLUDE_CHILDREN (matching PlantUML behavior).
+    // This ensures all connected components share the same label-dummy
+    // layer, producing uniform layer spacing regardless of label count.
+    'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
   };
-  if (hasGroups) {
-    layoutOptions['elk.hierarchyHandling'] = 'INCLUDE_CHILDREN';
-  }
 
   const elkRoot: ElkNode = {
     id: 'root',
@@ -817,60 +817,37 @@ function collectEdges(
       targets: [target],
     };
 
-    // Create edge labels - with placement properties for ELK to compute positions
-    // PlantUML creates 3 separate labels: main center label + 2 cardinality labels
-    // Key insight: EDGE_LABELS_INLINE is set on the EDGE, not on individual labels
+    // Edge labels — collect per edge, placeholder decision deferred below.
     const labels: ElkLabel[] = [];
 
-    // Main edge label (center)
+    // CENTER label — always present (matching PlantUML: getLabel() never returns null).
+    // When edge has no text, use 0x0 placeholder with text='X' so ELK's
+    // LabelDummyInserter always creates a dummy layer, ensuring uniform spacing.
     if (edge.label) {
       const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme });
       const m = lr.measure();
-      labels.push({
-        text: edge.label,
-        width: m.width,
-        height: m.height,
-        placement: 'center',
-      });
+      labels.push({ text: edge.label, width: m.width, height: m.height, placement: 'center' });
     }
 
-    // Source cardinality label (tail/source end)
+    // TAIL label — only when quantifier exists
     if (edge.cardFrom) {
       const lr = new LabelRenderer({ id: edge.id + '__card_from', label: edge.cardFrom, theme });
       const m = lr.measure();
-      labels.push({
-        text: edge.cardFrom,
-        width: m.width,
-        height: m.height,
-        placement: 'tail',
-        layoutOptions: {
-          'org.eclipse.elk.edgeLabels.placement': 'TAIL',
-        },
-      });
+      labels.push({ text: edge.cardFrom, width: m.width, height: m.height, placement: 'tail',
+        layoutOptions: { 'org.eclipse.elk.edgeLabels.placement': 'TAIL' } });
     }
 
-    // Target cardinality label (head/target end)
+    // HEAD label — only when quantifier exists
     if (edge.cardTo) {
       const lr = new LabelRenderer({ id: edge.id + '__card_to', label: edge.cardTo, theme });
       const m = lr.measure();
-      labels.push({
-        text: edge.cardTo,
-        width: m.width,
-        height: m.height,
-        placement: 'head',
-        layoutOptions: {
-          'org.eclipse.elk.edgeLabels.placement': 'HEAD',
-        },
-      });
+      labels.push({ text: edge.cardTo, width: m.width, height: m.height, placement: 'head',
+        layoutOptions: { 'org.eclipse.elk.edgeLabels.placement': 'HEAD' } });
     }
 
     if (labels.length > 0) {
       elkEdge.labels = labels;
-      // Set EDGE_LABELS_INLINE on the edge itself (not on individual labels)
-      // This tells ELK to compute positions for all edge labels
-      elkEdge.layoutOptions = {
-        'org.eclipse.elk.edgeLabels.inline': 'true',
-      };
+      elkEdge.layoutOptions = { 'org.eclipse.elk.edgeLabels.inline': 'true' };
     }
 
     elkEdges.push(elkEdge);
