@@ -3184,7 +3184,7 @@ function peg$parse(input: string, options?: ParseOptions) {
   }
 
   function peg$parseStyleBlockStartLine(): any {
-    let s0, s1, s2, s3, s4, s5, s6;
+    let s0, s1, s2, s3, s4, s5, s6, s7;
 
     const key = peg$currPos * 321 + 13;
     const cached: Cached = peg$resultsCache[key];
@@ -3201,31 +3201,46 @@ function peg$parse(input: string, options?: ParseOptions) {
       s1 = null;
     }
     if (s1 as any !== peg$FAILED) {
-      s2 = peg$parseCNAME();
+      s2 = peg$currPos;
+      peg$silentFails++;
+      s3 = peg$parseComponentType();
+      peg$silentFails--;
+      if (s3 as any === peg$FAILED) {
+        s2 = undefined;
+      } else {
+        peg$currPos = s2;
+        s2 = peg$FAILED;
+      }
       if (s2 as any !== peg$FAILED) {
-        s3 = peg$parse_();
-        if (s3 as any === peg$FAILED) {
-          s3 = null;
-        }
+        s3 = peg$parseCNAME();
         if (s3 as any !== peg$FAILED) {
-          if (input.charCodeAt(peg$currPos) === 123) {
-            s4 = peg$c43;
-            peg$currPos++;
-          } else {
-            s4 = peg$FAILED;
-            if (peg$silentFails === 0) { peg$fail(peg$c44); }
+          s4 = peg$parse_();
+          if (s4 as any === peg$FAILED) {
+            s4 = null;
           }
           if (s4 as any !== peg$FAILED) {
-            s5 = peg$parse_();
-            if (s5 as any === peg$FAILED) {
-              s5 = null;
+            if (input.charCodeAt(peg$currPos) === 123) {
+              s5 = peg$c43;
+              peg$currPos++;
+            } else {
+              s5 = peg$FAILED;
+              if (peg$silentFails === 0) { peg$fail(peg$c44); }
             }
             if (s5 as any !== peg$FAILED) {
-              s6 = peg$parseEOL();
+              s6 = peg$parse_();
+              if (s6 as any === peg$FAILED) {
+                s6 = null;
+              }
               if (s6 as any !== peg$FAILED) {
-                peg$savedPos = s0;
-                s1 = peg$c45(s2);
-                s0 = s1;
+                s7 = peg$parseEOL();
+                if (s7 as any !== peg$FAILED) {
+                  peg$savedPos = s0;
+                  s1 = peg$c45(s3);
+                  s0 = s1;
+                } else {
+                  peg$currPos = s0;
+                  s0 = peg$FAILED;
+                }
               } else {
                 peg$currPos = s0;
                 s0 = peg$FAILED;

@@ -132,6 +132,14 @@ interface DotAdapterContext {
   groupPadding: number;
   /** Inter-group spacing (DOT outer protection margin) */
   groupSpacing: number;
+  /** All semantic edges (for intra-cluster rank=same filtering) */
+  edges: SemanticEdge[];
+  /** Node → parent group mapping */
+  parentIdMap: Map<string, string>;
+  /** Group IDs that produce DOT clusters */
+  groupIds: Set<string>;
+  /** Group ID → representative DOT node name */
+  groupRepNode: Map<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +275,19 @@ function buildNodeDotLines(
   const targetCols = Math.max(Math.ceil(Math.sqrt(totalItems)), 2);
   const leafIds = leafNormal.map(c => c.id);
   lines.push(...ctx.buildRowPacking(leafIds, inner + '  ', ctx.maxRowWidth, targetCols));
+
+  // Emit rank=same for horizontal edges within this cluster.
+  // Mirrors PlantUML's Cluster.getRankSame(): each cluster filters
+  // all edges and emits rank=same for those with both endpoints inside.
+  const childIds = new Set(gn.children.map(c => c.id));
+  for (const edge of ctx.edges) {
+    const dir = edge.direction || null;
+    if (dir !== 'left' && dir !== 'right') continue;
+    if (!childIds.has(edge.from) || !childIds.has(edge.to)) continue;
+    const fromNodeId = ctx.groupIds.has(edge.from) ? (ctx.groupRepNode.get(edge.from) || `"${edge.from}"`) : `"${edge.from}"`;
+    const toNodeId = ctx.groupIds.has(edge.to) ? (ctx.groupRepNode.get(edge.to) || `"${edge.to}"`) : `"${edge.to}"`;
+    lines.push(`${inner}  {rank=same; ${fromNodeId}; ${toNodeId}}`);
+  }
 
   lines.push(`${inner}}`);
   lines.push(`${indent}}`);
@@ -485,6 +506,10 @@ export function layoutGraphToDot(
     fontSize: layoutFontSize,
     groupPadding,
     groupSpacing,
+    edges: model.edges,
+    parentIdMap,
+    groupIds,
+    groupRepNode,
   };
 
   // --- Node + group DOT blocks (walk IR tree) ---
@@ -542,9 +567,16 @@ export function layoutGraphToDot(
     const dotTo = isInverted ? fromSpec : toSpec;
     edgeLines.push(`  ${dotFrom} -> ${dotTo} [${attrs}]`);
     if (isHorizontal) {
-      const fromNodeId = isFromGroup ? (groupRepNode.get(edge.from) || `"${edge.from}"`) : `"${edge.from}"`;
-      const toNodeId = isToGroup ? (groupRepNode.get(edge.to) || `"${edge.to}"`) : `"${edge.to}"`;
-      edgeLines.push(`  {rank=same; ${fromNodeId}; ${toNodeId}}`);
+      // Emit rank=same only for top-level nodes (not inside any cluster).
+      // Intra-cluster rank=same is handled inside buildNodeDotLines,
+      // matching PlantUML's Cluster.getRankSame() pattern.
+      const fromParent = parentIdMap.get(edge.from);
+      const toParent = parentIdMap.get(edge.to);
+      if (!fromParent && !toParent) {
+        const fromNodeId = isFromGroup ? (groupRepNode.get(edge.from) || `"${edge.from}"`) : `"${edge.from}"`;
+        const toNodeId = isToGroup ? (groupRepNode.get(edge.to) || `"${edge.to}"`) : `"${edge.to}"`;
+        edgeLines.push(`  {rank=same; ${fromNodeId}; ${toNodeId}}`);
+      }
     }
   }
 

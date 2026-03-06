@@ -1858,9 +1858,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in description context → actor (PlantUML default for DescriptionDiagram)
               nodesById[from] = { id: from, type: NodeType.UsecaseActor, label: shortFrom, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else if (!lollipopFrom && isDeploymentContext) {
-              // Bare name in deployment context: circle if no arrow heads, class if any arrow head
-              const depStereo = hasArrowHeadInRouting ? null : 'circle';
-              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: depStereo, stereotypeLabel: '', bodyLines: [] };
+              // Bare name in deployment context: check if original name had brackets/parens
+              // () prefix → explicit interface (circle stereotype)
+              // [Name] → component (null stereotype)
+              // bare Name → provided interface (circle stereotype)
+              const isExplicitInterface = rawFrom.startsWith('()');
+              const isComponent = rawFrom.startsWith('[');
+              const stereotype = isComponent ? null : 'circle';
+              nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype, stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[from] = { id: from, type: defaultNodeType, label: shortFrom, stereotype: lollipopFrom ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
@@ -1887,9 +1892,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               // Bare name in description context → actor (PlantUML default for DescriptionDiagram)
               nodesById[to] = { id: to, type: NodeType.UsecaseActor, label: shortTo, stereotype: 'actor', stereotypeLabel: '', bodyLines: [] };
             } else if (!lollipopTo && isDeploymentContext) {
-              // Bare name in deployment context: circle if no arrow heads, class if any arrow head
-              const depStereo = hasArrowHeadInRouting ? null : 'circle';
-              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: depStereo, stereotypeLabel: '', bodyLines: [] };
+              // Bare name in deployment context: check if original name had brackets/parens
+              // () prefix → explicit interface (circle stereotype)
+              // [Name] → component (null stereotype)
+              // bare Name → provided interface (circle stereotype)
+              const isExplicitInterface = rawTo.startsWith('()');
+              const isComponent = rawTo.startsWith('[');
+              const stereotype = isComponent ? null : 'circle';
+              nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype, stereotypeLabel: '', bodyLines: [] };
             } else {
               nodesById[to] = { id: to, type: defaultNodeType, label: shortTo, stereotype: lollipopTo ? 'circle' : null, stereotypeLabel: '', bodyLines: [] };
             }
@@ -1911,6 +1921,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           continue;
         }
 
+        // PlantUML convention: single-dash edges (length=1) without explicit direction
+        // are horizontal by default (same rank constraint).
+        let edgeDirection = resolvedMeta?.direction || null;
+        const edgeLength = resolvedMeta?.length || 1;
+        if (!edgeDirection && edgeLength === 1) {
+          edgeDirection = 'right';
+        }
+
         edges.push({
           id: `e${edges.length + 1}`,
           type: edgeType,
@@ -1924,8 +1942,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           style: st.style || null,
           fromPort: fromPort || undefined,
           toPort: toPort || undefined,
-          direction: resolvedMeta?.direction || null,
-          length: resolvedMeta?.length || undefined,
+          direction: edgeDirection,
+          length: edgeLength,
         });
         lastEdgeId = edges[edges.length - 1].id;
         continue;
