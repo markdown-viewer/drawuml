@@ -74,6 +74,12 @@ class StateHistoryRenderer extends IconRenderer {
     this.historyLabel = desc.label || 'H';
   }
 
+  // Label is rendered inside the circle, not as an external label.
+  // Override measure to return icon-only dimensions.
+  get nodeLabel(): string { return ''; }
+  graphicSize() { return null; }
+  protected doMeasure() { return { width: this.iconWidth, height: this.iconHeight }; }
+
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
