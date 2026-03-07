@@ -1629,7 +1629,8 @@ function peg$parse(input: string, options?: ParseOptions) {
         var color = null;
         [pre, post].forEach(function(s) { if (s && s.color) color = s.color; });
         var ls = (pre.lineStyle === 'dashed' || post.lineStyle === 'dashed') ? 'dashed'
-               : (pre.lineStyle === 'dotted' || post.lineStyle === 'dotted') ? 'dotted' : 'solid';
+               : (pre.lineStyle === 'dotted' || post.lineStyle === 'dotted') ? 'dotted'
+               : (pre.lineStyle === 'bold' || post.lineStyle === 'bold') ? 'bold' : 'solid';
         var direction = pre.direction || post.direction || null;
         return { token: text(), lineStyle: ls, color: color, middleShape: mid, direction: direction };
       };
@@ -1642,7 +1643,7 @@ function peg$parse(input: string, options?: ParseOptions) {
         var color = null; var direction = null;
         pre.forEach(function(u) { if (u && u.color) color = u.color; if (u && u.direction) direction = u.direction; });
         var t = text();
-        var ls = t.indexOf('~') >= 0 ? 'dotted' : 'solid';
+        var ls = t.indexOf('~') >= 0 ? 'dotted' : t.indexOf('=') >= 0 ? 'bold' : 'solid';
         return { token: t, lineStyle: ls, color: color, direction: direction };
       };
   const peg$c833 = /^[.\-=~]/;

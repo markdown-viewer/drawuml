@@ -61,7 +61,7 @@ export interface ArrowMetaParts {
   startHeadToken?: string;
   endHeadToken?: string;
   bodyToken?: string;
-  lineStyle: 'solid' | 'dashed';
+  lineStyle: 'solid' | 'dashed' | 'dotted' | 'bold';
   direction?: 'left' | 'right' | 'up' | 'down' | null;
   /** Arrow length — number of line chars (-, ., =). Affects DOT minlen. */
   length?: number;
