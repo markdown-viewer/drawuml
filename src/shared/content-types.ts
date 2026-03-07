@@ -41,11 +41,16 @@ export interface ContentBox {
  * Options controlling how child cell styles are built inside renderChildren.
  * When BlockLayout holds a theme, these options fine-tune the generated styles.
  */
+/** Returns separator x and width at a given vertical center y within the shape. */
+export type SeparatorBoundsFn = (centerY: number) => { x: number; width: number };
+
 export interface ChildStyleOpts {
   /** Container fill color — used for separator label background */
   fillColor?: string;
   /** Container stroke color — used for separator line color */
   strokeColor?: string;
+  /** Custom separator bounds function for non-rectangular shapes */
+  separatorBounds?: SeparatorBoundsFn;
   /** Child row/separator stroke color inheritance (class-node skinparam) */
   childStroke?: string;
   /** Child row/separator line style inheritance (class-node skinparam) */

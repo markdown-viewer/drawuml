@@ -8,6 +8,7 @@
 import { normalizeColor, darkenColor } from '../../shared/color-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
 import type { ShapePadding } from './rich-renderer.ts';
+import type { SeparatorBoundsFn } from '../../shared/content-types.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -49,6 +50,11 @@ class NoteNodeRenderer extends RichRenderer {
       return { right: clip };
     }
     return {};
+  }
+
+  // Separator lines span the full width regardless of shapePadding
+  protected separatorBounds(boxW: number, _boxH: number): SeparatorBoundsFn | undefined {
+    return () => ({ x: 0, width: boxW });
   }
 }
 

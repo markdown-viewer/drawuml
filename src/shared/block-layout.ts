@@ -911,13 +911,14 @@ export class BlockLayout {
           baseSepStyle, b.variant, !!b.titleText,
           { fillColor, strokeColor },
         );
+        const bounds = opts?.separatorBounds?.(y + sepHeight / 2);
         cells.push(mxVertex({
           value: b.titleText?.html || '',
           style: sepStyle,
           parent: parentId,
-          x,
+          x: bounds?.x ?? x,
           y,
-          width,
+          width: bounds?.width ?? width,
           height: sepHeight,
         }));
         y += sepHeight;

@@ -7,6 +7,7 @@
 
 import { RichRenderer } from './rich-renderer.ts';
 import type { ShapePadding } from './rich-renderer.ts';
+import type { SeparatorBoundsFn } from '../../shared/content-types.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
@@ -44,6 +45,18 @@ class UsecaseRenderer extends RichRenderer {
 
   // Usecase is always a leaf, never a container
   get isCluster(): boolean { return false; }
+
+  // Separator spans the ellipse chord at the given y
+  protected separatorBounds(boxW: number, boxH: number): SeparatorBoundsFn | undefined {
+    const rx = boxW / 2;
+    const ry = boxH / 2;
+    return (centerY: number) => {
+      const dy = centerY - ry;
+      const t = 1 - (dy * dy) / (ry * ry);
+      const halfW = t > 0 ? rx * Math.sqrt(t) : 0;
+      return { x: rx - halfW, width: halfW * 2 };
+    };
+  }
 }
 
 export function registerUsecaseShape(): void {

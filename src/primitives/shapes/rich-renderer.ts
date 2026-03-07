@@ -20,7 +20,7 @@ import { mxVertex, mxContentLabel, escapeXml, n4 } from '../../shared/xml-utils.
 import { Renderer } from '../renderer.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
-import type { ContentBox } from '../../shared/content-types.ts';
+import type { ContentBox, SeparatorBoundsFn } from '../../shared/content-types.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { Theme } from '../../shared/theme.ts';
 import { fontFamilyStyle } from '../../shared/theme.ts';
@@ -255,6 +255,14 @@ export abstract class RichRenderer extends Renderer {
    */
   protected renderExtraCells(_box: ContentBox): string[] { return []; }
 
+  /**
+   * Separator bounds function for non-rectangular shapes.
+   * Given centerY (relative to cell), returns { x, width } for separator line.
+   * Default: null (use standard rectangular bounds from shapePadding).
+   * Override for shapes like usecase/queue/process/hexagon.
+   */
+  protected separatorBounds(_boxWidth: number, _boxHeight: number): SeparatorBoundsFn | undefined { return undefined; }
+
   // ── Base class: measurement, DOT, render ──────────────────────────────────
 
   protected doMeasure() {
@@ -418,6 +426,7 @@ export abstract class RichRenderer extends Renderer {
     cells.push(...this.content.renderChildren(this.id, childWidth, {
       fillColor,
       strokeColor,
+      separatorBounds: this.separatorBounds(box.width, box.height),
     }, childStartY, padLeft));
     return cells;
   }
