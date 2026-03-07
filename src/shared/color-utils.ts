@@ -54,9 +54,16 @@ export function darkenColor(color: string, ratio = 0.25): string {
   if (!m) return color; // can't parse, return as-is
 
   // Parse sRGB [0,1]
-  const sr = parseInt(m[1].slice(0, 2), 16) / 255;
-  const sg = parseInt(m[1].slice(2, 4), 16) / 255;
-  const sb = parseInt(m[1].slice(4, 6), 16) / 255;
+  const ri = parseInt(m[1].slice(0, 2), 16);
+  const gi = parseInt(m[1].slice(2, 4), 16);
+  const bi = parseInt(m[1].slice(4, 6), 16);
+
+  // Achromatic colors (white/gray/black) → always return black
+  if (ri === gi && gi === bi) return '#000000';
+
+  const sr = ri / 255;
+  const sg = gi / 255;
+  const sb = bi / 255;
 
   // sRGB → linear RGB (gamma decode)
   const toLinear = (c: number) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
