@@ -93,7 +93,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     boldStrokeWidth: r4(strokeWidth * 2),
     arcSize: r4(fontSize / 2),
     largeArcSize: fontSize,
-    cornerClip: r4(fontSize * 6 / 12),
+    cornerClip: r4(fontSize * 8 / 12),
 
     // ── Sizes — 7 standardized tiers ──
     sizeXXS: r4(fontSize * 5 / 12),     //   5

@@ -272,8 +272,8 @@ export abstract class RichRenderer extends Renderer {
       };
     }
     return {
-      width: Math.max(this.theme.sizeXL, size.width + this.theme.padM + padLeft + padRight),
-      height: size.height + this.theme.padS + padTop + padBottom + this.titleAreaHeight,
+      width: Math.max(this.theme.sizeXL, size.width + this.theme.padS * 2 + padLeft + padRight),
+      height: size.height + this.theme.padS * 2 + padTop + padBottom + this.titleAreaHeight,
     };
   }
 
