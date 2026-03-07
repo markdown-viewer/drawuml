@@ -59,7 +59,7 @@ class UmlShapeRenderer extends IconRenderer {
     });
     const cx = box.x + (box.width - this.iconWidth) / 2;
     let s = `shape=${this.config.shape};verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;`
-      + `fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
+      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;`
       + fontFamilyStyle(this.theme);
     if (this.color) s = s.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);

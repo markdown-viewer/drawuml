@@ -289,11 +289,11 @@ export class ConcurrentRegionRenderer extends Renderer {
     // LR mode: horizontal=0 puts the label on the left side (double header).
     const headerH = this.titleBarHeight;
     const startSize = this.regionLabel ? (this._isHorizontalLane ? headerH * 2 : headerH) : 0;
-    const fill = this.regionColor || 'none';
+    const fill = this.regionColor || this.theme.groupFill;
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
-      + `strokeWidth=${this.theme.strokeWidth};fillColor=${fill};strokeColor=${this.theme.colorDark};`
+      + `strokeWidth=${this.theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${this.theme.colorDark};`
       + `fontStyle=0;fontSize=${this.theme.smallFontSize};${fontFamilyStyle(this.theme)}`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
@@ -350,6 +350,7 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
   if (parsed) {
     if (parsed.fillColor) {
       base.push(`fillColor=${parsed.fillColor}`);
+      base.push(`swimlaneFillColor=${parsed.fillColor}`);
       if (!parsed.strokeColor) base.push(`strokeColor=${darkenColor(parsed.fillColor)}`);
     }
     if (parsed.strokeColor) base.push(`strokeColor=${parsed.strokeColor}`);
@@ -359,6 +360,7 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
     else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.boldStrokeWidth)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
+  if (!base.some(s => s.startsWith('swimlaneFillColor='))) base.push(`swimlaneFillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
   return base.join(';') + ';';
 }
@@ -384,7 +386,11 @@ class StateNodeRenderer extends SwimlaneRenderer {
     return stateNodeStyle(titleHeight, this.theme, this.nodeStyle);
   }
 
-  protected getChildStyleOpts() { return { portConstraint: true as const, spacingX: this.theme.padXS }; }
+  protected getChildStyleOpts() {
+    const parsed = this.nodeStyle ? parseNodeStyle(this.nodeStyle) : null;
+    const fill = parsed?.fillColor || this.theme.defaultFill;
+    return { fillColor: fill, portConstraint: true as const, spacingX: this.theme.padXS };
+  }
 
   get clusterLabel(): string { return this._nodeLabel; }
 
@@ -506,6 +512,7 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
   if (parsed) {
     if (parsed.fillColor) {
       base.push(`fillColor=${parsed.fillColor}`);
+      base.push(`swimlaneFillColor=${parsed.fillColor}`);
       if (!parsed.strokeColor) base.push(`strokeColor=${darkenColor(parsed.fillColor)}`);
     }
     if (parsed.strokeColor) base.push(`strokeColor=${parsed.strokeColor}`);
@@ -515,6 +522,7 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
     else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.boldStrokeWidth)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
+  if (!base.some(s => s.startsWith('swimlaneFillColor='))) base.push(`swimlaneFillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
   return base.join(';') + ';';
 }

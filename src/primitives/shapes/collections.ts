@@ -17,7 +17,7 @@ class CollectionsRenderer extends RichRenderer {
   private get shadowOffset(): number { return this.theme.padXS; }
 
   protected buildStyle(): string {
-    return `shape=mxgraph.basic.rect;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=#FFFFFF;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
+    return `shape=mxgraph.basic.rect;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
   }
   get isCluster(): boolean { return false; }
 

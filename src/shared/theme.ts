@@ -31,6 +31,7 @@ export interface Theme {
   // ── Colors & fills ────────────────────────────────────────────────────────
   readonly colorDark: string;
   readonly defaultFill: string;
+  readonly groupFill: string;
   readonly classFill: string;
   readonly dividerFill: string;
   readonly legendFill: string;
@@ -82,7 +83,8 @@ export function createTheme(config?: ThemeConfig): Theme {
     // ── Colors & fills ──
     colorDark: '#181818',
     defaultFill: '#F1F1F1',
-    classFill: '#FFFFFF',
+    groupFill: '#FFFFFF',
+    classFill: '#F1F1F1',
     dividerFill: '#EEEEEE',
     legendFill: '#DDDDDD',
     noteLinkColor: '#AEAE8F',

@@ -60,8 +60,8 @@ export class MxgraphIconRenderer extends IconRenderer {
     // User-specified inline color (#RRGGBB or #Name)
     const inlineColor = this.desc.style;
 
-    // Only emit fillColor=none when dataStyle doesn't already supply a fillColor
-    const defaultFill = dataStyle.includes('fillColor=') ? null : 'fillColor=none';
+    // Only emit default fillColor when dataStyle doesn't already supply one
+    const defaultFill = dataStyle.includes('fillColor=') ? null : `fillColor=${this.theme.defaultFill}`;
 
     // For variant icons (e.g. mxgraph.bpmn.event.start), the DrawIO shape key
     // is the parent group (mxgraph.bpmn.event); variant params are in dataStyle.

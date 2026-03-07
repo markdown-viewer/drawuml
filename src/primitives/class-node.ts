@@ -172,6 +172,7 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
   if (parsed) {
     if (parsed.fillColor) {
       base.push(`fillColor=${parsed.fillColor}`);
+      base.push(`swimlaneFillColor=${parsed.fillColor}`);
       // Auto-derive stroke color when only fill is specified
       if (!parsed.strokeColor) base.push(`strokeColor=${darkenColor(parsed.fillColor)}`);
     }
@@ -182,9 +183,10 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${theme.boldStrokeWidth}`);
   }
 
-  // Default white fill when no custom fill specified
+  // Default fill when no custom fill specified
   if (!base.some(s => s.startsWith('fillColor='))) {
     base.push(`fillColor=${theme.classFill}`);
+    base.push(`swimlaneFillColor=${theme.classFill}`);
   }
 
   return base.join(';') + ';';
@@ -198,6 +200,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   private node: NodeDescriptor;
   private childStroke?: string;
   private childLineStyle?: string;
+  private childFillColor: string;
   private skipAutoSep: boolean;
 
   constructor(node: NodeDescriptor) {
@@ -214,6 +217,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     const parsed = parseNodeStyle(node.style);
     this.childStroke = parsed?.strokeColor || undefined;
     this.childLineStyle = parsed?.lineStyle || undefined;
+    this.childFillColor = parsed?.fillColor || node.theme.classFill;
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
@@ -226,6 +230,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
 
   protected getChildStyleOpts() {
     return {
+      fillColor: this.childFillColor,
       childStroke: this.childStroke,
       childLineStyle: this.childLineStyle,
       portConstraint: true as const,

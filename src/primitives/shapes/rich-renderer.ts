@@ -226,11 +226,14 @@ export abstract class RichRenderer extends Renderer {
 
   /**
    * Apply color override to the style string.
-   * Default: replace fillColor. Override for shapes like label that use fontColor.
+   * When user specifies a color, replace fillColor with that color.
+   * Otherwise, replace fillColor=none with theme.defaultFill as fallback.
+   * Override for shapes like label that use fontColor.
    */
   protected applyColorOverride(style: string): string {
     if (this.color) return style.replace(/fillColor=[^;]*/, `fillColor=${normalizeColor(this.color)}`);
-    return style;
+    const fill = this.isCluster ? this.theme.groupFill : this.theme.defaultFill;
+    return style.replace('fillColor=none', `fillColor=${fill}`);
   }
 
   /**
