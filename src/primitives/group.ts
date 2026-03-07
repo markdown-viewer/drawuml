@@ -60,8 +60,8 @@ export function resolveGroupShape(
   }
 
   // Warn when falling back to 'folder' for a non-package type.
-  // 'package' and 'namespace' legitimately default to folder.
-  const FOLDER_DEFAULT_TYPES = new Set(['package', 'namespace', 'folder', '']);
+  // 'package', 'namespace' and 'partition' legitimately default to folder.
+  const FOLDER_DEFAULT_TYPES = new Set(['package', 'namespace', 'folder', 'partition', '']);
   if (!FOLDER_DEFAULT_TYPES.has(type) && _getWarnings) {
     _getWarnings().push({
       type: 'unimplemented_shape',
