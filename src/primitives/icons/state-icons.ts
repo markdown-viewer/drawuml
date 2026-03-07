@@ -27,7 +27,8 @@ class StateStartRenderer extends IconRenderer {
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    const y = box.y + (box.height - d) / 2;
+    // Icon at top — label area (if any) extends below
+    const y = box.y;
     return [mxVertex({ id: this.id, value: '', style: `shape=startState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
@@ -42,7 +43,8 @@ class StateEndRenderer extends IconRenderer {
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    const y = box.y + (box.height - d) / 2;
+    // Icon at top — label area (if any) extends below
+    const y = box.y;
     return [mxVertex({ id: this.id, value: '', style: `shape=endState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
@@ -57,7 +59,8 @@ class FlowFinalRenderer extends IconRenderer {
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    const y = box.y + (box.height - d) / 2;
+    // Icon at top — label area (if any) extends below
+    const y = box.y;
     return [mxVertex({ id: this.id, value: '', style: `shape=flowFinal;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
 }
@@ -83,7 +86,8 @@ class StateHistoryRenderer extends IconRenderer {
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    const y = box.y + (box.height - d) / 2;
+    // Icon at top — label area (if any) extends below
+    const y = box.y;
     return [mxVertex({
       id: this.id,
       value: this.historyLabel,
