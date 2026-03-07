@@ -2,7 +2,7 @@
  * Shared edge cell builder — generates mxCell XML for edges/connections.
  *
  * Centralizes:
- *   1. Label processing (raw PlantUML → Content.inline → HTML)
+ *   1. Label processing (raw PlantUML → TextBlock.inline → HTML)
  *   2. mxCell XML envelope (id, value, style, source, target)
  *   3. mxGeometry (source/target points, waypoints, label offset)
  *   4. Sub-labels (cardinality markers at edge endpoints)
@@ -12,7 +12,7 @@
  */
 
 import { escapeXml, cellId, n4 } from './xml-utils.ts';
-import { Content } from './content.ts';
+import { TextBlock } from './text-block.ts';
 
 export interface EdgeCellSpec {
   id: string;
@@ -53,15 +53,15 @@ export interface EdgeCellSpec {
 
 /**
  * Build one or more mxCell XML strings for an edge and its sub-labels.
- * Label text is automatically processed through the Content.inline() pipeline
+ * Label text is automatically processed through the TextBlock.inline() pipeline
  * (unescapePlantUml → creoleInline → finalizeHtml).
  */
 export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   const cells: string[] = [];
 
   // Process label through Content pipeline
-  const fontOpts = { fontSize: spec.fontSize, fontFamily: spec.fontFamily };
-  const htmlLabel = spec.label ? Content.inline(spec.label, fontOpts).html : '';
+  const font = { size: spec.fontSize || 12, family: spec.fontFamily || 'Arial, Helvetica, sans-serif' };
+  const htmlLabel = spec.label ? TextBlock.inline(spec.label, font).html : '';
   const value = htmlLabel ? escapeXml(htmlLabel) : '';
   let style = spec.style;
   if (htmlLabel && !style.includes('html=1')) style += 'html=1;';
@@ -116,7 +116,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
   // Sub-labels (cardinality markers at edge endpoints)
   const cardFontStyle = (spec.fontSize ? `fontSize=${spec.fontSize};` : '') + (spec.fontFamily ? `fontFamily=${spec.fontFamily};` : '');
   if (spec.cardFrom) {
-    const cardHtml = escapeXml(Content.inline(spec.cardFrom, fontOpts).html);
+    const cardHtml = escapeXml(TextBlock.inline(spec.cardFrom, font).html);
     cells.push(
       `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(spec.id))}">`
       + `<mxGeometry x="-1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
@@ -124,7 +124,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
     );
   }
   if (spec.cardTo) {
-    const cardHtml = escapeXml(Content.inline(spec.cardTo, fontOpts).html);
+    const cardHtml = escapeXml(TextBlock.inline(spec.cardTo, font).html);
     cells.push(
       `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(spec.id))}">`
       + `<mxGeometry x="1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`

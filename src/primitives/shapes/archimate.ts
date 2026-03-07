@@ -18,7 +18,7 @@ import { JunctionRenderer } from '../icons/junction.ts';
 
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 
 // ---------------------------------------------------------------------------
 // Stereotype → DrawIO style mapping

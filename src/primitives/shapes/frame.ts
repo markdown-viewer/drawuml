@@ -5,8 +5,7 @@
  * Also exports buildUmlFrameStyle() for reuse by sequence-diagram fragments.
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
-import { Content } from '../../shared/content.ts';
+import { TextBlock, DEFAULT_FONT } from '../../shared/text-block.ts';
 import { RichRenderer } from './rich-renderer.ts';
 import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
@@ -67,9 +66,9 @@ class FrameShapeRenderer extends RichRenderer {
   private get isMainframe(): boolean { return this.desc.fixedHeight != null; }
 
   protected buildStyle(): string {
-    // Measure tab text after Creole processing (strip markup like **bold** etc.)
-    const labelHtml = Content.inline(this.label).html;
-    const tabW = Math.max(Math.ceil(measureText(labelHtml, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', true).width) + this.theme.fontSize, this.theme.sizeM);
+    // Measure tab text with bold font (Creole markup stripped by TextBlock.inline)
+    const tabBlock = TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' });
+    const tabW = Math.max(Math.ceil(tabBlock.width) + this.theme.fontSize, this.theme.sizeM);
     if (this.isMainframe) {
       const tabH = this.desc.fixedHeight ?? this.theme.sizeS;
       return buildUmlFrameStyle({
@@ -99,7 +98,7 @@ class FrameShapeRenderer extends RichRenderer {
 
   // Mainframe: label in frame value, no body content
   protected getFrameValue(): string {
-    if (this.isMainframe) return Content.inline(this.label).html;
+    if (this.isMainframe) return TextBlock.inline(this.label, DEFAULT_FONT).html;
     return super.getFrameValue();
   }
 

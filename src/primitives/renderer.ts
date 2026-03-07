@@ -17,11 +17,11 @@
  *   const cells = r.render(box);     // after layout
  */
 
-import { Content } from '../shared/content.ts';
+import { BlockLayout } from '../shared/block-layout.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import type { LayoutResult } from '../model/index.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
-import type { ContentBox, FinalizeBodyCtx, ContentBlock, ChildStyleOpts } from '../shared/content.ts';
+import type { ContentBox, FinalizeBodyCtx, ContentBlock, ChildStyleOpts } from '../shared/content-types.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 import type { Theme } from '../shared/theme.ts';
@@ -204,16 +204,16 @@ export type NodeRenderer = Renderer;
  * and appends body child rows/separators below the title area.
  */
 export abstract class SwimlaneRenderer extends Renderer {
-  protected content: Content;
+  protected content: BlockLayout;
 
   constructor(nodeId: string, theme?: Theme) {
     super(nodeId, theme);
   }
 
   /**
-   * Build the Content object for this swimlane.
+   * Build the BlockLayout object for this swimlane.
    * Wires up `this.finalizeBody()` as the callback for entity-specific
-   * separator behavior inside Content.classBody().
+   * separator behavior inside BlockLayout.classBody().
    */
   protected initContent(titleHtml: string, opts?: {
     bodyLines?: BodyLine[];
@@ -221,7 +221,7 @@ export abstract class SwimlaneRenderer extends Renderer {
     hideFields?: boolean;
     hideMethods?: boolean;
   }) {
-    this.content = Content.classBody({
+    this.content = BlockLayout.classBody({
       titleHtml,
       nodeId: this.id,
       bodyLines: opts?.bodyLines,

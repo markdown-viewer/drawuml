@@ -4,7 +4,7 @@
  */
 
 import { mxVertex, n4 } from '../shared/xml-utils.ts';
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { createTheme, fontFamilyStyle, type Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
@@ -31,12 +31,12 @@ export function renderDivider(divider: {
   if (divider.type === 'ellipsis') return [];
 
   const cells: string[] = [];
+  const theme = divider.theme ?? createTheme();
+  const fontSize = theme.fontSize;
 
   // Delay dividers: plain text, no lines
   if (divider.type === 'delay') {
-    const labelHtml = Content.inline(divider.label).html;
-    const theme = divider.theme ?? createTheme();
-    const fontSize = theme.fontSize;
+    const labelHtml = TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily }).html;
     const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};${fontFamilyStyle(theme)}`;
     const hh = divider.halfHeight;
     cells.push(mxVertex({
@@ -48,7 +48,6 @@ export function renderDivider(divider: {
   }
 
   // Section dividers (== text ==): two horizontal lines + bordered text box
-  const theme = divider.theme ?? createTheme();
   const colorDark = theme.colorDark;
   const dividerFill = theme.dividerFill;
   const sw = theme.strokeWidth;
@@ -65,10 +64,9 @@ export function renderDivider(divider: {
     x: divider.x1, y: lineY2, width: divider.x2 - divider.x1, height: 1,
   }));
   // Bordered text box centered between the lines
-  const labelHtml = Content.inline(divider.label).html;
+  const labelHtml = TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily, weight: 'bold' }).html;
   const hh = divider.halfHeight;
   const largeArcSize = theme.largeArcSize;
-  const fontSize = theme.fontSize;
   const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,

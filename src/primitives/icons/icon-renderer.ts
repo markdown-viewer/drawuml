@@ -9,7 +9,7 @@
  */
 
 import { Renderer } from '../renderer.ts';
-import { Content } from '../../shared/content.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 export abstract class IconRenderer extends Renderer {
@@ -56,10 +56,10 @@ export abstract class IconRenderer extends Renderer {
 
   /**
    * Measure label dimensions. Override for custom font/size.
-   * Default uses Content.inline() with theme fontSize.
+   * Default uses TextBlock.inline() with theme fontSize.
    */
   protected measureLabel(): { width: number; height: number } {
-    return Content.inline(this.label, { fontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily }).measure();
+    return TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure();
   }
 
   // ── Layout interface ───────────────────────────────────────────────────────

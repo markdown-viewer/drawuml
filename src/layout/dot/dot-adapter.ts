@@ -8,7 +8,7 @@
 import type { LayoutGraphNode, LayoutPort } from '../layout-graph.ts';
 import type { SemanticModel, SemanticEdge, SemanticGroup } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
-import { unescapePlantUml } from '../../shared/puml-unescape.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import { createTheme, type Theme } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
@@ -542,18 +542,18 @@ export function layoutGraphToDot(
 
     let attrs = 'arrowtail=none,arrowhead=none';
     if (edge.label) {
-      const dotLabel = unescapePlantUml(edge.label).replace(/"/g, '\\"');
+      const dotLabel = TextBlock.decodeEscapes(edge.label).replace(/"/g, '\\"');
       attrs += `,label="${dotLabel}"`;
     } else if (!edge.cardFrom && !edge.cardTo && (portNodeIds.has(edge.from) || portNodeIds.has(edge.to))) {
       // Invisible spacer label for unlabeled port edges to prevent cramped layout
       attrs += ',label=" "';
     }
     if (edge.cardFrom) {
-      const escaped = unescapePlantUml(edge.cardFrom).replace(/"/g, '\\"');
+      const escaped = TextBlock.decodeEscapes(edge.cardFrom).replace(/"/g, '\\"');
       attrs += `,taillabel="${escaped}"`;
     }
     if (edge.cardTo) {
-      const escaped = unescapePlantUml(edge.cardTo).replace(/"/g, '\\"');
+      const escaped = TextBlock.decodeEscapes(edge.cardTo).replace(/"/g, '\\"');
       attrs += `,headlabel="${escaped}"`;
     }
     if (!isHorizontal) {

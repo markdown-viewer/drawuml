@@ -9,7 +9,7 @@ import { RichRenderer } from './rich-renderer.ts';
 import { Renderer } from '../renderer.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 import type { RenderDescriptor } from '../registry.ts';
 
 class CollectionsRenderer extends RichRenderer {

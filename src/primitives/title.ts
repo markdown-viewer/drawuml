@@ -7,29 +7,32 @@
  * external TITLE_GAP constant needed.
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
 import type { Theme } from '../shared/theme.ts';
 import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
-import type { ContentBox } from '../shared/content.ts';
+import type { ContentBox } from '../shared/content-types.ts';
 
 class TitleRenderer extends Renderer {
   private fontSize: number;
-  private htmlLabel: string;
+  private textBlock: TextBlock;
   private textHeight = 0;
 
   constructor(id: string, text: string, opts?: { fontSize?: number; theme?: Theme }) {
     super(id, opts?.theme);
     this.fontSize = opts?.fontSize ?? this.theme.titleFontSize;
-    this.htmlLabel = Content.inline(text).html;
+    this.textBlock = TextBlock.inline(text, {
+      size: this.fontSize,
+      family: this.theme.fontFamily,
+      weight: 'bold',
+    });
   }
 
   protected doMeasure() {
-    const m = measureText(this.htmlLabel, this.fontSize, this.theme.fontFamily, 'bold', 'normal', true);
+    const m = this.textBlock.measure();
     this.textHeight = Math.ceil(m.height);
     // Total height includes bottom gap so layout engines don't need a separate constant
     return { width: Math.ceil(m.width), height: this.textHeight + this.theme.padL };
@@ -39,7 +42,7 @@ class TitleRenderer extends Renderer {
     // Render only the text portion (exclude the bottom gap from the cell)
     const style = `text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${this.fontSize};${fontFamilyStyle(this.theme)}`;
     return [mxVertex({
-      id: this.id, value: this.htmlLabel, style,
+      id: this.id, value: this.textBlock.html, style,
       parent: this.parentId || '1',
       x: box.x, y: box.y, width: box.width, height: this.textHeight || box.height,
     })];

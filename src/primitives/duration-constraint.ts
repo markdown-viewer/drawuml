@@ -4,7 +4,7 @@
  */
 
 import { escapeXml, mxVertex, cellId, n4 } from '../shared/xml-utils.ts';
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { createTheme, fontFamilyStyle, type Theme } from '../shared/theme.ts';
 
 /**
@@ -37,7 +37,7 @@ export function renderDurationConstraint(dc: {
   );
   if (dc.label) {
     // Convert raw Creole label to HTML
-    const labelHtml = Content.inline(dc.label).html;
+    const labelHtml = TextBlock.inline(dc.label, { size: smallFontSize, family: theme.fontFamily }).html;
     const lineH = dc.y2 - dc.y1;
     const labelH = Math.ceil(smallFontSize + theme.padXS);
     const labelY = dc.y1 + lineH / 2 - labelH / 2;

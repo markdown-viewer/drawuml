@@ -7,13 +7,13 @@
 
 import { IconRenderer } from './icon-renderer.ts';
 import { Renderer } from '../renderer.ts';
-import { Content } from '../../shared/content.ts';
+import { TextBlock, DEFAULT_FONT } from '../../shared/text-block.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
 import { parseNodeStyle } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ class ActorRenderer extends IconRenderer {
 
   constructor(desc: RenderDescriptor) {
     super(desc);
-    this.labelHtml = Content.inline(this.label).html;
+    this.labelHtml = TextBlock.inline(this.label, DEFAULT_FONT).html;
 
     // Parse inline style if present
     let fill = this.theme.defaultFill;

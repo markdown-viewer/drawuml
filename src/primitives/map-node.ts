@@ -6,14 +6,13 @@
  * swimlane container, matching the entity_relationship.drawio pattern.
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { buildTitleHtml, classNodeStyle } from './class-node.ts';
 import { mxVertex, escapeXml, cellId, n4 } from '../shared/xml-utils.ts';
 import { Renderer } from './renderer.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
-import type { ContentBox } from '../shared/content.ts';
+import type { ContentBox } from '../shared/content-types.ts';
 import type { LayoutGraphNode, LayoutPort } from '../layout/layout-graph.ts';
 import type { Theme } from '../shared/theme.ts';
 
@@ -48,7 +47,7 @@ export interface MapEntry {
 class MapNodeRenderer extends Renderer {
   private node: NodeDescriptor;
   private entries: MapEntry[];
-  private titleContent: Content;
+  private titleBlock: TextBlock;
   private _keyColWidth = 0;
   private _titleH = 0;
 
@@ -57,7 +56,7 @@ class MapNodeRenderer extends Renderer {
     this.node = node;
     this.entries = (node.mapEntries || []) as MapEntry[];
     const titleHtml = buildTitleHtml(node);
-    this.titleContent = Content.inline(titleHtml, { fontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily });
+    this.titleBlock = TextBlock.fromHtml(titleHtml, { size: this.theme.fontSize, family: this.theme.fontFamily });
   }
 
   protected doMeasure() {
@@ -67,7 +66,7 @@ class MapNodeRenderer extends Renderer {
     const titlePadY = this.theme.fontSize;                      // title vertical padding
 
     // Title dimensions
-    const titleSize = this.titleContent.measure();
+    const titleSize = this.titleBlock.measure();
     const titleW = titleSize.width + paddingX;
     const titleH = (titleSize.height || this.theme.fontSize) + titlePadY;
     this._titleH = titleH;
@@ -75,9 +74,10 @@ class MapNodeRenderer extends Renderer {
     // Measure key and value columns
     let maxKeyW = 0;
     let maxValW = 0;
+    const plainFont = { size: this.theme.fontSize, family: this.theme.fontFamily };
     for (const entry of this.entries) {
-      const km = measureText(entry.key, this.theme.fontSize, this.theme.fontFamily, 'normal', 'normal', false);
-      const vm = measureText(entry.value || '', this.theme.fontSize, this.theme.fontFamily, 'normal', 'normal', false);
+      const km = TextBlock.plain(entry.key, plainFont).measure();
+      const vm = TextBlock.plain(entry.value || '', plainFont).measure();
       maxKeyW = Math.max(maxKeyW, Math.ceil(km.width));
       maxValW = Math.max(maxValW, Math.ceil(vm.width));
     }
@@ -110,7 +110,7 @@ class MapNodeRenderer extends Renderer {
     // Swimlane container
     cells.push(mxVertex({
       id: this.node.id,
-      value: this.titleContent.html,
+      value: this.titleBlock.html,
       style,
       parent: this.parentId || '1',
       x: box.x,
@@ -123,6 +123,7 @@ class MapNodeRenderer extends Renderer {
     let y = this._titleH;
     const entries = this.entries;
     const keyColW = this._keyColWidth;
+    const plainFont = { size: fs, family: ff };
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
@@ -149,7 +150,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(entry.key)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.plain(entry.key, plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${n4(y)}" width="${n4(box.width)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -173,7 +174,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(entry.value)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.plain(entry.value || '', plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${n4(y)}" width="${n4(box.width)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -198,7 +199,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(entry.key)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
+          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(TextBlock.plain(entry.key, plainFont).html)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
           + `<mxGeometry width="${n4(keyColW)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );

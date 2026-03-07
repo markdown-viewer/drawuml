@@ -14,9 +14,9 @@ import { Renderer } from './renderer.ts';
 import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
-import type { ContentBox } from '../shared/content.ts';
+import type { ContentBox } from '../shared/content-types.ts';
 import { parseNodeStyle } from '../shared/color-utils.ts';
-import { measureText } from '@markdown-viewer/text-measure';
+import { TextBlock } from '../shared/text-block.ts';
 import { fontFamilyStyle } from '../shared/theme.ts';
 
 const LABEL_PAD_DEFAULT = 3;      // gap between square edge and label (fallback)
@@ -86,7 +86,8 @@ export class PortNodeRenderer extends Renderer {
     // Label cell — positioned above (portin) or below (portout) the square
     if (this._label) {
       const labelPad = this.theme.padXS || LABEL_PAD_DEFAULT;
-      const textW = measureText(this._label, this.theme.fontSize, this.theme.fontFamily).width;
+      const plainBlock = TextBlock.plain(this._label, { size: this.theme.fontSize, family: this.theme.fontFamily });
+      const textW = plainBlock.width;
       const labelWidth = Math.max(Math.ceil(textW) + this.theme.padS, portSize + this.theme.sizeS);
       const labelX = box.x + portHalf - labelWidth / 2;
       const labelY = this._portKind === 'portout'
@@ -96,8 +97,8 @@ export class PortNodeRenderer extends Renderer {
       const textColor = (parsed?.textColor) ? `fontColor=${parsed.textColor};` : '';
       cells.push(mxVertex({
         id: `${this.id}__lbl`,
-        value: this._label,
-        style: `text;align=center;verticalAlign=middle;${textColor}fontSize=${this.theme.fontSize};${fontFamilyStyle(this.theme)}`,
+        value: plainBlock.html,
+        style: `text;html=1;align=center;verticalAlign=middle;${textColor}fontSize=${this.theme.fontSize};${fontFamilyStyle(this.theme)}`,
         parent: '1',
         x: labelX,
         y: labelY,

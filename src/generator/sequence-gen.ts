@@ -14,6 +14,7 @@ import { renderFragment } from '../primitives/fragment.ts';
 import { renderDivider } from '../primitives/divider.ts';
 import { renderDurationConstraint } from '../primitives/duration-constraint.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
+import { closeUnclosedTags } from '../shared/text-block.ts';
 
 export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Renderer>, theme: Theme = createTheme()) {
   const cells = [];
@@ -173,7 +174,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     const label = msg.label || '';
     // Combine prefix and label — both are raw Creole text.
     // Close unclosed HTML tags in prefix so styles don't leak into label.
-    const closedPrefix = prefix ? closeHtmlTags(prefix) : '';
+    const closedPrefix = prefix ? closeUnclosedTags(prefix) : '';
     const displayLabel = closedPrefix ? (label ? closedPrefix + ' ' + label : closedPrefix) : label;
 
     // Override exitX/exitY/entryX/entryY when connected to activation boxes.
@@ -324,33 +325,4 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     pageHeight: Math.max(PAGE_HEIGHT, Math.ceil(layout.height)),
     diagramName: 'Sequence Diagram',
   });
-}
-
-/**
- * Close unclosed HTML tags in a string so styles don't leak.
- * E.g. `<font color=red><b>Message 40  ` → `<font color=red><b>Message 40  </b></font>`
- */
-function closeHtmlTags(html: string): string {
-  const openTags: string[] = [];
-  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*\/?>/g;
-  let m: RegExpExecArray | null;
-  while ((m = tagRe.exec(html)) !== null) {
-    const full = m[0];
-    const tagName = m[1].toLowerCase();
-    // Skip self-closing and void elements
-    if (full.endsWith('/>') || /^(br|hr|img|input)$/i.test(tagName)) continue;
-    if (full.startsWith('</')) {
-      // Closing tag: pop from stack
-      const idx = openTags.lastIndexOf(tagName);
-      if (idx !== -1) openTags.splice(idx, 1);
-    } else {
-      openTags.push(tagName);
-    }
-  }
-  // Close in reverse order
-  let result = html;
-  for (let i = openTags.length - 1; i >= 0; i--) {
-    result += `</${openTags[i]}>`;
-  }
-  return result;
 }

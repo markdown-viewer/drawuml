@@ -7,8 +7,9 @@
 
 import { IconRenderer } from './icon-renderer.ts';
 import { Renderer } from '../renderer.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import type { RenderDescriptor } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { lookupIcon, resolveShapeRef } from '../../shared/icon-registry.ts';
 import type { IconRecord } from '../../shared/icon-registry.ts';
@@ -88,9 +89,11 @@ export class MxgraphIconRenderer extends IconRenderer {
     // Center icon horizontally within the DOT-allocated box
     const ix = box.x + (box.width - iw) / 2;
 
+    // Use TextBlock.inline to match measureLabel() pipeline (unescape + creole)
+    const labelHtml = TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
     return [mxVertex({
       id:     this.id,
-      value:  this.label,
+      value:  labelHtml,
       style,
       parent: this.parentId ?? '1',
       x: ix,

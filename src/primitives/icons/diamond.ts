@@ -9,7 +9,7 @@ import { mxVertex } from '../../shared/xml-utils.ts';
 import { IconRenderer } from './icon-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer

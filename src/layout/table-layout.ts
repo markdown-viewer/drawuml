@@ -1,6 +1,5 @@
-import { measureText } from '@markdown-viewer/text-measure';
 import { createTheme, type Theme } from '../shared/theme.ts';
-import { unescapePlantUml } from '../shared/puml-unescape.ts';
+import { TextBlock, type FontSpec } from '../shared/text-block.ts';
 import { createRenderer } from '../primitives/index.ts';
 import { getScaledParticipantConfig, buildParticipantLabel, measureBracketBody } from '../primitives/participant.ts';
 import { Renderer } from '../primitives/renderer.ts';
@@ -57,10 +56,10 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const mainframeTopOffset = model.mainframe ? (tabHeight + minGap) : 0;
   marginTop += mainframeTopOffset;
 
-  // Measure text width (always as HTML since all text goes through pumlToHtml)
-  // Apply unescapePlantUml so measurement matches rendering pipeline (\n → newline, etc.)
-  const measureLabel = (text) => measureText(unescapePlantUml(text), fontSize, fontFamily, 'normal', 'normal', true).width + titlePadX;
-  const measureHtmlWidth = (html) => measureText(unescapePlantUml(html), fontSize, fontFamily, 'normal', 'normal', true).width;
+  // Shared font spec for text measurement (all text goes through TextBlock)
+  const seqFont: FontSpec = { size: fontSize, family: fontFamily };
+  const measureLabel = (html: string) => TextBlock.fromHtml(html, seqFont).width + titlePadX;
+  const measureHtmlWidth = (raw: string) => TextBlock.inline(raw, seqFont).width;
 
   const maxRowIndex = Math.max(getRowCount(model) - 1, 0);
 
@@ -99,7 +98,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       return { geomWidth: w, visualWidth: w, iconHeight };
     }
     const w = Math.max(titleMinWidth, labelW);
-    const textH = measureText(displayLabel, fontSize, fontFamily, 'normal', 'normal', true).height;
+    const textH = TextBlock.fromHtml(displayLabel, seqFont).height;
     const boxPadding = titlePadY; // vertical padding inside box
     const iconHeight = Math.max(baseH, textH + boxPadding);
     return { geomWidth: w, visualWidth: w, iconHeight };
@@ -385,7 +384,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     if (d.type === 'ellipsis') continue; // invisible spacer, no own height
     const row = d.row ?? 0;
     const labelH = d.label
-      ? measureText(unescapePlantUml(d.label), fontSize, fontFamily, 'normal', 'normal', true).height
+      ? TextBlock.inline(d.label, seqFont).height
       : 0;
     const halfH = Math.max(smallPad, Math.ceil(labelH / 2));
     dividerHalfHeightByRow[row] = Math.max(dividerHalfHeightByRow[row] || 0, halfH);
@@ -409,7 +408,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const timedDropByRow = {};
   for (const msg of model.messages) {
     const rawLabel = (msg.numberPrefix || '') + (msg.label || '');
-    const labelH = rawLabel ? measureText(unescapePlantUml(rawLabel), fontSize, fontFamily, 'normal', 'normal', true).height : 0;
+    const labelH = rawLabel ? TextBlock.inline(rawLabel, seqFont).height : 0;
     const row = msg.row;
     msgLabelHeightByRow[row] = Math.max(msgLabelHeightByRow[row] || 0, labelH);
 
@@ -449,7 +448,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     }
     // Ref fragments: compute body content height from label text
     if (f.type === 'ref' && f.label) {
-      const labelH = measureText(unescapePlantUml(f.label), fontSize, fontFamily, 'normal', 'normal', true).height;
+      const labelH = TextBlock.inline(f.label, seqFont).height;
       const refH = tabHeight + labelH + theme.padS; // tab + body text + bottom padding
       refContentHeightByRow[f.startRow] = Math.max(refContentHeightByRow[f.startRow] || 0, refH);
     }
@@ -1067,7 +1066,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // For group/partition, the tab shows the label text, not the keyword
     const isGroupLike = f.type === 'group' || f.type === 'partition';
     const tabLabel = isGroupLike ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
-    const tabTextW = measureText(tabLabel || f.type, fontSize, fontFamily, 'bold', 'normal', false).width;
+    const tabTextW = TextBlock.inline(tabLabel || f.type, { ...seqFont, weight: 'bold' }).width;
     const tabWidth = Math.max(Math.ceil(tabTextW) + fontSize, theme.sizeL);
 
     return {

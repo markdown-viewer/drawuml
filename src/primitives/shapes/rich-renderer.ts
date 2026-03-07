@@ -14,12 +14,13 @@
  *   - Color / inline-style application
  */
 
-import { Content } from '../../shared/content.ts';
+import { BlockLayout } from '../../shared/block-layout.ts';
+import { TextBlock, DEFAULT_FONT } from '../../shared/text-block.ts';
 import { mxVertex, mxContentLabel, escapeXml, n4 } from '../../shared/xml-utils.ts';
 import { Renderer } from '../renderer.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import type { Theme } from '../../shared/theme.ts';
 import { fontFamilyStyle } from '../../shared/theme.ts';
@@ -62,7 +63,7 @@ function extractShapeFragment(fullStyle: string): string {
 export abstract class RichRenderer extends Renderer {
   protected desc: RenderDescriptor;
   /** Measured content (label + stereotype HTML or rich body lines). */
-  protected content: Content;
+  protected content: BlockLayout;
   /** Whether this node uses rich body content (bracket body or raw lines). */
   protected readonly hasRichBody: boolean;
 
@@ -145,11 +146,11 @@ export abstract class RichRenderer extends Renderer {
   protected detectRichBody(): boolean {
     if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
       const lines = (this.desc.bodyLines as any[]).map(l => typeof l === 'string' ? l : l.text);
-      return Content.richBody(lines).hasSeparators;
+      return BlockLayout.richBody(lines).hasSeparators;
     }
     // Fallback: multi-line label (from "as" syntax) may contain separators
     if (this.label && this.label.includes('\n')) {
-      return Content.richBody(this.label.split('\n')).hasSeparators;
+      return BlockLayout.richBody(this.label.split('\n')).hasSeparators;
     }
     return false;
   }
@@ -175,20 +176,20 @@ export abstract class RichRenderer extends Renderer {
    * Build Content from label + stereotype HTML, or rich body lines.
    * Override for custom label patterns (e.g. package shows stereo in body).
    */
-  protected buildContent(): Content {
+  protected buildContent(): BlockLayout {
     const fontSize = this.theme.fontSize;
     const fontFamily = this.theme.fontFamily;
     if (this.hasRichBody) {
-      return Content.richBody(this.getRichBodyLines(), { bodyFontSize: fontSize, fontFamily }, this.theme);
+      return BlockLayout.richBody(this.getRichBodyLines(), { bodyFontSize: fontSize, fontFamily }, this.theme);
     }
     // bodyLines without separators: render lines as the node's display content
     if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
       const lines = this.getRichBodyLines();
-      const html = lines.map(l => Content.inline(l).html).join('<br />');
-      return Content.rich(html, { bodyFontSize: fontSize, fontFamily });
+      const html = lines.map(l => TextBlock.inline(l, DEFAULT_FONT).html).join('<br />');
+      return BlockLayout.rich(html, { bodyFontSize: fontSize, fontFamily });
     }
-    const labelHtml = Content.inline(this.label).html;
-    return Content.rich(buildLabelHtml({
+    const labelHtml = TextBlock.inline(this.label, DEFAULT_FONT).html;
+    return BlockLayout.rich(buildLabelHtml({
       label: labelHtml,
       stereotypeLabel: this.desc.stereotypeLabel || undefined,
       fontSize,

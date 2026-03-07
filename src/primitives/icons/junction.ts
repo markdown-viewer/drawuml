@@ -11,8 +11,9 @@ import { mxVertex } from '../../shared/xml-utils.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 import { fontFamilyStyle } from '../../shared/theme.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 
 // ---------------------------------------------------------------------------
 // Renderer
@@ -47,9 +48,11 @@ export class JunctionRenderer extends IconRenderer {
       'html=1',
       `fontSize=${this.theme.fontSize}`,
     ].join(';') + ';' + fontFamilyStyle(this.theme);
+    // Use TextBlock.inline to match measureLabel() pipeline
+    const labelHtml = TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
     return [mxVertex({
       id: this.id,
-      value: this.label,
+      value: labelHtml,
       style,
       parent: this.parentId || '1',
       x: cx, y: box.y, width: d, height: d,

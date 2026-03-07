@@ -4,11 +4,13 @@
  * Renders as plain text with no border or background.
  * Used both as a deployment node shape and for edge label rendering.
  *
- * Uses Content.block() for proper multi-line / block-level Creole handling.
+ * Uses TextBlock.block() + BlockLayout.rich() for proper multi-line
+ * / block-level Creole handling.
  */
 
 import { RichRenderer } from './rich-renderer.ts';
-import { Content } from '../../shared/content.ts';
+import { BlockLayout } from '../../shared/block-layout.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
@@ -20,9 +22,10 @@ export class LabelRenderer extends RichRenderer {
   get isCluster(): boolean { return false; }
 
   // Use block-level Creole for multi-line label support
-  protected buildContent(): Content {
+  protected buildContent(): BlockLayout {
     if (this.hasRichBody) return super.buildContent();
-    return Content.block(this.label, { bodyFontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily });
+    const tb = TextBlock.block(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily });
+    return BlockLayout.rich(tb.html, { bodyFontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily });
   }
 
   // No min-width or padding for borderless text labels;

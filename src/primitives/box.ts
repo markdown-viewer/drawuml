@@ -7,7 +7,7 @@
  * positions, so measure() returns { 0, 0 }.
  */
 
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor, darkenColor } from '../shared/color-utils.ts';
 import { Renderer } from './renderer.ts';
@@ -15,7 +15,7 @@ import type { Theme } from '../shared/theme.ts';
 import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
-import type { ContentBox } from '../shared/content.ts';
+import type { ContentBox } from '../shared/content-types.ts';
 
 export interface BoxRendererOpts {
   label?: string;
@@ -35,7 +35,7 @@ class BoxRenderer extends Renderer {
     const fill = opts?.color ? normalizeColor(opts.color) : this.theme.legendFill;
     this.fillColor = fill;
     this.strokeColor = darkenColor(fill);
-    this.htmlLabel = opts?.label ? Content.inline(opts.label).html : '';
+    this.htmlLabel = opts?.label ? TextBlock.inline(opts.label, { size: this.theme.titleFontSize, family: this.theme.fontFamily, weight: 'bold' }).html : '';
     this.labelHeight = opts?.labelHeight ?? 20;
   }
 

@@ -5,15 +5,14 @@
  * and ellipse-based DrawIO style with labelWidth control.
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
 import { IconRenderer } from './icon-renderer.ts';
 import { Renderer } from '../renderer.ts';
-import { Content } from '../../shared/content.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from '../registry.ts';
-import type { ContentBox } from '../../shared/content.ts';
+import type { ContentBox } from '../../shared/content-types.ts';
 import { fontFamilyStyle } from '../../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
@@ -21,15 +20,14 @@ import { fontFamilyStyle } from '../../shared/theme.ts';
 // ---------------------------------------------------------------------------
 
 class CircleRenderer extends IconRenderer {
-  private labelHtml: string;
-  private textWidth: number;
+  private textBlock: TextBlock;
 
   constructor(desc: RenderDescriptor) {
     super(desc);
-    this.labelHtml = Content.inline(this.label).html;
-    // Pre-measure with titleFontSize to cache textWidth for render()
-    const meas = measureText(this.labelHtml, this.theme.titleFontSize, this.theme.fontFamily, 'normal', 'normal', true);
-    this.textWidth = Math.ceil(meas.width);
+    this.textBlock = TextBlock.inline(this.label, {
+      size: this.theme.titleFontSize,
+      family: this.theme.fontFamily,
+    });
   }
 
   protected override get iconGap(): number { return this.theme.padM; }
@@ -37,15 +35,16 @@ class CircleRenderer extends IconRenderer {
 
   // Override: circle uses titleFontSize for measurement
   protected override measureLabel() {
-    return measureText(this.labelHtml, this.theme.titleFontSize, this.theme.fontFamily, 'normal', 'normal', true);
+    return this.textBlock.measure();
   }
 
   // Override: padding applies to icon width too
   protected override doMeasure() {
     const size = this.measureLabel();
     const labelH = Math.max(Math.ceil(size.height), this.minLabelHeight);
+    const textWidth = Math.ceil(size.width);
     return {
-      width: Math.max(this.textWidth + this.paddingX, this.iconWidth + this.paddingX),
+      width: Math.max(textWidth + this.paddingX, this.iconWidth + this.paddingX),
       height: this.iconHeight + this.iconGap + labelH,
     };
   }
@@ -55,7 +54,8 @@ class CircleRenderer extends IconRenderer {
     const cx = box.x + (box.width - d) / 2;
     const cy = box.y;
     // Use actual text width as labelWidth to prevent wrapping without over-expanding
-    const labelWidth = Math.max(this.textWidth + 4, d);
+    const textWidth = Math.ceil(this.textBlock.width);
+    const labelWidth = Math.max(textWidth + 4, d);
     let s = 'ellipse;whiteSpace=wrap;html=1;aspect=fixed;'
       + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
       + `fontSize=${this.theme.titleFontSize};fontColor=${this.theme.colorDark};`
@@ -67,7 +67,7 @@ class CircleRenderer extends IconRenderer {
     if (fontColorOverride) s = s.replace(/fontColor=[^;]*;/, fontColorOverride);
     return [mxVertex({
       id: this.desc.id, value: buildLabelHtml({
-        label: this.labelHtml,
+        label: this.textBlock.html,
         stereotypeLabel: this.desc.stereotypeLabel || undefined,
         fontSize: this.theme.fontSize,
       }), style: s,

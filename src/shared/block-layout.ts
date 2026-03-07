@@ -1,48 +1,30 @@
 /**
- * Unified content module — SINGLE source of truth for ALL PlantUML text →
- * DrawIO content processing and measurement.
+ * BlockLayout — composite layout container for structured content blocks.
  *
- * Exposes ONE class `Content` with three interfaces:
+ * Replaces the deprecated Content class. Handles:
+ *   1. **Factory** — classBody / richBody / bracketBody / rich
+ *   2. **Measure** — layout.measure() — structural content-aware sizing
+ *   3. **Render**  — layout.renderChildren() — child mxCells under a container
  *
- *   1. **Load**           — factory methods create Content from raw/processed text
- *   2. **Measure**        — `content.measure()` — structural content-aware sizing
- *   3. **RenderChildren** — `content.renderChildren(parentId, width, skin)` —
- *                           child mxCells (rows, separators, rich blocks) under
- *                           a container created by the Renderer
- *
- * Container creation (outer shape / border) is the Renderer's responsibility.
- * Content only generates interior child cells.
- *
- * Internal pipeline (for raw text factories):
- *   1. unescapePlantUml  — PlantUML escape sequences
- *   2. creoleInline       — Creole inline markup (**bold**, //italic//, etc.)
- *   3. parseCreoleBlocks  — Block-level structure (headings, lists, tables, …)
- *   4. renderCreoleToHtml — Block AST → semantic HTML
- *   5. finalizeHtml       — \n → <br> (outside <pre>), XHTML normalization
+ * Text processing (Creole → HTML) is handled by TextBlock.
+ * BlockLayout only owns the composite block layout (rows, separators, rich blocks).
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
 import { mxVertex, n4 } from './xml-utils.ts';
-import { unescapePlantUml } from './puml-unescape.ts';
-import { creoleInline } from './creole-inline.ts';
-import { parseCreoleBlocks } from './creole-parser.ts';
-import { renderCreoleToHtml } from './creole-render.ts';
+import { TextBlock, type FontSpec } from './text-block.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-measure';
 import { createTheme, type Theme } from './theme.ts';
+import { separatorStyle, richTextStyle } from './content-types.ts';
+import type { ContentBlock, ContentSize, ChildStyleOpts, FinalizeBodyCtx } from './content-types.ts';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════════════════════════════
+// Re-export types so callers can import from block-layout.ts
+export type { ContentBlock, ContentSize, ChildStyleOpts, FinalizeBodyCtx };
+// Re-export ContentBox and utility functions for convenience
+export { separatorStyle, richTextStyle } from './content-types.ts';
+export type { ContentBox } from './content-types.ts';
 
-/** Internal content block */
-export type ContentBlock =
-  | { kind: 'title'; html: string }
-  | { kind: 'row'; html: string; id?: string }
-  | { kind: 'separator'; variant: string; title?: string }
-  | { kind: 'rich'; html: string };
-
-/** Layout metrics baked into a Content instance */
+/** Layout metrics baked into a BlockLayout instance */
 interface ContentMetrics {
   titleFontSize: number;
   bodyFontSize: number;
@@ -59,73 +41,6 @@ interface ContentMetrics {
   minHeight: number;
   /** Extra height added when the content has a title but no body blocks. */
   emptyBodyPad: number;
-}
-
-/** Measured content dimensions */
-export interface ContentSize {
-  width: number;
-  height: number;
-  /** Title block height (for swimlane startSize). Only set for structured content. */
-  titleHeight?: number;
-}
-
-/** Parent container geometry for rendering */
-export interface ContentBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  /** Center position of external xlabel label in DrawIO coordinates, if any. */
-  xlabelPos?: { x: number; y: number };
-}
-
-/** DrawIO rendering styles for child cells inside a container */
-export interface ChildSkin {
-  /** DrawIO style for body text row / rich child mxCells */
-  rowStyle: string;
-  /** DrawIO style for separator child mxCells */
-  separatorStyle: string;
-  /** Container fill color — used for separator label background */
-  fillColor?: string;
-  /** Container stroke color — used for separator line color */
-  strokeColor?: string;
-}
-
-/**
- * Options controlling how child cell styles are built inside renderChildren.
- * When Content holds a theme, these options fine-tune the generated styles.
- */
-export interface ChildStyleOpts {
-  /** Container fill color — used for separator label background */
-  fillColor?: string;
-  /** Container stroke color — used for separator line color */
-  strokeColor?: string;
-  /** Child row/separator stroke color inheritance (class-node skinparam) */
-  childStroke?: string;
-  /** Child row/separator line style inheritance (class-node skinparam) */
-  childLineStyle?: string;
-  /** Append portConstraint=eastwest on row and separator cells (swimlane) */
-  portConstraint?: boolean;
-  /** Row text alignment override (default: 'left') */
-  align?: 'left' | 'center' | 'right';
-  /** Row spacingLeft/spacingRight override */
-  spacingX?: number;
-}
-
-/**
- * Context passed to the finalizeBody callback in Content.classBody().
- * Allows renderers to customize auto-separator behavior per entity type
- * without Content needing to know about specific entity types.
- */
-export interface FinalizeBodyCtx {
-  /** Mutable content blocks — callback may modify in-place. */
-  blocks: ContentBlock[];
-  /** Processed body lines (after filtering). */
-  lines: BodyLine[];
-  /** Whether an explicit separator was found in body lines. */
-  hasSeparator: boolean;
-  hideFields?: boolean;
-  hideMethods?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -170,67 +85,6 @@ function richBodyMetrics(theme: Theme = createTheme()): Partial<ContentMetrics> 
     separatorHeight: theme.sizeXS,
     titledSeparatorHeight: theme.sizeS,
   };
-}
-
-/**
- * Build a DrawIO style string for rich text child cells.
- *
- * All rich body renderers (participant, bracket-node, note, legend) share the
- * same base style with `verticalAlign=middle`.  Using middle alignment avoids
- * drawio2svg's fixed 7px top offset that affects `verticalAlign=top` +
- * `whiteSpace=wrap` cells.  When cell height equals measuredH the visual
- * result is identical to top alignment.
- * Only `spacingLeft` / `spacingRight` vary per consumer.
- */
-/**
- * Style string for separator line child mxCells.
- *
- * Centralised here so all renderers (class-node, state-node, rich-renderer,
- * participant) share a single definition.  Optional extras allow swimlane
- * renderers to append portConstraint and per-entity stroke/lineStyle.
- */
-export function separatorStyle(opts?: {
-  strokeColor?: string;
-  lineStyle?: string;
-  strokeWidth?: number;
-  fontSize?: number;
-  fontFamily?: string;
-  /** Append portConstraint=eastwest (swimlane class/state nodes). */
-  portConstraint?: boolean;
-}): string {
-  const sw = opts?.strokeWidth ?? 1;
-  const parts = [
-    'line',
-    `strokeWidth=${sw}`,
-    'align=left',
-    'verticalAlign=middle',
-    'spacingTop=-1',
-    'spacingLeft=3',
-    'spacingRight=3',
-    'rotatable=0',
-    'labelPosition=right',
-    'points=[]',
-  ];
-  if (opts?.portConstraint) parts.push('portConstraint=eastwest');
-  if (opts?.strokeColor) parts.push(`strokeColor=${opts.strokeColor}`);
-  if (opts?.lineStyle === 'dashed') parts.push('dashed=1');
-  else if (opts?.lineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
-  else if (opts?.lineStyle === 'bold') parts.push(`strokeWidth=${sw * 2}`);
-  if (opts?.fontSize) parts.push(`fontSize=${opts.fontSize}`);
-  if (opts?.fontFamily) parts.push(`fontFamily=${opts.fontFamily}`);
-  return parts.join(';') + ';';
-}
-
-export function richTextStyle(spacingLeft: number, spacingRight: number, align: 'left' | 'center' | 'right' = 'left', fontSize?: number, fontFamily?: string): string {
-  const parts = [
-    'text', 'html=1', 'strokeColor=none', 'fillColor=none',
-    `align=${align}`, 'verticalAlign=middle',
-    `spacingLeft=${spacingLeft}`, `spacingRight=${spacingRight}`,
-    'whiteSpace=wrap', 'overflow=hidden', 'rotatable=0',
-  ];
-  if (fontSize) parts.push(`fontSize=${fontSize}`);
-  if (fontFamily) parts.push(`fontFamily=${fontFamily}`);
-  return parts.join(';') + ';';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -289,37 +143,6 @@ function adjustSeparatorStyle(
   }
 
   return style;
-}
-
-/**
- * Finalize semantic HTML for DrawIO:
- *   - Convert \n → <br> ONLY outside <pre>…</pre> blocks
- *   - Normalize via DOMParser → well-formed XHTML
- */
-function finalizeHtml(html: string): string {
-  // Protect <pre>…</pre> blocks from \n→<br> conversion
-  const preBlocks: string[] = [];
-  let s = html.replace(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi, (match) => {
-    preBlocks.push(match);
-    return `\x00PRE${preBlocks.length - 1}\x00`;
-  });
-
-  s = s.replace(/\n/g, '<br>');
-
-  for (let i = 0; i < preBlocks.length; i++) {
-    s = s.replace(`\x00PRE${i}\x00`, preBlocks[i]);
-  }
-
-  // Normalize via DOMParser → well-formed XHTML
-  const doc = new DOMParser().parseFromString(s, 'text/html');
-  const body = doc.getElementsByTagName('body')[0];
-  const serializer = new XMLSerializer();
-  let xhtml = serializer.serializeToString(body);
-  const idx = xhtml.indexOf('>');
-  if (idx !== -1) xhtml = xhtml.slice(idx + 1);
-  if (xhtml.endsWith('</body>')) xhtml = xhtml.slice(0, -7);
-  xhtml = xhtml.replace(/ xmlns="[^"]*"/g, '');
-  return xhtml;
 }
 
 /**
@@ -479,7 +302,7 @@ const VIS_RULES: Array<{ re: RegExp; fieldIcon: string; methodIcon: string; extr
  * Optional `tag` (from PEG-parsed {field}/{method}/{static}/{abstract}) overrides the parenthesis heuristic.
  * {static} → underline, {abstract} → italic (matching PlantUML rendering).
  */
-function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean, tag?: string): string {
+function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean, font: FontSpec, tag?: string): TextBlock {
   if (showIcons) {
     for (const rule of VIS_RULES) {
       const m = raw.match(rule.re);
@@ -487,9 +310,9 @@ function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean,
         const space = rule.extraSpace ? ' ' : '';
         const body = (m[1] || '').replace(/^\s+/, '');
         const icon = isMethodLine(body, tag) ? rule.methodIcon : rule.fieldIcon;
-        let html = creoleInline(unescapePlantUml(body));
-        html = applyMemberModifierStyle(html, tag);
-        return finalizeHtml(iconSlot(icon) + space + html);
+        const bodyBlock = TextBlock.inline(body, font);
+        const html = applyMemberModifierStyle(bodyBlock.html, tag);
+        return TextBlock.fromHtml(iconSlot(icon) + space + html, font);
       }
     }
   } else {
@@ -501,21 +324,21 @@ function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean,
       if (m) {
         const visChar = raw[0];
         const body = (m[1] || '').replace(/^\s+/, '');
-        let html = visChar + creoleInline(unescapePlantUml(body));
-        html = applyMemberModifierStyle(html, tag);
-        if (withIconSlot) return finalizeHtml(iconSlot('\u200b') + ' ' + html);
-        return finalizeHtml(html);
+        const bodyBlock = TextBlock.inline(body, font);
+        const html = visChar + applyMemberModifierStyle(bodyBlock.html, tag);
+        if (withIconSlot) return TextBlock.fromHtml(iconSlot('\u200b') + ' ' + html, font);
+        return TextBlock.fromHtml(html, font);
       }
     }
   }
 
-  let textHtml = creoleInline(unescapePlantUml(raw));
-  textHtml = applyMemberModifierStyle(textHtml, tag);
+  const textBlock = TextBlock.inline(raw, font);
+  const html = applyMemberModifierStyle(textBlock.html, tag);
   // Non-icon line: add empty icon slot + space for alignment when other lines have icons
   if (withIconSlot) {
-    return finalizeHtml(iconSlot('\u200b') + ' ' + textHtml);
+    return TextBlock.fromHtml(iconSlot('\u200b') + ' ' + html, font);
   }
-  return finalizeHtml(textHtml);
+  return TextBlock.fromHtml(html, font);
 }
 
 /** Wrap HTML with style tags for {static} (underline) and {abstract} (italic). */
@@ -526,32 +349,32 @@ function applyMemberModifierStyle(html: string, tag?: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Content class
+// BlockLayout class
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Content — the FULL content of a container, with structural awareness.
+ * BlockLayout — the FULL content of a container, with structural awareness.
  *
- * A Content may contain multiple blocks (title, body rows, separators,
+ * A BlockLayout may contain multiple blocks (title, body rows, separators,
  * rich text). measure() walks ALL blocks for sizing; renderChildren()
  * outputs child mxCells under a Renderer-owned container.
  *
  * Usage:
  * ```
  * // Structured class body
- * const c = Content.classBody({ titleHtml, nodeId, attributes, methods });
+ * const c = BlockLayout.classBody({ titleHtml, nodeId, attributes, methods });
  * const size = c.measure();  // {width, height, titleHeight}
  * // Renderer creates swimlane container, then:
  * const children = c.renderChildren(nodeId, width, childSkin, size.titleHeight);
  *
  * // Rich note content
- * const c = Content.richBody(rawLines, { minWidth: 30, ... });
+ * const c = BlockLayout.richBody(rawLines, { minWidth: 30, ... });
  * const size = c.measure();  // {width, height}
  * // Renderer creates note container, then:
  * const children = c.renderChildren(noteId, width, childSkin);
  * ```
  */
-export class Content {
+export class BlockLayout {
   private _blocks: ContentBlock[];
   private _m: ContentMetrics;
   /** Theme reference for child style generation in renderChildren. */
@@ -646,9 +469,14 @@ export class Content {
      * Return null to fall through to the default auto-separator logic.
      */
     finalizeBody?: (ctx: FinalizeBodyCtx) => Partial<ContentMetrics> | null;
-  }): Content {
+  }): BlockLayout {
     const blocks: ContentBlock[] = [];
-    blocks.push({ kind: 'title', html: opts.titleHtml });
+    const titleFontSize = opts.fontSize || DEFAULTS.titleFontSize;
+    const bodyFontSize = opts.fontSize || DEFAULTS.bodyFontSize;
+    const fontFamily = opts.fontFamily || DEFAULTS.fontFamily;
+    const titleFont: FontSpec = { size: titleFontSize, family: fontFamily };
+    const bodyFont: FontSpec = { size: bodyFontSize, family: fontFamily };
+    blocks.push({ kind: 'title', text: TextBlock.fromHtml(opts.titleHtml, titleFont) });
 
     const allLines = opts.bodyLines || [];
     const showIcons = opts.visibilityIcons !== false; // default true
@@ -688,8 +516,8 @@ export class Content {
       // --- Separator (bare or titled) ---
       const sep = classifySeparator(line);
       if (sep) {
-        const title = sep.title ? processBodyLine(sep.title, false, showIcons) : undefined;
-        blocks.push({ kind: 'separator', variant: sep.variant, title });
+        const titleText = sep.title ? processBodyLine(sep.title, false, showIcons, bodyFont) : undefined;
+        blocks.push({ kind: 'separator', variant: sep.variant, titleText });
         hasSeparator = true;
         i++;
         continue;
@@ -702,9 +530,8 @@ export class Content {
           tableLines.push(bodyLineText(lines[i]).trim());
           i++;
         }
-        const tableBlocks = parseCreoleBlocks(tableLines);
-        const html = finalizeHtml(renderCreoleToHtml(tableBlocks, opts.fontSize));
-        blocks.push({ kind: 'rich', html });
+        const text = TextBlock.blockFromLines(tableLines, bodyFont);
+        blocks.push({ kind: 'rich', text });
         continue;
       }
 
@@ -715,14 +542,13 @@ export class Content {
           treeLines.push(bodyLineText(lines[i]).trim());
           i++;
         }
-        const treeBlocks = parseCreoleBlocks(treeLines);
-        const html = finalizeHtml(renderCreoleToHtml(treeBlocks, opts.fontSize));
-        blocks.push({ kind: 'rich', html });
+        const text = TextBlock.blockFromLines(treeLines, bodyFont);
+        blocks.push({ kind: 'rich', text });
         continue;
       }
 
       // --- Regular member line: inline Creole only ---
-      const html = processBodyLine(line, hasVisIcons, showIcons, tag);
+      const text = processBodyLine(line, hasVisIcons, showIcons, bodyFont, tag);
       let rowId = deriveRowId(opts.nodeId, line);
       // Deduplicate: append numeric suffix when id already used
       if (rowId && seenRowIds.has(rowId)) {
@@ -731,7 +557,7 @@ export class Content {
         rowId = `${rowId}_${suffix}`;
       }
       if (rowId) seenRowIds.add(rowId);
-      blocks.push({ kind: 'row', html, id: rowId });
+      blocks.push({ kind: 'row', text, id: rowId });
       i++;
     }
 
@@ -751,7 +577,7 @@ export class Content {
         const fo: Partial<ContentMetrics> = { ...result };
         if (opts.fontSize) { fo.titleFontSize = opts.fontSize; fo.bodyFontSize = opts.fontSize; }
         if (opts.fontFamily) fo.fontFamily = opts.fontFamily;
-        return new Content(blocks, { ...classMetrics(opts.theme), ...fo });
+        return new BlockLayout(blocks, { ...classMetrics(opts.theme), ...fo });
       }
     }
 
@@ -822,7 +648,7 @@ export class Content {
       fontOverrides.bodyFontSize = opts.fontSize;
     }
     if (opts.fontFamily) fontOverrides.fontFamily = opts.fontFamily;
-    return new Content(blocks, { ...classMetrics(opts.theme), ...fontOverrides }, opts.theme);
+    return new BlockLayout(blocks, { ...classMetrics(opts.theme), ...fontOverrides }, opts.theme);
   }
 
   /**
@@ -835,41 +661,12 @@ export class Content {
     minHeight?: number;
     bodyFontSize?: number;
     fontFamily?: string;
-  }): Content {
-    return new Content([{ kind: 'rich', html }], opts);
-  }
-
-  /**
-   * Create content from pre-processed HTML (labels, messages, etc.).
-   */
-  static text(html: string, opts?: { fontSize?: number; fontFamily?: string }): Content {
-    const metrics: Partial<ContentMetrics> = {};
-    if (opts?.fontSize != null) metrics.bodyFontSize = opts.fontSize;
-    if (opts?.fontFamily) metrics.fontFamily = opts.fontFamily;
-    return new Content([{ kind: 'rich', html }], metrics);
-  }
-
-  // ─── Factories: from raw PlantUML text ─────────────────────────────────────
-
-  /**
-   * Single-line inline Creole processing.
-   * Pipeline: unescapePlantUml → creoleInline → finalizeHtml
-   */
-  static inline(raw: string, opts?: { fontSize?: number; fontFamily?: string }): Content {
-    const html = finalizeHtml(creoleInline(unescapePlantUml(raw)));
-    return Content.text(html, opts);
-  }
-
-  /**
-   * Multi-line block-level Creole processing.
-   * Pipeline: unescapePlantUml → parseCreoleBlocks → renderCreoleToHtml → finalizeHtml
-   */
-  static block(raw: string, opts?: { bodyFontSize?: number; fontFamily?: string }): Content {
-    const unescaped = unescapePlantUml(raw);
-    const lines = unescaped.split('\n');
-    const blocks = parseCreoleBlocks(lines);
-    const html = finalizeHtml(renderCreoleToHtml(blocks, opts?.bodyFontSize));
-    return Content.rich(html, opts);
+  }): BlockLayout {
+    const font: FontSpec = {
+      size: opts?.bodyFontSize || DEFAULTS.bodyFontSize,
+      family: opts?.fontFamily || DEFAULTS.fontFamily,
+    };
+    return new BlockLayout([{ kind: 'rich', text: TextBlock.fromHtml(html, font) }], opts);
   }
 
   /**
@@ -880,8 +677,8 @@ export class Content {
    * blocks so that render() can draw them as proper DrawIO line mxCells
    * instead of embedding <hr> in HTML.
    */
-  static bracketBody(lines: string[], metrics?: Partial<ContentMetrics>, theme?: Theme): Content {
-    return Content.richBody(lines, metrics, theme);
+  static bracketBody(lines: string[], metrics?: Partial<ContentMetrics>, theme?: Theme): BlockLayout {
+    return BlockLayout.richBody(lines, metrics, theme);
   }
 
   /**
@@ -893,26 +690,27 @@ export class Content {
    *   - Runs of non-separator lines → parseCreoleBlocks → renderCreoleToHtml
    *     → `kind: 'rich'`
    *
-   * The resulting Content produces container + child mxCells in render(),
+   * The resulting BlockLayout produces container + child mxCells in render(),
    * with separators drawn as proper DrawIO `line` elements.
    */
-  static richBody(rawLines: string[], metrics?: Partial<ContentMetrics>, theme?: Theme): Content {
+  static richBody(rawLines: string[], metrics?: Partial<ContentMetrics>, theme?: Theme): BlockLayout {
     const blocks: ContentBlock[] = [];
     const buffer: string[] = [];
     let inCode = false; // track <code> blocks to suppress separator detection
     const baseFontSize = metrics?.bodyFontSize ?? DEFAULTS.bodyFontSize;
+    const fontFamily = metrics?.fontFamily ?? DEFAULTS.fontFamily;
+    const bodyFont: FontSpec = { size: baseFontSize, family: fontFamily };
 
     function flushBuffer() {
       if (buffer.length > 0) {
-        const ast = parseCreoleBlocks(buffer);
-        const html = finalizeHtml(renderCreoleToHtml(ast, baseFontSize));
-        blocks.push({ kind: 'rich', html });
+        const text = TextBlock.blockFromLines(buffer, bodyFont);
+        blocks.push({ kind: 'rich', text });
         buffer.length = 0;
       }
     }
 
     for (const rawLine of rawLines) {
-      const line = unescapePlantUml(rawLine);
+      const line = TextBlock.decodeEscapes(rawLine);
       const trimmed = line.trim();
 
       // Track <code> / </code> boundaries — no separator detection inside code blocks
@@ -930,17 +728,17 @@ export class Content {
       const sep = classifySeparator(trimmed);
       if (sep) {
         flushBuffer();
-        const title = sep.title
-          ? finalizeHtml(creoleInline(sep.title))
+        const titleText = sep.title
+          ? TextBlock.inlineCreole(sep.title, bodyFont)
           : undefined;
-        blocks.push({ kind: 'separator', variant: sep.variant, title });
+        blocks.push({ kind: 'separator', variant: sep.variant, titleText });
       } else {
         buffer.push(line);
       }
     }
     flushBuffer();
 
-    return new Content(blocks, { ...richBodyMetrics(theme), ...metrics }, theme);
+    return new BlockLayout(blocks, { ...richBodyMetrics(theme), ...metrics }, theme);
   }
 
   // ─── Measure ───────────────────────────────────────────────────────────────
@@ -948,10 +746,10 @@ export class Content {
   /**
    * Compute content dimensions by walking ALL blocks structurally.
    *
-   * - title: measureText(html, titleFontSize) + paddingX + titlePaddingY
-   * - row: measureText(html, bodyFontSize) for width; fixed rowHeight for height
+   * - title: b.text.measure() + paddingX + titlePaddingY
+   * - row: b.text.measure() for width; measured height + bodyPaddingY for height
    * - separator: fixed separatorHeight
-   * - rich: measureText(html, bodyFontSize) + paddingX
+   * - rich: b.text.measure() + paddingX
    *
    * Returns { width, height, titleHeight? }.
    * titleHeight is set when the content has a title block (for swimlane startSize).
@@ -964,7 +762,7 @@ export class Content {
     for (const b of this._blocks) {
       switch (b.kind) {
         case 'title': {
-          const m = measureText(b.html, this._m.titleFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const m = b.text.measure();
           const th = Math.ceil(m.height) + this._m.titlePaddingY;
           width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           titleHeight = th;
@@ -972,22 +770,22 @@ export class Content {
           break;
         }
         case 'row': {
-          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const m = b.text.measure();
           width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           height += Math.ceil(m.height) + this._m.bodyPaddingY;
           break;
         }
         case 'separator': {
-          const sh = b.title ? this._m.titledSeparatorHeight : this._m.separatorHeight;
+          const sh = b.titleText ? this._m.titledSeparatorHeight : this._m.separatorHeight;
           height += sh;
-          if (b.title) {
-            const m = measureText(b.title, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          if (b.titleText) {
+            const m = b.titleText.measure();
             width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           }
           break;
         }
         case 'rich': {
-          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const m = b.text.measure();
           width = Math.max(width, Math.ceil(m.width) + this._m.paddingX);
           height += Math.ceil(m.height);
           break;
@@ -1022,7 +820,7 @@ export class Content {
     for (const b of this._blocks) {
       switch (b.kind) {
         case 'title': {
-          const m = measureText(b.html, this._m.titleFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const m = b.text.measure();
           y += Math.ceil(m.height) + this._m.titlePaddingY;
           break;
         }
@@ -1031,7 +829,7 @@ export class Content {
             y += this._m.bodyPaddingY;
             bodyStarted = true;
           }
-          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const m = b.text.measure();
           const h = Math.ceil(m.height) + this._m.bodyPaddingY;
           if (b.id) {
             ports.push({ id: b.id, y, height: h });
@@ -1044,7 +842,7 @@ export class Content {
             y += this._m.bodyPaddingY;
             bodyStarted = true;
           }
-          y += b.title ? this._m.titledSeparatorHeight : this._m.separatorHeight;
+          y += b.titleText ? this._m.titledSeparatorHeight : this._m.separatorHeight;
           break;
         }
         case 'rich': {
@@ -1052,7 +850,7 @@ export class Content {
             y += this._m.bodyPaddingY;
             bodyStarted = true;
           }
-          const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+          const m = b.text.measure();
           y += Math.ceil(m.height);
           break;
         }
@@ -1071,7 +869,7 @@ export class Content {
    * container created by the caller.  Title blocks are skipped — the caller
    * is responsible for embedding the title in the container cell.
    *
-   * Style generation is handled internally when the Content holds a theme.
+   * Style generation is handled internally when the BlockLayout holds a theme.
    * Pass ChildStyleOpts to fine-tune (e.g. portConstraint for swimlanes,
    * fillColor/strokeColor for separator label backgrounds).
    *
@@ -1094,11 +892,11 @@ export class Content {
       if (b.kind === 'title') continue;
 
       if (b.kind === 'row') {
-        const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+        const m = b.text.measure();
         const h = Math.ceil(m.height) + this._m.bodyPaddingY;
         cells.push(mxVertex({
           id: b.id,
-          value: b.html,
+          value: b.text.html,
           style: rowStyle,
           parent: parentId,
           x,
@@ -1108,13 +906,13 @@ export class Content {
         }));
         y += h;
       } else if (b.kind === 'separator') {
-        const sepHeight = b.title ? this._m.titledSeparatorHeight : this._m.separatorHeight;
+        const sepHeight = b.titleText ? this._m.titledSeparatorHeight : this._m.separatorHeight;
         const sepStyle = adjustSeparatorStyle(
-          baseSepStyle, b.variant, !!b.title,
+          baseSepStyle, b.variant, !!b.titleText,
           { fillColor, strokeColor },
         );
         cells.push(mxVertex({
-          value: b.title || '',
+          value: b.titleText?.html || '',
           style: sepStyle,
           parent: parentId,
           x,
@@ -1124,10 +922,10 @@ export class Content {
         }));
         y += sepHeight;
       } else if (b.kind === 'rich') {
-        const m = measureText(b.html, this._m.bodyFontSize, this._m.fontFamily, 'normal', 'normal', true);
+        const m = b.text.measure();
         const h = Math.ceil(m.height);
         cells.push(mxVertex({
-          value: b.html,
+          value: b.text.html,
           style: rowStyle,
           parent: parentId,
           x,
@@ -1152,17 +950,14 @@ export class Content {
   /** Title HTML (for swimlane containers that need startSize). */
   get titleHtml(): string {
     const b = this._blocks.find(b => b.kind === 'title');
-    return b ? (b as { kind: 'title'; html: string }).html : '';
+    return b && b.kind === 'title' ? b.text.html : '';
   }
 
   /** Combined HTML value (backward compatibility for model fields). */
   get html(): string {
-    if (this._blocks.length === 1) {
-      return (this._blocks[0] as any).html || '';
-    }
     return this._blocks
       .filter(b => b.kind !== 'separator')
-      .map(b => (b as any).html || '')
+      .map(b => (b as { text: TextBlock }).text.html)
       .join('');
   }
 

@@ -180,7 +180,7 @@ export {
   classNodeStyle,
 } from './class-node.ts';
 
-export { separatorStyle } from '../shared/content.ts';
+export { separatorStyle } from '../shared/content-types.ts';
 
 // Sequence diagram primitives
 export {

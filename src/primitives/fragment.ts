@@ -7,7 +7,7 @@
 
 import { mxVertex } from '../shared/xml-utils.ts';
 import { normalizeColor } from '../shared/color-utils.ts';
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { buildUmlFrameStyle } from './shapes/frame.ts';
 import { createTheme, fontFamilyStyle, type Theme } from '../shared/theme.ts';
 
@@ -81,7 +81,7 @@ export function renderFragment(frag: {
   if (frag.fillColor) style += `swimlaneFillColor=${normalizeColor(frag.fillColor)};`;
 
   // Convert raw Creole labels to HTML
-  const tabHtml = Content.inline(tabText).html;
+  const tabHtml = TextBlock.inline(tabText, { size: fontSize, family: theme.fontFamily }).html;
 
   cells.push(mxVertex({
     id: frag.id, value: tabHtml, style,
@@ -98,9 +98,9 @@ export function renderFragment(frag: {
 
   const isRef = frag.type === 'ref';
   if (conditionLabel) {
-    const condContent = Content.inline(conditionLabel, { fontSize: smallFontSize });
-    const condHtml = condContent.html;
-    const condSize = condContent.measure();
+    const condBlock = TextBlock.inline(conditionLabel, { size: smallFontSize, family: theme.fontFamily });
+    const condHtml = condBlock.html;
+    const condSize = condBlock.measure();
     const condMinH = theme.sizeS;
     const condH = Math.max(condMinH, Math.ceil(condSize.height) + theme.padXS);
     if (isRef) {
@@ -150,7 +150,7 @@ export function renderFragment(frag: {
       x: frag.x, y, width: frag.width, height: 1,
     }));
     cells.push(mxVertex({
-      id: frag.id + '_sec_' + (i + 1), value: '[' + Content.inline(section.label).html + ']',
+      id: frag.id + '_sec_' + (i + 1), value: '[' + TextBlock.inline(section.label, { size: smallFontSize, family: theme.fontFamily }).html + ']',
       style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`,
       parent: '1',
       x: frag.x + labelGap, y: y + 2, width: frag.width - labelGap * 2, height: sectionH,

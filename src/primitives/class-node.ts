@@ -8,13 +8,14 @@
  *   - classNodeStyle(node, startSize) — generate DrawIO swimlane style
  */
 
-import { Content } from '../shared/content.ts';
+import { BlockLayout } from '../shared/block-layout.ts';
+import { TextBlock, DEFAULT_FONT } from '../shared/text-block.ts';
 import { buildLabelHtml } from './label.ts';
 import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
 import { SwimlaneRenderer } from './renderer.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
-import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
+import type { ContentBox, FinalizeBodyCtx } from '../shared/content-types.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
@@ -61,7 +62,7 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
   // Custom spot from <<(X,color)>> overrides the default SPOT_MAP lookup.
   const spotInfo = node.hideCircle ? undefined : (node.spot || SPOT_MAP[stype]);
   // Convert raw Creole label to HTML inside the renderer
-  const labelHtml = Content.inline(node.label).html;
+  const labelHtml = TextBlock.inline(node.label, DEFAULT_FONT).html;
   return buildLabelHtml({
     label: labelHtml,
     stereotypeLabel: node.stereotypeLabel,
@@ -104,10 +105,10 @@ export function classContent(node: {
   hideMethods?: boolean;
   spot?: { char: string; color: string };
   theme?: Theme;
-}): Content {
+}): BlockLayout {
   const entityType = node.stereotype || node.type || '';
   const skipAutoSep = entityType === 'object';
-  return Content.classBody({
+  return BlockLayout.classBody({
     titleHtml: buildTitleHtml(node),
     nodeId: node.id,
     bodyLines: node.bodyLines,

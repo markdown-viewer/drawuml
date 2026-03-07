@@ -5,7 +5,8 @@
 
 import { mxVertex, n4 } from '../shared/xml-utils.ts';
 import { darkenColor } from '../shared/color-utils.ts';
-import { Content, richTextStyle } from '../shared/content.ts';
+import { BlockLayout, richTextStyle } from '../shared/block-layout.ts';
+import { TextBlock, DEFAULT_FONT } from '../shared/text-block.ts';
 import { buildLabelHtml } from './label.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
 
@@ -167,7 +168,7 @@ export function buildParticipantLabel(
   opts?: { stereotypePosition?: 'top' | 'bottom'; fontSize?: number; spotSize?: number; spotFontSize?: number; spotMargin?: number },
 ): string {
   // Convert raw Creole label to HTML inside the renderer
-  const labelHtml = Content.inline(p.label).html;
+  const labelHtml = TextBlock.inline(p.label, DEFAULT_FONT).html;
   return buildLabelHtml({
     label: labelHtml,
     stereotypeLabel: p.stereotypeLabel,
@@ -208,7 +209,7 @@ export function measureBracketBody(bracketLines: string[], bodyFontSize?: number
   const metrics: Partial<any> = {};
   if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
   if (fontFamily != null) metrics.fontFamily = fontFamily;
-  const size = Content.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
+  const size = BlockLayout.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
   const contentPad = theme.padXS;
   const sw = theme.strokeWidth;
   return {
@@ -238,7 +239,7 @@ export function renderParticipant(
     const bracketMetrics: Partial<any> = {};
     if (theme.fontSize != null) bracketMetrics.bodyFontSize = theme.fontSize;
     if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
-    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
+    const content = BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const cells: string[] = [];
     const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
     const colorDark = theme.colorDark;
@@ -302,7 +303,7 @@ export function renderFootbox(
     const bracketMetrics: Partial<any> = {};
     if (theme.fontSize != null) bracketMetrics.bodyFontSize = theme.fontSize;
     if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
-    const content = Content.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
+    const content = BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const footId = p.id + '_foot';
     const cells: string[] = [];
     const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });

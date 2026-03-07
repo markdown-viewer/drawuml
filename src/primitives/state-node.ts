@@ -9,7 +9,7 @@
  *   - state       : rounded rectangle — delegates to shared Content system
  */
 
-import { Content } from '../shared/content.ts';
+import { TextBlock } from '../shared/text-block.ts';
 import { escapeXml, mxVertex, cellId, n4 } from '../shared/xml-utils.ts';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
 import { RichRenderer } from './shapes/rich-renderer.ts';
@@ -19,7 +19,7 @@ import type { Theme } from '../shared/theme.ts';
 import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor } from './registry.ts';
-import type { ContentBox, FinalizeBodyCtx } from '../shared/content.ts';
+import type { ContentBox, FinalizeBodyCtx } from '../shared/content-types.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 
 // ---------------------------------------------------------------------------
@@ -371,7 +371,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
     super(node.id, node.theme);
     this._nodeLabel = node.label ?? '';
     this.nodeStyle = node.style;
-    const titleHtml = Content.inline(node.label ?? '').html;
+    const titleHtml = TextBlock.inline(node.label ?? '', { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
     this.initContent(titleHtml, { bodyLines: node.bodyLines });
   }
 
@@ -400,7 +400,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
    */
   render(box: ContentBox): string[] {
     if (this.children.length > 0) {
-      const labelHtml = Content.inline(this._nodeLabel).html;
+      const labelHtml = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
       const parentCellId = this.parentId || '1';
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
       const style = stateGroupStyle(this.theme, this.nodeStyle, hasConcurrentRegions);

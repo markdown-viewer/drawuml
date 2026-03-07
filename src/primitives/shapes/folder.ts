@@ -5,8 +5,7 @@
  * Package keeps the label in the folder tab; stereotype shown as body content.
  */
 
-import { measureText } from '@markdown-viewer/text-measure';
-import { Content } from '../../shared/content.ts';
+import { TextBlock, DEFAULT_FONT } from '../../shared/text-block.ts';
 import { escapeXml } from '../../shared/xml-utils.ts';
 import { RichRenderer } from './rich-renderer.ts';
 import type { ShapePadding } from './rich-renderer.ts';
@@ -23,7 +22,7 @@ class FolderRenderer extends RichRenderer {
 
   /** Tab width: text width + fontSize padding (left+right spacing). */
   private computeTabWidth(): number {
-    return Math.max(Math.ceil(measureText(this.label, this.theme.fontSize, this.theme.fontFamily, 'bold', 'normal', false).width) + this.theme.fontSize, this.theme.sizeM);
+    return Math.max(Math.ceil(TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' }).width) + this.theme.fontSize, this.theme.sizeM);
   }
 
   protected buildStyle(): string {
@@ -50,7 +49,7 @@ class FolderRenderer extends RichRenderer {
 
   // Package: label always in folder tab (frame value)
   protected getFrameValue(): string {
-    if (this.isPackage) return Content.inline(this.label).html;
+    if (this.isPackage) return TextBlock.inline(this.label, DEFAULT_FONT).html;
     return super.getFrameValue();
   }
 
