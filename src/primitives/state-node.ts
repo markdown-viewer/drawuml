@@ -512,7 +512,6 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
   if (parsed) {
     if (parsed.fillColor) {
       base.push(`fillColor=${parsed.fillColor}`);
-      base.push(`swimlaneFillColor=${parsed.fillColor}`);
       if (!parsed.strokeColor) base.push(`strokeColor=${darkenColor(parsed.fillColor)}`);
     }
     if (parsed.strokeColor) base.push(`strokeColor=${parsed.strokeColor}`);
@@ -522,7 +521,7 @@ function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boole
     else if (parsed.lineStyle === 'bold') base.push(`strokeWidth=${n4(theme.boldStrokeWidth)}`);
   }
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
-  if (!base.some(s => s.startsWith('swimlaneFillColor='))) base.push(`swimlaneFillColor=${theme.defaultFill}`);
+  if (!base.some(s => s.startsWith('swimlaneFillColor='))) base.push(`swimlaneFillColor=${theme.groupFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
   return base.join(';') + ';';
 }

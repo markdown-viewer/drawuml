@@ -71,6 +71,7 @@ export function renderFragment(frag: {
   let style = buildUmlFrameStyle({
     tabWidth: tabW, tabHeight: tabH,
     fontSize, cornerClip, strokeWidth: sw,
+    fillColor: theme.defaultFill,
     fontColor: colorDark, strokeColor: colorDark,
     fontFamily: theme.fontFamily,
   });

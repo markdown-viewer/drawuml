@@ -32,7 +32,7 @@ export interface Theme {
   readonly colorDark: string;
   readonly defaultFill: string;
   readonly groupFill: string;
-  readonly classFill: string;
+  readonly participantFill: string;
   readonly dividerFill: string;
   readonly legendFill: string;
   readonly noteLinkColor: string;
@@ -84,7 +84,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     colorDark: '#181818',
     defaultFill: '#F1F1F1',
     groupFill: '#FFFFFF',
-    classFill: '#F1F1F1',
+    participantFill: '#E2E2F0',
     dividerFill: '#EEEEEE',
     legendFill: '#DDDDDD',
     noteLinkColor: '#AEAE8F',

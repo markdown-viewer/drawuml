@@ -108,7 +108,7 @@ export function participantCellGeom(
 /** Generate the DrawIO style for a umlLifeline participant cell. */
 export function participantStyle(
   nodeType: string,
-  opts: { isFootbox?: boolean; color?: string; iconHeight?: number; actorStyle?: string; fontSize?: number; fontFamily?: string; arcSize?: number; strokeWidth?: number } = {},
+  opts: { isFootbox?: boolean; color?: string; participantFill?: string; iconHeight?: number; actorStyle?: string; fontSize?: number; fontFamily?: string; arcSize?: number; strokeWidth?: number } = {},
 ): string {
   const cfg = PARTICIPANT_CONFIG[nodeType] || PARTICIPANT_CONFIG.participant;
   const size = opts.iconHeight || cfg.iconSize;
@@ -142,6 +142,8 @@ export function participantStyle(
     parts.push(`fillColor=${c}`);
     // Auto-derive border color by darkening fill when no explicit border set
     parts.push(`strokeColor=${darkenColor(c)}`);
+  } else if (opts.participantFill) {
+    parts.push(`fillColor=${opts.participantFill}`);
   }
   if (cfg.textBelow) {
     if (opts.isFootbox) {
@@ -241,9 +243,9 @@ export function renderParticipant(
     if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
     const content = BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const cells: string[] = [];
-    const containerStyleStr = participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
+    const containerStyleStr = participantStyle(p.type, { color: p.color, participantFill: theme.participantFill, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
     const colorDark = theme.colorDark;
-    const fillColor = containerStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
+    const fillColor = containerStyleStr.match(/fillColor=([^;]*)/)?.[1] || theme.participantFill;
     const strokeColor = containerStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
     cells.push(mxVertex({
       id: p.id, value: '',
@@ -276,7 +278,7 @@ export function renderParticipant(
   const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
   return [mxVertex({
     id: p.id, value: labelHtml,
-    style: participantStyle(p.type, { color: p.color, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
+    style: participantStyle(p.type, { color: p.color, participantFill: theme.participantFill, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
     parent: '1',
     x: cellX, y: layout.y, width: cellW, height: layout.height,
   })];
@@ -306,7 +308,7 @@ export function renderFootbox(
     const content = BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const footId = p.id + '_foot';
     const cells: string[] = [];
-    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
+    const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, participantFill: theme.participantFill, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
     const colorDark = theme.colorDark;
     const fillColor = footStyleStr.match(/fillColor=([^;]*)/)?.[1] || '#E2E2E2';
     const strokeColor = footStyleStr.match(/strokeColor=([^;]*)/)?.[1] || colorDark;
@@ -338,7 +340,7 @@ export function renderFootbox(
   const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
-    style: participantStyle(p.type, { isFootbox: true, color: p.color, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
+    style: participantStyle(p.type, { isFootbox: true, color: p.color, participantFill: theme.participantFill, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
     parent: '1',
     x: footX, y: footY, width: footW, height: footH,
   })];

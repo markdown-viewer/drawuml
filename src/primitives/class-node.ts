@@ -185,8 +185,8 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
 
   // Default fill when no custom fill specified
   if (!base.some(s => s.startsWith('fillColor='))) {
-    base.push(`fillColor=${theme.classFill}`);
-    base.push(`swimlaneFillColor=${theme.classFill}`);
+    base.push(`fillColor=${theme.defaultFill}`);
+    base.push(`swimlaneFillColor=${theme.defaultFill}`);
   }
 
   return base.join(';') + ';';
@@ -217,7 +217,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     const parsed = parseNodeStyle(node.style);
     this.childStroke = parsed?.strokeColor || undefined;
     this.childLineStyle = parsed?.lineStyle || undefined;
-    this.childFillColor = parsed?.fillColor || node.theme.classFill;
+    this.childFillColor = parsed?.fillColor || node.theme.defaultFill;
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {

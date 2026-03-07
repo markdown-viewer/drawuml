@@ -46,7 +46,7 @@ export function renderDestroyMarker(
 
 /** Generate DrawIO style for an activation bar. */
 export function activationBarStyle(fillColor?: string, theme: Theme = createTheme()): string {
-  const fill = normalizeColor(fillColor) || theme.classFill;
+  const fill = normalizeColor(fillColor) || theme.participantFill;
   const stroke = darkenColor(fill);
   return [
     'html=1',

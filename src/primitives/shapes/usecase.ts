@@ -19,7 +19,7 @@ class UsecaseRenderer extends RichRenderer {
   }
 
   protected buildStyle(): string {
-    const base = `whiteSpace=wrap;html=1;fillColor=${this.theme.classFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
+    const base = `whiteSpace=wrap;html=1;fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
     if (this.isBusiness) {
       // Business usecase: ellipse with a diagonal slash (lineEllipse extension)
       return `shape=lineEllipse;line=diagonal;` + base;

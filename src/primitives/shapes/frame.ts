@@ -75,7 +75,7 @@ class FrameShapeRenderer extends RichRenderer {
         tabWidth: tabW, tabHeight: tabH,
         fontSize: this.theme.fontSize, cornerClip: this.theme.cornerClip,
         strokeWidth: this.theme.strokeWidth,
-        fillColor: this.theme.classFill,
+        fillColor: this.theme.defaultFill,
       });
     }
     return buildUmlFrameStyle({

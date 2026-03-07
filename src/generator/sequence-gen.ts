@@ -39,11 +39,6 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     if (r) cells.push(...r.render(box));
   }
 
-  // Fragments (rendered before participants so lifelines appear on top of frame fills)
-  for (const frag of layout.fragments || []) {
-    cells.push(...renderFragment({ ...frag, theme }));
-  }
-
   // Participants
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
@@ -54,6 +49,11 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     if (lp.isDestroyed && lp.destroyY != null) {
       cells.push(renderDestroyMarker(p.id + '_destroy', lp.centerX, lp.destroyY, undefined, undefined, theme));
     }
+  }
+
+  // Fragments (rendered after participants so frame tab covers lifelines)
+  for (const frag of layout.fragments || []) {
+    cells.push(...renderFragment({ ...frag, theme }));
   }
 
   // Footbox: bottom participant boxes (default visible, hidden by "hide footbox")
