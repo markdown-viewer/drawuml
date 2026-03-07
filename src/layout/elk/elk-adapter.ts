@@ -90,8 +90,8 @@ function elkSpacing(theme: Theme = createTheme()) {
   return {
     nodeNode: String(theme.padL),
     nodeNodeBetweenLayers: String(theme.padXXL),
-    edgeEdge: String(theme.padXS),
-    edgeEdgeBetweenLayers: String(theme.padXS),
+    edgeEdge: String(theme.padS),
+    edgeEdgeBetweenLayers: String(theme.padS),
     edgeNode: String(theme.padL),
     edgeNodeBetweenLayers: String(theme.padL),
     nodeSelfLoop: String(theme.padL),
@@ -182,11 +182,14 @@ export function layoutGraphToElkSimple(
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
     // Post-layout compaction removes unnecessary vertical gaps
     'elk.layered.compaction.postCompaction.strategy': 'LEFT',
-    // Always set INCLUDE_CHILDREN (matching PlantUML behavior).
-    // This ensures all connected components share the same label-dummy
-    // layer, producing uniform layer spacing regardless of label count.
-    'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
   };
+
+  // Only set INCLUDE_CHILDREN when the model has groups (containers).
+  // Without it, ELK's component packer arranges disconnected nodes
+  // into a compact grid instead of a single long strip.
+  if (hasGroups) {
+    layoutOptions['elk.hierarchyHandling'] = 'INCLUDE_CHILDREN';
+  }
 
   const elkRoot: ElkNode = {
     id: 'root',
@@ -311,11 +314,14 @@ export function layoutGraphToElk(
     // Do NOT merge parallel edges — each edge gets its own route
     // for better readability (merging causes overlapping lines).
     'elk.layered.mergeEdges': 'false',
-    // Always set INCLUDE_CHILDREN (matching PlantUML behavior).
-    // This ensures all connected components share the same label-dummy
-    // layer, producing uniform layer spacing regardless of label count.
-    'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
   };
+
+  // Only set INCLUDE_CHILDREN when the model has groups (containers).
+  // Without it, ELK's component packer arranges disconnected nodes
+  // into a compact grid instead of a single long strip.
+  if (hasGroups) {
+    layoutOptions['elk.hierarchyHandling'] = 'INCLUDE_CHILDREN';
+  }
 
   const elkRoot: ElkNode = {
     id: 'root',
