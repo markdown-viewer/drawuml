@@ -268,9 +268,9 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   private measureGenericBox(): { width: number; height: number } | null {
     const generic = this.node.generic;
     if (!generic) return null;
-    const fs = this.theme.fontSize;
+    const fs = this.theme.smallFontSize;
     const tb = TextBlock.plain(generic, { size: fs, family: this.theme.fontFamily, style: 'italic' });
-    const pad = this.theme.padXS;
+    const pad = this.theme.strokeWidth * 3;
     return { width: tb.width + pad * 2, height: tb.height + pad * 2 };
   }
 
@@ -293,9 +293,9 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     if (!generic) return cells;
 
     const gb = this.measureGenericBox()!;
-    const fs = this.theme.fontSize;
+    const fs = this.theme.smallFontSize;
     const pad = this.theme.padXS;
-    // Label's right-top corner at class right-top corner + (padXS, -padXS)
+    // Label's right-top corner at class right-top corner + (pad, -pad)
     const gx = box.x + box.width + pad - gb.width;
     const gy = box.y - pad;
 
