@@ -327,18 +327,26 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (edge.cardFrom && layoutCardFromPos) {
       const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme });
       const m = cfr.measure();
+      const adjFrom = adjustLabelAwayFromEdge(
+        layoutCardFromPos, { width: m.width, height: m.height },
+        layoutEdge?.points, theme.padXS,
+      );
       cells.push(...cfr.render({
-        x: layoutCardFromPos.x - m.width / 2,
-        y: layoutCardFromPos.y - m.height / 2,
+        x: adjFrom.x - m.width / 2,
+        y: adjFrom.y - m.height / 2,
         width: m.width, height: m.height,
       }));
     }
     if (edge.cardTo && layoutCardToPos) {
       const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme });
       const m = ctr.measure();
+      const adjTo = adjustLabelAwayFromEdge(
+        layoutCardToPos, { width: m.width, height: m.height },
+        layoutEdge?.points, theme.padXS,
+      );
       cells.push(...ctr.render({
-        x: layoutCardToPos.x - m.width / 2,
-        y: layoutCardToPos.y - m.height / 2,
+        x: adjTo.x - m.width / 2,
+        y: adjTo.y - m.height / 2,
         width: m.width, height: m.height,
       }));
     }
