@@ -67,7 +67,7 @@ const DEFAULTS: ContentMetrics = {
 /** Build class metrics from theme. */
 function classMetrics(theme: Theme = createTheme()): Partial<ContentMetrics> {
   return {
-    paddingX: theme.padXL,
+    paddingX: theme.padL,
     titlePaddingY: theme.fontSize,
     bodyPaddingY: theme.padXS,
     rowHeight: theme.sizeS,
