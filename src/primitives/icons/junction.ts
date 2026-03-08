@@ -30,11 +30,13 @@ export class JunctionRenderer extends IconRenderer {
     this.strokeColor = normalizeColor(strokeColor) ?? strokeColor;
   }
 
-  // Base 16×16 circle — scaled by iconScale from IconRenderer
-  // (baseIconWidth/baseIconHeight default to 16, no override needed)
+  // Half-size icon: junction circle is smaller than standard icons
+  protected override get iconScale(): number {
+    return super.iconScale * 0.5;
+  }
 
   render(box: ContentBox): string[] {
-    const d = this.iconWidth * 0.5;
+    const d = this.iconWidth;
     const cx = box.x + (box.width - d) / 2;
     const style = [
       'ellipse',
