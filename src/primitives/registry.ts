@@ -69,6 +69,8 @@ export interface RenderDescriptor {
   actorStyle?: string;
   /** When true, the archimate icon overlay is horizontally centered instead of top-right. */
   centeredIcon?: boolean;
+  /** Generic type parameter text, e.g. "? extends Element". */
+  generic?: string;
 
   // ── Theme ───────────────────────────────────────────────────────────
   /** Computed theme for this conversion pass. */

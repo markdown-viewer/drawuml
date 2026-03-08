@@ -1962,6 +1962,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         // Use the stereotypes array emitted by the PEG grammar.
         // Each element is either a plain string or { text, spot: { char, color } }.
         const cleanName = rawToken;
+        const generic: string | undefined = st.generic || undefined;
         let customSpot: { char: string; color: string } | undefined;
         const stereoTexts: string[] = [];
         for (const s of (st.stereotypes || [])) {
@@ -2033,6 +2034,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           style: st.style || null,
           tags: stTags.length > 0 ? stTags : undefined,
           spot: customSpot,
+          generic,
         };
         ensureNodeInCorrectGroup(id, nameResolved.isRoot);
         lastDefinedClass = id;

@@ -19,6 +19,7 @@ import type { ContentBox, FinalizeBodyCtx } from '../shared/content-types.ts';
 import type { BodyLine } from '../model/class-model.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
+import { mxVertex } from '../shared/xml-utils.ts';
 
 // Re-export layout constants for consumers (e.g. DOT port-label building)
 
@@ -225,7 +226,11 @@ class ClassNodeRenderer extends SwimlaneRenderer {
   }
 
   protected getContainerStyle(titleHeight: number) {
-    return classNodeStyle(this.node, titleHeight, this.theme);
+    const style = classNodeStyle(this.node, titleHeight, this.theme);
+    const gb = this.measureGenericBox();
+    if (!gb) return style;
+    // Shift title centering to the left of the generic label
+    return style + `spacingRight=${gb.width - this.theme.padXS};`;
   }
 
   protected getChildStyleOpts() {
@@ -255,6 +260,66 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     }
 
     return node;
+  }
+
+  /**
+   * Measure the generic type parameter box size.
+   */
+  private measureGenericBox(): { width: number; height: number } | null {
+    const generic = this.node.generic;
+    if (!generic) return null;
+    const fs = this.theme.fontSize;
+    const tb = TextBlock.plain(generic, { size: fs, family: this.theme.fontFamily, style: 'italic' });
+    const pad = this.theme.padXS;
+    return { width: tb.width + pad * 2, height: tb.height + pad * 2 };
+  }
+
+  protected override doMeasure() {
+    const base = super.doMeasure();
+    const gb = this.measureGenericBox();
+    if (gb) {
+      // Header must fit title + generic label side by side
+      const titleHtml = buildTitleHtml(this.node);
+      const tb = TextBlock.fromHtml(titleHtml, { size: this.theme.fontSize, family: this.theme.fontFamily });
+      const titleW = Math.ceil(tb.width) + this.theme.padXL;
+      base.width = Math.max(base.width, titleW + gb.width);
+    }
+    return base;
+  }
+
+  override render(box: ContentBox) {
+    const cells = super.render(box);
+    const generic = this.node.generic;
+    if (!generic) return cells;
+
+    const gb = this.measureGenericBox()!;
+    const fs = this.theme.fontSize;
+    const pad = this.theme.padXS;
+    // Label's right-top corner at class right-top corner + (padXS, -padXS)
+    const gx = box.x + box.width + pad - gb.width;
+    const gy = box.y - pad;
+
+    const style = [
+      'text', 'html=1',
+      'align=center', 'verticalAlign=middle',
+      `fontSize=${fs}`, 'fontStyle=2',
+      `fontFamily=${this.theme.fontFamily}`,
+      `fillColor=${this.theme.defaultFill}`,
+      `strokeColor=${this.theme.colorDark}`,
+      'dashed=1', 'dashPattern=5 2',
+      `strokeWidth=${this.theme.strokeWidth}`,
+    ].join(';') + ';';
+
+    cells.push(mxVertex({
+      id: this.id + '__generic',
+      value: generic,
+      style,
+      parent: this.parentId || '1',
+      x: gx, y: gy,
+      width: gb.width, height: gb.height,
+    }));
+
+    return cells;
   }
 }
 

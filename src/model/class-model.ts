@@ -27,9 +27,12 @@ export interface SemanticNode {
   hideMethods?: boolean;
   /** Map entries for "map" blocks (key => value table rows). */
   mapEntries?: { key: string; value: string; linked?: boolean }[];
+  /** Generic type parameter text, e.g. "? extends Element". */
+  generic?: string;
   /** User-defined $tags from class declaration syntax. */
   tags?: string[];
   /** Whether this node is a port (port/portin/portout). */
+
   isPort?: boolean;
   /** Port direction: 'portin' for input/bidirectional, 'portout' for output. */
   portType?: 'portin' | 'portout';
