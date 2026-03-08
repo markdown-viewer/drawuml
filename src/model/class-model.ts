@@ -89,6 +89,7 @@ export interface SemanticGroup {
   label: string;
   type: string;           // 'package' | 'namespace' | 'rectangle' | 'frame' | 'folder' | ...
   stereotype?: string;    // package shape stereotype: 'Node' | 'Rectangle' | 'Folder' | 'Frame' | 'Cloud' | 'Database' | ...
+  alias?: string;         // optional alias for edge resolution (e.g. "as LB")
   parentId?: string;      // parent group id (nested packages)
   children: string[];     // child node ids
   childGroups: string[];  // child group ids

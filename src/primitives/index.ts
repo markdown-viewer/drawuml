@@ -132,13 +132,6 @@ export function clearRenderWarnings(): void {
 export function createNodeRenderer(desc: RenderDescriptor): RendererType {
   const stype = desc.stereotype || '';
   const ntype = desc.type || '';
-  const ctx = desc.diagramContext || '';
-
-  // In deployment context, database and storage are rendered as component
-  // (PlantUML renders them with component shape when inside nodes/clouds)
-  if (ctx === 'deployment' && (stype === 'database' || stype === 'storage')) {
-    return createRenderer('component', desc);
-  }
 
   // Stereotype takes priority (specific shape > generic type)
   if (stype && hasRenderer(stype)) {

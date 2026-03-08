@@ -221,9 +221,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     return g.label;
   }
 
-  /** Find a group whose fully-qualified name equals the given name. */
+  /** Find a group whose fully-qualified name or alias equals the given name. */
   function findGroupByQualifiedName(name: string): SemanticGroup | undefined {
-    return groups.find(g => getGroupQualifiedName(g) === name);
+    return groups.find(g => g.alias === name || getGroupQualifiedName(g) === name);
   }
 
   /** Register a node id into the current group (if any package-type group). */
@@ -1338,12 +1338,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           segments = [segments.join('.')];
         }
         const startParent = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+        const alias = String(st.alias || '').trim() || undefined;
         const chain = findOrCreateGroupChain(segments, ctype, startParent, stereotype);
-        // Apply color/style to the innermost (leaf) group
+        // Apply color/style/alias to the innermost (leaf) group
         if (chain.length > 0) {
           const leaf = chain[chain.length - 1];
           if (st.color) leaf.color = st.color;
           if (st.style) leaf.style = st.style;
+          if (alias) leaf.alias = alias;
         }
         for (const g of chain) groupStack.push(g);
         blockPushCounts.push(chain.length);

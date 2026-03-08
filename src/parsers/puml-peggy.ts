@@ -1537,8 +1537,8 @@ function peg$parse(input: string, options?: ParseOptions) {
   const peg$c755 = function(): any { return '\\'; };
   const peg$c756 = /^[$A-Za-z_$\x80-\uFFFF]/;
   const peg$c757 = peg$classExpectation(["$", ["A", "Z"], ["a", "z"], "_", "$", ["\x80", "\uFFFF"]], false, false);
-  const peg$c758 = /^[$A-Za-z0-9_$\-\\ *\x80-\uFFFF]/;
-  const peg$c759 = peg$classExpectation(["$", ["A", "Z"], ["a", "z"], ["0", "9"], "_", "$", "-", "\\", " ", "*", ["\x80", "\uFFFF"]], false, false);
+  const peg$c758 = /^[$A-Za-z0-9_$\-\\ *.\x80-\uFFFF]/;
+  const peg$c759 = peg$classExpectation(["$", ["A", "Z"], ["a", "z"], ["0", "9"], "_", "$", "-", "\\", " ", "*", ".", ["\x80", "\uFFFF"]], false, false);
   const peg$c760 = function(t: any): any {
         return t;
       };
