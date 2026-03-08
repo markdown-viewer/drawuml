@@ -557,7 +557,13 @@ export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, t
 }
 
 /**
- * DOT mode: lanes are already columnar (DOT clusters). Only normalize heights.
+ * DOT mode: lanes are already columnar (DOT clusters).
+ * Normalize heights AND fix X coordinates when DOT clusters overlap.
+ *
+ * DOT may produce overlapping cluster bounding boxes when cross-cluster
+ * edges cause rank interleaving.  This function detects overlap (total
+ * region width > container width) and remaps region positions + node/edge
+ * coordinates so that lanes tile tightly without overlap.
  */
 function _rearrangeSwimlaneDot(
   layout: LayoutResult,
@@ -567,27 +573,29 @@ function _rearrangeSwimlaneDot(
   const regions = group.concurrentRegions;
   const numLanes = regions.length;
 
-  // Collect region positions from layout engine
-  const regionPositions: Array<{ id: string; x: number; y: number; width: number; height: number }> = [];
+  // Collect region positions from layout engine, keeping original index
+  const regionData: Array<{
+    index: number; id: string;
+    oldX: number; oldWidth: number;
+    nodeIds: string[];
+  }> = [];
   for (let i = 0; i < numLanes; i++) {
     const regionId = `${group.id}.__conc_region__${i}`;
     const pos = layout.groups?.[regionId];
     if (pos) {
-      regionPositions.push({ ...pos });
+      regionData.push({ index: i, id: regionId, oldX: pos.x, oldWidth: pos.width, nodeIds: regions[i] });
     }
   }
 
-  if (regionPositions.length === 0) return;
+  if (regionData.length === 0) return;
 
   // Compute full container bounds from all regions and nodes
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
 
-  for (const rp of regionPositions) {
-    minX = Math.min(minX, rp.x);
-    maxX = Math.max(maxX, rp.x + rp.width);
-    minY = Math.min(minY, rp.y);
-    maxY = Math.max(maxY, rp.y + rp.height);
+  for (const rd of regionData) {
+    minX = Math.min(minX, rd.oldX);
+    maxX = Math.max(maxX, rd.oldX + rd.oldWidth);
   }
 
   // Also consider node extents (nodes may exceed cluster bounds)
@@ -598,22 +606,110 @@ function _rearrangeSwimlaneDot(
     maxY = Math.max(maxY, n.y + n.height);
   }
 
+  // Include region Y extents
+  for (const rd of regionData) {
+    const pos = layout.groups![rd.id];
+    minY = Math.min(minY, pos.y);
+    maxY = Math.max(maxY, pos.y + pos.height);
+  }
+
+  const containerWidth = maxX - minX;
   const totalHeight = maxY - minY;
 
-  // Update container to encompass all regions
   containerPos.x = minX;
   containerPos.y = minY;
-  containerPos.width = maxX - minX;
+  containerPos.width = containerWidth;
   containerPos.height = totalHeight;
 
-  // Set all regions to full container height, keep X/width from engine
+  // Sort regions by X position
+  regionData.sort((a, b) => a.oldX - b.oldX);
+
+  const totalOldWidth = regionData.reduce((s, r) => s + r.oldWidth, 0);
+  const needsXRearrange = totalOldWidth - containerWidth > 1;
+
   if (!layout.groups) layout.groups = {};
-  for (let i = 0; i < numLanes; i++) {
-    const regionId = `${group.id}.__conc_region__${i}`;
-    const existing = layout.groups[regionId];
-    if (existing) {
-      existing.y = containerPos.y;
-      existing.height = containerPos.height;
+
+  if (needsXRearrange) {
+    // DOT clusters overlap — remap X coordinates
+
+    // Record old node centers for edge waypoint adjustment
+    const oldNodeCX = new Map<string, number>();
+    for (const nid of group.children) {
+      const n = layout.nodes[nid];
+      if (n) oldNodeCX.set(nid, n.x + n.width / 2);
+    }
+
+    // Assign new positions: tightly packed, proportional widths
+    let cumulX = minX;
+    for (const rd of regionData) {
+      const newWidth = rd.oldWidth / totalOldWidth * containerWidth;
+      const newX = cumulX;
+
+      // Remap each node's X: preserve relative position within region, scaled
+      const oldCenterX = rd.oldX + rd.oldWidth / 2;
+      const newCenterX = newX + newWidth / 2;
+      const scale = newWidth / rd.oldWidth;
+
+      for (const nid of rd.nodeIds) {
+        const n = layout.nodes[nid];
+        if (!n) continue;
+        const nodeCenterX = n.x + n.width / 2;
+        n.x = newCenterX + (nodeCenterX - oldCenterX) * scale - n.width / 2;
+      }
+
+      // Update region
+      layout.groups[rd.id] = {
+        id: rd.id,
+        x: newX,
+        y: containerPos.y,
+        width: newWidth,
+        height: containerPos.height,
+      };
+      cumulX += newWidth;
+    }
+
+    // Remap edge waypoints using source/target node displacement
+    if (layout.edges) {
+      for (const edge of layout.edges) {
+        const pts = edge.points;
+        if (!pts || pts.length === 0) continue;
+
+        const fromOld = oldNodeCX.get(edge.from);
+        const toOld = oldNodeCX.get(edge.to);
+        if (fromOld === undefined && toOld === undefined) continue;
+
+        const fromNew = layout.nodes[edge.from];
+        const toNew = layout.nodes[edge.to];
+        const dxFrom = fromNew && fromOld !== undefined ? (fromNew.x + fromNew.width / 2) - fromOld : 0;
+        const dxTo = toNew && toOld !== undefined ? (toNew.x + toNew.width / 2) - toOld : 0;
+
+        if (dxFrom === 0 && dxTo === 0) continue;
+
+        // Interpolate displacement along Y axis between source and target
+        const yFrom = fromNew ? fromNew.y + fromNew.height / 2 : pts[0].y;
+        const yTo = toNew ? toNew.y + toNew.height / 2 : pts[pts.length - 1].y;
+        const yRange = yTo - yFrom;
+
+        for (const pt of pts) {
+          const t = yRange === 0 ? 0.5 : Math.max(0, Math.min(1, (pt.y - yFrom) / yRange));
+          pt.x += dxFrom + (dxTo - dxFrom) * t;
+        }
+
+        // Also adjust label positions
+        if (edge.labelPos) {
+          const t = yRange === 0 ? 0.5 : Math.max(0, Math.min(1, (edge.labelPos.y - yFrom) / yRange));
+          edge.labelPos.x += dxFrom + (dxTo - dxFrom) * t;
+        }
+      }
+    }
+  } else {
+    // No overlap — only normalize Y/height
+    for (const rd of regionData) {
+      const existing = layout.groups[rd.id];
+      if (existing) {
+        existing.y = containerPos.y;
+        existing.height = containerPos.height;
+      }
     }
   }
 }
