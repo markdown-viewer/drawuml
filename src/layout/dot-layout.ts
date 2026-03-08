@@ -32,6 +32,7 @@ function extractLayout(
   renderers: Map<string, Renderer>,
   edges: SemanticEdge[],
   groupIds: Set<string>,
+  labelGap: number,
 ): LayoutResult {
   const PX_PER_INCH = 72;
   const nodes: Record<string, LayoutNode> = {}
@@ -195,6 +196,27 @@ function extractLayout(
         labelPos = { x: lpx + xShift, y: allMaxY - lpy };
       }
 
+      // Offset label positions by gap away from edge line / endpoint
+      if (labelPos && waypoints.length >= 2) {
+        const edgeX = (waypoints[0].x + waypoints[waypoints.length - 1].x) / 2;
+        const dx = labelPos.x - edgeX;
+        if (Math.abs(dx) > 0.1) labelPos.x += Math.sign(dx) * labelGap;
+      }
+      if (cardFromPos && waypoints.length >= 1) {
+        const ep = waypoints[0];
+        const dx = cardFromPos.x - ep.x;
+        const dy = cardFromPos.y - ep.y;
+        if (Math.abs(dx) > 0.1) cardFromPos.x += Math.sign(dx) * labelGap;
+        if (Math.abs(dy) > 0.1) cardFromPos.y += Math.sign(dy) * labelGap;
+      }
+      if (cardToPos && waypoints.length >= 1) {
+        const ep = waypoints[waypoints.length - 1];
+        const dx = cardToPos.x - ep.x;
+        const dy = cardToPos.y - ep.y;
+        if (Math.abs(dx) > 0.1) cardToPos.x += Math.sign(dx) * labelGap;
+        if (Math.abs(dy) > 0.1) cardToPos.y += Math.sign(dy) * labelGap;
+      }
+
       layoutEdges.push({
         id: edges[i]?.id || `e${i + 1}`,
         from: fromName,
@@ -344,7 +366,7 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   }
 
   // 5. Extract + transform coordinates
-  const layout = extractLayout(vizJson, renderers, model.edges, groupIds);
+  const layout = extractLayout(vizJson, renderers, model.edges, groupIds, theme.padXS);
 
   // 5a. Swimlane column rearrangement (if activity swimlanes present)
   rearrangeSwimlanes(layout, model, theme);

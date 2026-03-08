@@ -312,14 +312,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       const m = lr.measure();
       const w = layoutLabelSize?.width || m.width;
       const h = layoutLabelSize?.height || m.height;
-      // Adjust label position to maintain gap from edge line
-      const adjustedPos = adjustLabelAwayFromEdge(
-        layoutLabelPos, { width: w, height: h },
-        layoutEdge?.points, theme.padXS,
-      );
       cells.push(...lr.render({
-        x: adjustedPos.x - w / 2,
-        y: adjustedPos.y - h / 2,
+        x: layoutLabelPos.x - w / 2,
+        y: layoutLabelPos.y - h / 2,
         width: w, height: h,
       }));
     }
@@ -327,26 +322,18 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (edge.cardFrom && layoutCardFromPos) {
       const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme });
       const m = cfr.measure();
-      const adjFrom = adjustLabelAwayFromEdge(
-        layoutCardFromPos, { width: m.width, height: m.height },
-        layoutEdge?.points, theme.padXS,
-      );
       cells.push(...cfr.render({
-        x: adjFrom.x - m.width / 2,
-        y: adjFrom.y - m.height / 2,
+        x: layoutCardFromPos.x - m.width / 2,
+        y: layoutCardFromPos.y - m.height / 2,
         width: m.width, height: m.height,
       }));
     }
     if (edge.cardTo && layoutCardToPos) {
       const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme });
       const m = ctr.measure();
-      const adjTo = adjustLabelAwayFromEdge(
-        layoutCardToPos, { width: m.width, height: m.height },
-        layoutEdge?.points, theme.padXS,
-      );
       cells.push(...ctr.render({
-        x: adjTo.x - m.width / 2,
-        y: adjTo.y - m.height / 2,
+        x: layoutCardToPos.x - m.width / 2,
+        y: layoutCardToPos.y - m.height / 2,
         width: m.width, height: m.height,
       }));
     }
@@ -506,60 +493,4 @@ function computePortRelativeY(
 // ---------------------------------------------------------------------------
 // Edge label gap enforcement
 // ---------------------------------------------------------------------------
-
-/**
- * Adjust a label center position so the label box maintains a minimum gap
- * from the nearest edge segment.
- *
- * For a vertical segment at x=Ex with label to the right: ensure
- * label-left >= Ex + gap.  For label to the left: ensure label-right <= Ex - gap.
- * Horizontal segments are handled analogously.
- */
-function adjustLabelAwayFromEdge(
-  labelCenter: { x: number; y: number },
-  labelSize: { width: number; height: number },
-  edgePoints: { x: number; y: number }[] | undefined,
-  gap: number,
-): { x: number; y: number } {
-  if (!edgePoints || edgePoints.length < 2) return labelCenter;
-
-  // Find the edge segment that vertically spans the label center
-  let edgeX: number | undefined;
-  for (let i = 0; i < edgePoints.length - 1; i++) {
-    const p1 = edgePoints[i], p2 = edgePoints[i + 1];
-    const minY = Math.min(p1.y, p2.y);
-    const maxY = Math.max(p1.y, p2.y);
-    if (labelCenter.y >= minY - 1 && labelCenter.y <= maxY + 1) {
-      if (Math.abs(p2.y - p1.y) < 1) {
-        edgeX = (p1.x + p2.x) / 2;
-      } else {
-        const t = (labelCenter.y - p1.y) / (p2.y - p1.y);
-        edgeX = p1.x + t * (p2.x - p1.x);
-      }
-      break;
-    }
-  }
-  if (edgeX === undefined) return labelCenter;
-
-  const halfW = labelSize.width / 2;
-  const labelLeft = labelCenter.x - halfW;
-  const labelRight = labelCenter.x + halfW;
-
-  let newX = labelCenter.x;
-  if (labelCenter.x >= edgeX) {
-    // Label is to the right of edge line
-    const minLeft = edgeX + gap;
-    if (labelLeft < minLeft) {
-      newX = minLeft + halfW;
-    }
-  } else {
-    // Label is to the left of edge line
-    const maxRight = edgeX - gap;
-    if (labelRight > maxRight) {
-      newX = maxRight - halfW;
-    }
-  }
-
-  return { x: newX, y: labelCenter.y };
-}
 

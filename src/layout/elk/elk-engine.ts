@@ -88,10 +88,10 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   const elkResult = await elk.layout(elkGraph);
 
   // 8. Extract layout result
+  const theme = options?.theme ?? createTheme();
   const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
   // 9. Enforce minimum edge-edge spacing (ELK doesn't guarantee it for cross-hierarchy edges)
-  const theme = options?.theme ?? createTheme();
   separateOverlappingEdges(layout, theme.padXS);
 
   // 10. Swimlane column rearrangement (if activity swimlanes present)
