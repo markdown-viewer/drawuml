@@ -272,6 +272,10 @@ let vizBackup: any = null;
 async function getViz() {
   if (!vizInstance) {
     vizInstance = await instance();
+    // Pre-create a backup instance for crash recovery
+    if (!vizBackup) {
+      instance().then(v => { vizBackup = v; });
+    }
   }
   return vizInstance;
 }
@@ -291,17 +295,7 @@ function swapToBackup(): boolean {
   return false;
 }
 
-/**
- * Pre-warm the viz.js WASM instance.
- * Must be called (and awaited) once before using `dotLayoutSync()`.
- */
-export async function initViz() {
-  await getViz();
-  // Pre-create a backup instance for crash recovery
-  if (!vizBackup) {
-    vizBackup = await instance();
-  }
-}
+
 
 /** Layout output including stateful renderers for the generation phase. */
 export interface DotLayoutResult {

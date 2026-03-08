@@ -14,14 +14,6 @@ import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
 import type { ThemeConfig, Theme } from './shared/theme.ts';
 import { createTheme } from './shared/theme.ts';
 
-// Re-export init helper so callers can pre-warm viz.js
-export { dotLayout, initViz } from './layout/dot-layout.ts';
-export type { DotLayoutResult } from './layout/dot-layout.ts';
-
-// Re-export ELK layout
-export { elkLayout } from './layout/elk/elk-engine.ts';
-export type { ElkLayoutResult } from './layout/elk/elk-engine.ts';
-
 // Re-export render warning API for external consumers
 export { getRenderWarnings, clearRenderWarnings } from './primitives/index.ts';
 export type { RenderWarning } from './primitives/index.ts';

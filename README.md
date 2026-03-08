@@ -15,10 +15,8 @@ fibjs --install @markdown-viewer/draw-uml
 ## Quick Start
 
 ```javascript
-import { textToDrawioXml, initViz } from '@markdown-viewer/draw-uml';
+import { textToDrawioXml } from '@markdown-viewer/draw-uml';
 import { convert } from '@markdown-viewer/drawio2svg';
-
-await initViz(); // pre-warm DOT engine (call once)
 
 const puml = `@startuml
 class Animal {
@@ -205,7 +203,6 @@ The full list of icon keys is in `docs/shape-defaults.json`.
 | Export | Description |
 |--------|-------------|
 | `textToDrawioXml(dsl, options?)` | Convert PlantUML text to DrawIO XML string |
-| `initViz()` | Pre-warm the viz.js (DOT) engine |
 | `createTheme(config?)` | Create a theme with computed sizing from `fontSize` |
 | `getRenderWarnings()` | Get warnings from the last render |
 | `clearRenderWarnings()` | Clear accumulated warnings |
