@@ -241,10 +241,10 @@ function extractEdges(
 
     // Extract label positions from ELK's layout
     // ELK layouts all 3 labels (main center + 2 cardinalities at endpoints)
-    // We identify them by their text content:
-    // - Main label: contains the actual edge label text
-    // - Source cardinality: contains edge.cardFrom text
-    // - Target cardinality: contains edge.cardTo text
+    // We identify them by their placement property set in collectEdges():
+    // - 'center': main edge label
+    // - 'tail':   source cardinality (cardFrom)
+    // - 'head':   target cardinality (cardTo)
     let labelPos: { x: number; y: number } | undefined;
     let labelSize: { width: number; height: number } | undefined;
     let cardFromPos: { x: number; y: number } | undefined;
@@ -253,7 +253,6 @@ function extractEdges(
     if (elkEdge.labels && elkEdge.labels.length > 0) {
       for (const lbl of elkEdge.labels) {
         if (lbl.x === undefined || lbl.y === undefined) {
-          // Defensive check (ELK should always return coordinates when edgeLabels.inline is set)
           continue;
         }
         
@@ -262,22 +261,13 @@ function extractEdges(
           y: offset.y + lbl.y + (lbl.height || 0) / 2,
         };
         
-        // Identify which label this is by its text content
-        // We stored them in collectEdges() with known text values
-        const lblText = lbl.text || '';
-        
-        if (lblText === semanticEdge.cardFrom) {
-          // Source cardinality label
+        if (lbl.placement === 'tail') {
           cardFromPos = lblCenter;
-        } else if (lblText === semanticEdge.cardTo) {
-          // Target cardinality label
+        } else if (lbl.placement === 'head') {
           cardToPos = lblCenter;
-        } else if (lblText === semanticEdge.label || (!cardFromPos && !cardToPos && !labelPos)) {
-          // Main label (center)
-          if (!labelPos) {
-            labelPos = lblCenter;
-            labelSize = { width: Math.ceil(lbl.width || 0), height: Math.ceil(lbl.height || 0) };
-          }
+        } else if (!labelPos) {
+          labelPos = lblCenter;
+          labelSize = { width: Math.ceil(lbl.width || 0), height: Math.ceil(lbl.height || 0) };
         }
       }
     }
