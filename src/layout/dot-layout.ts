@@ -364,35 +364,13 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
     }
   };
 
-  // --- Two-pass swimlane layout ---
-  // Detect TB-mode swimlane diagrams that need column ordering
+  // Detect TB-mode swimlane diagrams
   const swimGroup = model.rankdir !== 'LR' ? (model.groups || []).find(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
   ) : undefined;
 
-  let swimlaneSpineOrder: Array<{ regionIdx: number; repNodeId: string }> | undefined;
-
-  if (swimGroup) {
-    // Pass 1: normal layout — determine natural column ordering
-    const { dot: dot1Raw, groupIds: gids1 } = layoutGraphToDot(rootNodes, model, renderers, theme);
-    const vizJson1 = await renderViz(injectOrtho(dot1Raw));
-    const layout1 = extractLayout(vizJson1, renderers, model.edges, gids1, theme.padXS);
-
-    // Build region order sorted by DOT's X placement
-    const regions = swimGroup.concurrentRegions!;
-    const orderData: Array<{ regionIdx: number; repNodeId: string; x: number }> = [];
-    for (let i = 0; i < regions.length; i++) {
-      if (regions[i].length === 0) continue;
-      const rid = `${swimGroup.id}.__conc_region__${i}`;
-      const pos = layout1.groups?.[rid];
-      orderData.push({ regionIdx: i, repNodeId: regions[i][0], x: pos?.x ?? 0 });
-    }
-    orderData.sort((a, b) => a.x - b.x);
-    swimlaneSpineOrder = orderData;
-  }
-
-  // Main pass (with spine ordering if swimlane)
-  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers, theme, swimlaneSpineOrder);
+  // Single pass layout (spine root fan-out forces lane ordering naturally)
+  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers, theme);
   const dot = injectOrtho(dotRaw);
 
   // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
@@ -402,7 +380,7 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds, theme.padXS);
 
   // 5.0 Strip spine nodes/edges and shift content up
-  if (swimlaneSpineOrder && swimlaneSpineOrder.length > 0) {
+  if (swimGroup) {
     // Remove spine nodes
     for (const key of Object.keys(layout.nodes)) {
       if (key.startsWith('__spine_')) delete layout.nodes[key];

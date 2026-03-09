@@ -312,7 +312,6 @@ export function layoutGraphToDot(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
   theme: Theme = createTheme(),
-  swimlaneSpineOrder?: Array<{ regionIdx: number; repNodeId: string }>,
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
   const nodesepPx = Math.round(theme.padL);
@@ -665,22 +664,21 @@ export function layoutGraphToDot(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
   );
 
-  // --- Spine ordering section (two-pass swimlane) ---
+  // --- Spine root fan-out for swimlane diagrams ---
   const spineLines: string[] = [];
-  if (swimlaneSpineOrder && swimlaneSpineOrder.length > 1) {
-    const spineAttr = 'shape=point,width=0.01,height=0.01,style=invis,label=""';
-    const spineIds = swimlaneSpineOrder.map((_, i) => `__spine_${i}`);
-    for (const sid of spineIds) {
-      spineLines.push(`  "${sid}" [${spineAttr}]`);
-    }
-    spineLines.push(`  {rank=min; ${spineIds.map(s => `"${s}"`).join('; ')}}`);
-    for (let i = 0; i < spineIds.length - 1; i++) {
-      spineLines.push(`  "${spineIds[i]}" -> "${spineIds[i + 1]}" [style=invis]`);
-    }
-    // Bind each spine to the anchor inside its region cluster
-    for (let i = 0; i < swimlaneSpineOrder.length; i++) {
-      const anchorId = `__spine_anchor_${swimlaneSpineOrder[i].regionIdx}`;
-      spineLines.push(`  "${spineIds[i]}" -> "${anchorId}" [style=invis,weight=1000]`);
+  if (hasSwimlanes) {
+    const swimGroup = (model.groups || []).find(
+      g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
+    );
+    if (swimGroup && swimGroup.concurrentRegions) {
+      const pointAttr = 'shape=point,width=0.01,height=0.01,style=invis,label=""';
+      // Root node that fans out to all lane anchors
+      spineLines.push(`  "__spine_root" [${pointAttr}]`);
+      spineLines.push(`  {rank=min; "__spine_root"}`);
+      for (let i = 0; i < swimGroup.concurrentRegions.length; i++) {
+        const anchorId = `__spine_anchor_${i}`;
+        spineLines.push(`  "__spine_root" -> "${anchorId}" [style=invis,weight=1000]`);
+      }
     }
   }
 
