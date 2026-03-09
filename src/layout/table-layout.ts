@@ -1145,10 +1145,8 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       x = p1.centerX - noteW / 2;
     }
 
-    // Determine parent participant for binding note to lifeline.
-    // Single-participant notes (over/left/right) bind to that participant.
-    // Multi-participant (over A,B) and across notes stay at root level.
-    const parentId = (!n.across && p1 && !p2) ? p1.id : null;
+    // Notes stay at root level to avoid z-order issues with lifelines.
+    const parentId = null;
 
     return {
       id: `note${idx + 1}`,
