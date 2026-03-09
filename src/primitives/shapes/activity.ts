@@ -18,14 +18,13 @@ class ActivityNodeRenderer extends RichRenderer {
   get isCluster(): boolean { return false; }
 
   protected buildStyle(): string {
+    const base = `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
+      + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
+
     if (this.isOctagon) {
-      return 'shape=mxgraph.basic.octagon;whiteSpace=wrap;html=1;'
-        + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
-        + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`;
+      return 'shape=mxgraph.basic.octagon;whiteSpace=wrap;html=1;' + base;
     }
-    return 'rounded=1;absoluteArcSize=1;whiteSpace=wrap;html=1;'
-      + `fillColor=${this.theme.defaultFill};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`
-      + `fontSize=${this.theme.fontSize};fontColor=${this.theme.colorDark};align=center;verticalAlign=middle;`
+    return 'rounded=1;absoluteArcSize=1;whiteSpace=wrap;html=1;' + base
       + `arcSize=${this.theme.largeArcSize};`;
   }
 

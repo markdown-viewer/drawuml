@@ -1303,8 +1303,8 @@ function peg$parse(input: string, options?: ParseOptions) {
       };
   const peg$c627 = /^[\-*]/;
   const peg$c628 = peg$classExpectation(["-", "*"], false, false);
-  const peg$c629 = function(txt: any): any {
-        return makeStatement('activity_statement', text(), location(), { text: txt.trim(), terminated: true });
+  const peg$c629 = function(txt: any, stereo: any): any {
+        return makeStatement('activity_statement', text(), location(), { text: txt.trim(), terminated: true, stereotype: stereo || undefined });
       };
   const peg$c630 = function(txt: any): any {
         return makeStatement('activity_statement', text(), location(), { text: txt ? txt.trim() : '', terminated: false });
@@ -1324,8 +1324,8 @@ function peg$parse(input: string, options?: ParseOptions) {
   const peg$c639 = function(): any {
         return makeStatement('block_statement', text(), location(), { type: 'salt_layout_start' });
       };
-  const peg$c640 = function(color: any, txt: any): any {
-        return makeStatement('activity_statement', text(), location(), { color, text: txt.trim(), terminated: true });
+  const peg$c640 = function(color: any, txt: any, stereo: any): any {
+        return makeStatement('activity_statement', text(), location(), { color, text: txt.trim(), terminated: true, stereotype: stereo || undefined });
       };
   const peg$c641 = function(color: any, txt: any): any {
         return makeStatement('activity_statement', text(), location(), { color, text: txt ? txt.trim() : '', terminated: false });
@@ -24275,7 +24275,7 @@ function peg$parse(input: string, options?: ParseOptions) {
   }
 
   function peg$parseActivityLine(): any {
-    let s0, s1, s2, s3, s4, s5, s6, s7;
+    let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9;
 
     const key = peg$currPos * 323 + 209;
     const cached: Cached = peg$resultsCache[key];
@@ -24320,11 +24320,29 @@ function peg$parse(input: string, options?: ParseOptions) {
                 s6 = null;
               }
               if (s6 as any !== peg$FAILED) {
-                s7 = peg$parseEOL();
+                s7 = peg$parseStereotype();
+                if (s7 as any === peg$FAILED) {
+                  s7 = null;
+                }
                 if (s7 as any !== peg$FAILED) {
-                  peg$savedPos = s0;
-                  s1 = peg$c629(s4);
-                  s0 = s1;
+                  s8 = peg$parse_();
+                  if (s8 as any === peg$FAILED) {
+                    s8 = null;
+                  }
+                  if (s8 as any !== peg$FAILED) {
+                    s9 = peg$parseEOL();
+                    if (s9 as any !== peg$FAILED) {
+                      peg$savedPos = s0;
+                      s1 = peg$c629(s4, s7);
+                      s0 = s1;
+                    } else {
+                      peg$currPos = s0;
+                      s0 = peg$FAILED;
+                    }
+                  } else {
+                    peg$currPos = s0;
+                    s0 = peg$FAILED;
+                  }
                 } else {
                   peg$currPos = s0;
                   s0 = peg$FAILED;
@@ -24624,7 +24642,7 @@ function peg$parse(input: string, options?: ParseOptions) {
   }
 
   function peg$parseColoredActivityLine(): any {
-    let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10;
+    let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12;
 
     const key = peg$currPos * 323 + 213;
     const cached: Cached = peg$resultsCache[key];
@@ -24684,11 +24702,29 @@ function peg$parse(input: string, options?: ParseOptions) {
                       s9 = null;
                     }
                     if (s9 as any !== peg$FAILED) {
-                      s10 = peg$parseEOL();
+                      s10 = peg$parseStereotype();
+                      if (s10 as any === peg$FAILED) {
+                        s10 = null;
+                      }
                       if (s10 as any !== peg$FAILED) {
-                        peg$savedPos = s0;
-                        s1 = peg$c640(s3, s7);
-                        s0 = s1;
+                        s11 = peg$parse_();
+                        if (s11 as any === peg$FAILED) {
+                          s11 = null;
+                        }
+                        if (s11 as any !== peg$FAILED) {
+                          s12 = peg$parseEOL();
+                          if (s12 as any !== peg$FAILED) {
+                            peg$savedPos = s0;
+                            s1 = peg$c640(s3, s7, s10);
+                            s0 = s1;
+                          } else {
+                            peg$currPos = s0;
+                            s0 = peg$FAILED;
+                          }
+                        } else {
+                          peg$currPos = s0;
+                          s0 = peg$FAILED;
+                        }
                       } else {
                         peg$currPos = s0;
                         s0 = peg$FAILED;

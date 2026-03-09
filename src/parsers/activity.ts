@@ -98,13 +98,23 @@ export function parseActivityDiagram(
     }
   }
 
-  function createActionNode(label: string, color?: string | null): string {
+  // SDL stereotypes → registered renderer names
+  const sdlToRenderer: Record<string, string> = {
+    'load': 'load', 'save': 'save',
+    'input': 'input', 'output': 'output',
+    'procedure': 'predefined-process', 'continuous': 'continuous',
+    'task': 'rectangle',
+  };
+
+  function createActionNode(label: string, color?: string | null, sdlStereotype?: string | null): string {
     const id = nextId('act');
+    // Determine renderer stereotype from SDL stereotype
+    const rendererStereotype = sdlStereotype ? (sdlToRenderer[sdlStereotype.toLowerCase()] || 'activity') : 'activity';
     const node: SemanticNode = {
       id,
       type: NodeType.Class as any,
       label,
-      stereotype: 'activity',
+      stereotype: rendererStereotype,
       bodyLines: [],
     };
     if (color) node.style = `#back:${color}`;
@@ -182,6 +192,7 @@ export function parseActivityDiagram(
   // ---------------------------------------------------------------------------
 
   function addEdge(from: string, to: string, label?: string, opts?: { style?: string | null; bracketColor?: string | null }): void {
+    if (!from || !to) return;
     edgeCount++;
     const edge: SemanticEdge = {
       id: `e${edgeCount}`,
@@ -284,6 +295,8 @@ export function parseActivityDiagram(
     type: 'if';
     diamondId: string;
     branchEnds: string[][]; // end cursors from each branch
+    branchLabels: (string | null)[];
+    branchColors: (string | null)[];
     elseSeen: boolean;
     swimlane: SemanticGroup | null; // swimlane at if-start, restored at endif
   }
@@ -312,6 +325,8 @@ export function parseActivityDiagram(
     type: 'fork';
     forkBarId: string;
     branchEnds: string[][];
+    branchLabels: (string | null)[];
+    branchColors: (string | null)[];
     keyword: string; // 'fork' or 'split'
   }
 
@@ -392,6 +407,19 @@ export function parseActivityDiagram(
       flushActivity();
       const label = String(st.text || '').replace(/^"|"$/g, '').trim();
       pushPartition(label);
+      continue;
+    }
+
+    // ── Group start/end (without braces: "group label" / "end group") ──
+    if (kind === 'block_statement' && type === 'group' && !st.block) {
+      flushActivity();
+      const rawT = String(st.raw || '');
+      if (/^\s*end\s+group/i.test(rawT)) {
+        if (groupStack.length > 0) popPartition();
+      } else {
+        const label = String(st.text || '').replace(/^"|"$/g, '').trim();
+        pushPartition(label);
+      }
       continue;
     }
 
@@ -489,7 +517,7 @@ export function parseActivityDiagram(
     // ── Activity (single-line terminated) ──
     if (kind === 'activity_statement' && st.terminated === true) {
       const label = String(st.text || '');
-      const nodeId = createActionNode(label, st.color);
+      const nodeId = createActionNode(label, st.color, st.stereotype || null);
       connectCursorsTo(nodeId);
       cursors = [nodeId];
       continue;
@@ -574,6 +602,8 @@ export function parseActivityDiagram(
         type: 'if',
         diamondId,
         branchEnds: [],
+        branchLabels: [],
+        branchColors: [],
         elseSeen: false,
         swimlane: currentSwimlane,
       });
@@ -590,6 +620,10 @@ export function parseActivityDiagram(
       if (ctx && ctx.type === 'if') {
         // Save current branch endpoint
         ctx.branchEnds.push([...cursors]);
+        ctx.branchLabels.push(pendingArrowLabel);
+        ctx.branchColors.push(pendingArrowColor);
+        pendingArrowLabel = null;
+        pendingArrowColor = null;
         // Create new diamond for elseif
         const cond = String(st.cond || '');
         const diamondId = createDiamond(cond);
@@ -610,6 +644,10 @@ export function parseActivityDiagram(
       if (ctx && ctx.type === 'if') {
         // Save current branch endpoint
         ctx.branchEnds.push([...cursors]);
+        ctx.branchLabels.push(pendingArrowLabel);
+        ctx.branchColors.push(pendingArrowColor);
+        pendingArrowLabel = null;
+        pendingArrowColor = null;
         ctx.elseSeen = true;
         // Else branch starts from the last diamond
         cursors = [ctx.diamondId];
@@ -624,6 +662,10 @@ export function parseActivityDiagram(
       const ctx = controlStack[controlStack.length - 1];
       if (ctx && ctx.type === 'if') {
         ctx.branchEnds.push([...cursors]);
+        ctx.branchLabels.push(pendingArrowLabel);
+        ctx.branchColors.push(pendingArrowColor);
+        pendingArrowLabel = null;
+        pendingArrowColor = null;
         ctx.elseSeen = true;
         cursors = [ctx.diamondId];
         const branchText = String(st.text || '').replace(/^\(/, '').replace(/\)$/, '').trim();
@@ -638,9 +680,15 @@ export function parseActivityDiagram(
       if (ctx && ctx.type === 'if') {
         // Collect all branch ends
         ctx.branchEnds.push([...cursors]);
+        ctx.branchLabels.push(pendingArrowLabel);
+        ctx.branchColors.push(pendingArrowColor);
+        pendingArrowLabel = null;
+        pendingArrowColor = null;
         if (!ctx.elseSeen) {
           // Implicit else: direct edge from last diamond
           ctx.branchEnds.push([ctx.diamondId]);
+          ctx.branchLabels.push(null);
+          ctx.branchColors.push(null);
         }
         const allEnds = ctx.branchEnds.flat().filter(c => c);
         if (allEnds.length > 1) {
@@ -649,9 +697,21 @@ export function parseActivityDiagram(
           currentSwimlane = ctx.swimlane;
           const mergeId = createMergeDiamond();
           currentSwimlane = savedSwimlane;
-          for (const c of allEnds) { addEdge(c, mergeId); }
+          for (let i = 0; i < ctx.branchEnds.length; i++) {
+            const lbl = ctx.branchLabels[i] || '';
+            const clr = ctx.branchColors[i] || null;
+            for (const c of ctx.branchEnds[i]) {
+              if (c) addEdge(c, mergeId, lbl, { bracketColor: clr });
+            }
+          }
           cursors = [mergeId];
         } else if (allEnds.length === 1) {
+          // Restore pending state from the surviving branch
+          const idx = ctx.branchEnds.findIndex(ends => ends.length > 0);
+          if (idx >= 0) {
+            pendingArrowLabel = ctx.branchLabels[idx];
+            pendingArrowColor = ctx.branchColors[idx];
+          }
           cursors = allEnds;
         } else {
           cursors = [];
@@ -790,21 +850,33 @@ export function parseActivityDiagram(
           type: 'fork',
           forkBarId: barId,
           branchEnds: [],
+          branchLabels: [],
+          branchColors: [],
           keyword: 'fork',
         });
       } else if (kw === 'fork again') {
         const ctx = controlStack[controlStack.length - 1];
         if (ctx && ctx.type === 'fork') {
           ctx.branchEnds.push([...cursors]);
+          ctx.branchLabels.push(pendingArrowLabel);
+          ctx.branchColors.push(pendingArrowColor);
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
           cursors = [ctx.forkBarId];
         }
       } else if (kw === 'end fork') {
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'fork') {
           ctx.branchEnds.push([...cursors]);
+          ctx.branchLabels.push(pendingArrowLabel);
+          ctx.branchColors.push(pendingArrowColor);
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
           const joinBarId = createForkBar();
-          for (const ends of ctx.branchEnds) {
-            for (const c of ends) { addEdge(c, joinBarId); }
+          for (let i = 0; i < ctx.branchEnds.length; i++) {
+            const lbl = ctx.branchLabels[i] || '';
+            const clr = ctx.branchColors[i] || null;
+            for (const c of ctx.branchEnds[i]) { addEdge(c, joinBarId, lbl, { bracketColor: clr }); }
           }
           cursors = [joinBarId];
         }
@@ -812,10 +884,16 @@ export function parseActivityDiagram(
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'fork') {
           ctx.branchEnds.push([...cursors]);
+          ctx.branchLabels.push(pendingArrowLabel);
+          ctx.branchColors.push(pendingArrowColor);
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
           // end merge: just merge to a single point (no join bar)
           const mergeId = createMergeDiamond();
-          for (const ends of ctx.branchEnds) {
-            for (const c of ends) { addEdge(c, mergeId); }
+          for (let i = 0; i < ctx.branchEnds.length; i++) {
+            const lbl = ctx.branchLabels[i] || '';
+            const clr = ctx.branchColors[i] || null;
+            for (const c of ctx.branchEnds[i]) { addEdge(c, mergeId, lbl, { bracketColor: clr }); }
           }
           cursors = [mergeId];
         }
@@ -832,21 +910,33 @@ export function parseActivityDiagram(
           type: 'fork',
           forkBarId: cursors[0] || '',
           branchEnds: [],
+          branchLabels: [],
+          branchColors: [],
           keyword: 'split',
         });
       } else if (kw === 'split again') {
         const ctx = controlStack[controlStack.length - 1];
         if (ctx && ctx.type === 'fork' && ctx.keyword === 'split') {
           ctx.branchEnds.push([...cursors]);
+          ctx.branchLabels.push(pendingArrowLabel);
+          ctx.branchColors.push(pendingArrowColor);
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
           cursors = [ctx.forkBarId];
         }
       } else if (kw === 'end split') {
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'fork' && ctx.keyword === 'split') {
           ctx.branchEnds.push([...cursors]);
+          ctx.branchLabels.push(pendingArrowLabel);
+          ctx.branchColors.push(pendingArrowColor);
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
           const joinBarId = createForkBar();
-          for (const ends of ctx.branchEnds) {
-            for (const c of ends) { addEdge(c, joinBarId); }
+          for (let i = 0; i < ctx.branchEnds.length; i++) {
+            const lbl = ctx.branchLabels[i] || '';
+            const clr = ctx.branchColors[i] || null;
+            for (const c of ctx.branchEnds[i]) { addEdge(c, joinBarId, lbl, { bracketColor: clr }); }
           }
           cursors = [joinBarId];
         }

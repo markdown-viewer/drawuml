@@ -45,6 +45,9 @@ import { registerActionShape } from './shapes/action.ts';
 import { registerQueueShape } from './shapes/queue.ts';
 import { registerStackShape } from './shapes/stack.ts';
 import { registerCollectionsShape } from './shapes/collections.ts';
+import { registerLoadSaveShapes } from './shapes/data.ts';
+import { registerPredefinedProcessShape } from './shapes/predefined-process.ts';
+import { registerOffPageConnectorShapes } from './shapes/off-page-connector.ts';
 // entity shape now registered via registerUmlShapes()
 import { registerArchimateShapes } from './shapes/archimate.ts';
 import { registerNoteRenderer } from './shapes/note.ts';
@@ -86,6 +89,9 @@ registerActionShape();
 registerQueueShape();
 registerStackShape();
 registerCollectionsShape();
+registerLoadSaveShapes();
+registerPredefinedProcessShape();
+registerOffPageConnectorShapes();
 // entity registered via registerUmlShapes()
 registerArchimateShapes();
 registerNoteRenderer();
