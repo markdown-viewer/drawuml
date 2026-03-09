@@ -309,6 +309,7 @@ export function layoutGraphToDot(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
   theme: Theme = createTheme(),
+  swimlaneSpineOrder?: Array<{ regionIdx: number; repNodeId: string }>,
 ): { dot: string; groupIds: Set<string> } {
   const rankdir = model.rankdir || 'TB';
   const nodesepPx = Math.round(theme.padL);
@@ -661,6 +662,25 @@ export function layoutGraphToDot(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
   );
 
+  // --- Spine ordering section (two-pass swimlane) ---
+  const spineLines: string[] = [];
+  if (swimlaneSpineOrder && swimlaneSpineOrder.length > 1) {
+    const spineAttr = 'shape=point,width=0.01,height=0.01,style=invis,label=""';
+    const spineIds = swimlaneSpineOrder.map((_, i) => `__spine_${i}`);
+    for (const sid of spineIds) {
+      spineLines.push(`  "${sid}" [${spineAttr}]`);
+    }
+    spineLines.push(`  {rank=min; ${spineIds.map(s => `"${s}"`).join('; ')}}`);
+    for (let i = 0; i < spineIds.length - 1; i++) {
+      spineLines.push(`  "${spineIds[i]}" -> "${spineIds[i + 1]}" [style=invis]`);
+    }
+    // High-weight downward edges pull each cluster under its spine node
+    for (let i = 0; i < swimlaneSpineOrder.length; i++) {
+      const rep = swimlaneSpineOrder[i].repNodeId;
+      spineLines.push(`  "${spineIds[i]}" -> "${rep}" [style=invis,weight=1000]`);
+    }
+  }
+
   // --- Assemble DOT string ---
 
   const dotStr = `digraph G {
@@ -675,6 +695,7 @@ ${nodeGroupLines.join('\n')}
 ${edgeLines.join('\n')}
 ${noteLines.join('\n')}
 ${rankLines.join('\n')}
+${spineLines.join('\n')}
 }`;
 
   if ((globalThis as any).__DOT_DEBUG__) console.log(dotStr);

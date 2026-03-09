@@ -341,32 +341,93 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
 
   // 3. Generate DOT string from LayoutGraphNode IR
   const rootNodes = rootRenderers.map(r => r.buildLayoutGraph());
-  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers, theme);
 
   // Inject splines=ortho for swimlane diagrams when requested
   // Skip ortho for LR mode — Graphviz hangs with splines=ortho + rankdir=LR + cross-cluster edges
   const skipOrthoSplines = model.rankdir === 'LR';
-  const dot = (useOrtho && !skipOrthoSplines)
-    ? dotRaw.replace('remincross=true', 'remincross=true\n  splines=ortho')
-    : dotRaw;
+  const injectOrtho = (d: string) => (useOrtho && !skipOrthoSplines)
+    ? d.replace('remincross=true', 'remincross=true\n  splines=ortho') : d;
 
-  // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
-  const viz = await getViz();
-  let vizJson;
-  try {
-    vizJson = viz.renderJSON(dot);
-  } catch (e) {
-    // viz.js WASM instance may become corrupted after certain layouts;
-    // swap to backup instance and retry.
-    if (swapToBackup()) {
-      vizJson = vizInstance.renderJSON(dot);
-    } else {
+  const renderViz = async (dotStr: string) => {
+    const viz = await getViz();
+    try {
+      return viz.renderJSON(dotStr);
+    } catch (e) {
+      if (swapToBackup()) return vizInstance.renderJSON(dotStr);
       throw e;
     }
+  };
+
+  // --- Two-pass swimlane layout ---
+  // Detect TB-mode swimlane diagrams that need column ordering
+  const swimGroup = model.rankdir !== 'LR' ? (model.groups || []).find(
+    g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
+  ) : undefined;
+
+  let swimlaneSpineOrder: Array<{ regionIdx: number; repNodeId: string }> | undefined;
+
+  if (swimGroup) {
+    // Pass 1: normal layout — determine natural column ordering
+    const { dot: dot1Raw, groupIds: gids1 } = layoutGraphToDot(rootNodes, model, renderers, theme);
+    const vizJson1 = await renderViz(injectOrtho(dot1Raw));
+    const layout1 = extractLayout(vizJson1, renderers, model.edges, gids1, theme.padXS);
+
+    // Build region order sorted by DOT's X placement
+    const regions = swimGroup.concurrentRegions!;
+    const orderData: Array<{ regionIdx: number; repNodeId: string; x: number }> = [];
+    for (let i = 0; i < regions.length; i++) {
+      if (regions[i].length === 0) continue;
+      const rid = `${swimGroup.id}.__conc_region__${i}`;
+      const pos = layout1.groups?.[rid];
+      orderData.push({ regionIdx: i, repNodeId: regions[i][0], x: pos?.x ?? 0 });
+    }
+    orderData.sort((a, b) => a.x - b.x);
+    swimlaneSpineOrder = orderData;
   }
+
+  // Main pass (with spine ordering if swimlane)
+  const { dot: dotRaw, groupIds } = layoutGraphToDot(rootNodes, model, renderers, theme, swimlaneSpineOrder);
+  const dot = injectOrtho(dotRaw);
+
+  // 4. Render via viz.js (JSON output = pos/width/height, no xdot draw ops)
+  let vizJson = await renderViz(dot);
 
   // 5. Extract + transform coordinates
   const layout = extractLayout(vizJson, renderers, model.edges, groupIds, theme.padXS);
+
+  // 5.0 Strip spine nodes/edges and shift content up
+  if (swimlaneSpineOrder && swimlaneSpineOrder.length > 0) {
+    // Remove spine nodes
+    for (const key of Object.keys(layout.nodes)) {
+      if (key.startsWith('__spine_')) delete layout.nodes[key];
+    }
+    // Filter spine edges
+    if (layout.edges) {
+      layout.edges = layout.edges.filter(e =>
+        !e.from.startsWith('__spine_') && !e.to.startsWith('__spine_')
+      );
+    }
+    // Shift all content up so minimum Y is 0
+    const yValues: number[] = [];
+    for (const n of Object.values(layout.nodes)) yValues.push(n.y);
+    for (const g of Object.values(layout.groups || {})) yValues.push(g.y);
+    const minY = yValues.length > 0 ? Math.min(...yValues) : 0;
+    if (minY > 0) {
+      for (const n of Object.values(layout.nodes)) {
+        n.y -= minY;
+        if (n.xlabelPos) n.xlabelPos.y -= minY;
+      }
+      for (const g of Object.values(layout.groups || {})) {
+        g.y -= minY;
+      }
+      for (const e of layout.edges || []) {
+        for (const pt of e.points || []) pt.y -= minY;
+        if (e.labelPos) e.labelPos.y -= minY;
+        if ((e as any).cardFromPos) (e as any).cardFromPos.y -= minY;
+        if ((e as any).cardToPos) (e as any).cardToPos.y -= minY;
+      }
+    }
+  }
 
   // 5a. Swimlane column rearrangement (if activity swimlanes present)
   rearrangeSwimlanes(layout, model, theme);
