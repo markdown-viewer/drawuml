@@ -12,7 +12,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup, SemanticNode } from '.
 import { createNodeRenderer } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges } from './post-process.ts';
+import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges, simplifyBacktrackEdges } from './post-process.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
 
@@ -444,6 +444,7 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
     fixOrthoEdges(layout, model);
     separateOverlappingEdges(layout, theme.padXS);
     avoidNodeCollisions(layout, model, theme);
+    simplifyBacktrackEdges(layout, theme.padL);
   }
 
   // 5b. Snap port nodes to their parent group boundary

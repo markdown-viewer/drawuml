@@ -1279,3 +1279,71 @@ function _orthoPathLen(pts: Array<{ x: number; y: number }>): number {
   }
   return len;
 }
+
+/**
+ * Simplify backtrack detours in ortho edge routing.
+ *
+ * After node-avoidance routing, edges may contain U-turn patterns where
+ * the path goes one direction, takes a short perpendicular step, then
+ * reverses.  This function detects such patterns and collapses them.
+ *
+ * Detection: four consecutive points p1,p2,p3,p4 where p1→p2 and p3→p4
+ * are parallel segments going in opposite directions (backtrack), and
+ * the connecting segment p2→p3 is short (< threshold).
+ *
+ * Fix: move the shorter arm's outer point onto the longer arm's line,
+ * then delete the two intermediate points.
+ */
+export function simplifyBacktrackEdges(layout: LayoutResult, threshold: number): void {
+  if (!layout.edges) return;
+  for (const edge of layout.edges) {
+    const pts = edge.points;
+    if (!pts || pts.length < 4) continue;
+
+    let i = 0;
+    while (i <= pts.length - 4) {
+      const p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2], p4 = pts[i + 3];
+
+      const isP1P2Vert = Math.abs(p1.x - p2.x) < 1;
+      const isP3P4Vert = Math.abs(p3.x - p4.x) < 1;
+      const isP1P2Horiz = Math.abs(p1.y - p2.y) < 1;
+      const isP3P4Horiz = Math.abs(p3.y - p4.y) < 1;
+
+      let simplified = false;
+
+      if (isP1P2Vert && isP3P4Vert) {
+        // Both arms vertical, connector p2→p3 horizontal
+        const connLen = Math.abs(p3.x - p2.x);
+        const backtrack = (p1.y > p2.y && p4.y > p3.y) || (p1.y < p2.y && p4.y < p3.y);
+        if (backtrack && connLen < threshold) {
+          const arm1 = Math.abs(p2.y - p1.y);
+          const arm2 = Math.abs(p4.y - p3.y);
+          if (arm1 <= arm2) {
+            p1.x = p4.x;
+          } else {
+            p4.x = p1.x;
+          }
+          pts.splice(i + 1, 2);
+          simplified = true;
+        }
+      } else if (isP1P2Horiz && isP3P4Horiz) {
+        // Both arms horizontal, connector p2→p3 vertical
+        const connLen = Math.abs(p3.y - p2.y);
+        const backtrack = (p1.x > p2.x && p4.x > p3.x) || (p1.x < p2.x && p4.x < p3.x);
+        if (backtrack && connLen < threshold) {
+          const arm1 = Math.abs(p2.x - p1.x);
+          const arm2 = Math.abs(p4.x - p3.x);
+          if (arm1 <= arm2) {
+            p1.y = p4.y;
+          } else {
+            p4.y = p1.y;
+          }
+          pts.splice(i + 1, 2);
+          simplified = true;
+        }
+      }
+
+      if (!simplified) i++;
+    }
+  }
+}
