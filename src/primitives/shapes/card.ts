@@ -26,6 +26,15 @@ class CardRenderer extends RichRenderer {
     // Swimlane with title bar header for cluster card (has children)
     return `swimlane;startSize=${this.theme.sizeS};swimlaneLine=1;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
+
+  // Apply fillColor to both header and body area of the swimlane
+  protected postProcessStyle(s: string): string {
+    if (!this.isCluster) return s;
+    return s.replace(
+      /fillColor=([^;"]+)/,
+      (_: string, c: string) => c === 'none' ? `fillColor=none` : `fillColor=${c};swimlaneFillColor=${c}`
+    );
+  }
 }
 
 export function registerCardShape(): void {

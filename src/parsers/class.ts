@@ -998,7 +998,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // Reconstruct the full call from st.raw and re-look up the macro.
       if (st.kind === 'block_statement' && st.type === 'group') {
         const raw = String(st.raw || '');
-        const m = raw.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)\s*$/s);
+        const m = raw.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*)\)\s*$/);
         if (m) {
           const macroInfo = lookupArchimateElementMacro(m[1]);
           if (macroInfo) {
@@ -2363,7 +2363,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     // Helper: build inline style string from CSS rule properties.
     // For label shapes, BackGroundColor maps to text color (label has no fill).
     // skipBg: when true, BackGroundColor is ignored (e.g. global rule on label).
-    function buildInlineStyle(rule: Record<string, string>, stereo?: string, skipBg?: boolean): string | null {
+    const buildInlineStyle = (rule: Record<string, string>, stereo?: string, skipBg?: boolean): string | null => {
       const parts: string[] = [];
       const bg = rule['backgroundcolor'];
       if (bg && !skipBg) {
@@ -2393,7 +2393,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         ? String(node.stereotypeLabel).split(/[\s«»]+/).map((s: string) => s.toLowerCase()).filter(Boolean)
         : [];
       const specificRule = cssStyleRules[lookupStereo]
-        || customStereos.reduce((r: Record<string, string> | null, cs: string) => r || cssStyleRules[cs] || null, null);
+        || customStereos.reduce((r: Record<string, string> | null, cs: string) => r || cssStyleRules[cs] || null, null)
+        || (lookupStereo ? null : cssStyleRules[String(node.type || '').toLowerCase()]);
       const rule = specificRule || globalRule;
       if (!rule) continue;
       // For label shapes, only apply BackGroundColor→text from a label-specific rule,
@@ -2403,19 +2404,29 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (s) node.style = s;
     }
 
-    // Apply to groups — only type-specific CSS rules, not the global diagram rule
-    // (PlantUML does not apply global BackGroundColor to containers)
+    // Apply to groups — type-specific CSS rules first, then global diagram rule as fallback.
+    // PlantUML converts empty groups to leaf entities that don't match global selectors,
+    // so only apply globalRule to groups that contain children.
     for (const g of groups) {
-      if (g.color) continue;
+      if (g.color && g.style) continue;
       const gtype = String(g.type || '').toLowerCase();
       // Also check CSS class rules (.stereo) matched against group's custom stereotype labels
-      const gCustomStereos: string[] = g.color ? [] : (g.stereotypes || [])
-        .flatMap((s: string) => String(s).split(/[«»\s]+/).map((x: string) => x.toLowerCase()).filter(Boolean));
+      const gCustomStereos: string[] = g.stereotype
+        ? String(g.stereotype).split(/[«»\s]+/).map((x: string) => x.toLowerCase()).filter(Boolean)
+        : [];
+      const hasChildren = g.children.length > 0 || g.childGroups.length > 0;
       const rule = cssStyleRules[gtype]
-        || gCustomStereos.reduce((r: Record<string, string> | null, cs: string) => r || cssStyleRules[cs] || null, null);
+        || gCustomStereos.reduce((r: Record<string, string> | null, cs: string) => r || cssStyleRules[cs] || null, null)
+        || (hasChildren ? globalRule : null);
       if (!rule) continue;
-      const bg = rule['backgroundcolor'];
-      if (bg) g.color = bg;
+      if (!g.color) {
+        const bg = rule['backgroundcolor'];
+        if (bg) g.color = bg;
+      }
+      if (!g.style) {
+        const s = buildInlineStyle(rule);
+        if (s) g.style = s;
+      }
     }
   }
 
