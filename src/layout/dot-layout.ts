@@ -12,7 +12,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup, SemanticNode } from '.
 import { createNodeRenderer } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions } from './post-process.ts';
+import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges } from './post-process.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
 
@@ -53,8 +53,8 @@ function extractLayout(
     }
 
     if (!obj.pos) continue; // skip rank-same helper nodes
-    // Skip invisible proxy/placeholder nodes used for compound edges or empty groups
-    if (typeof name === 'string' && (name.startsWith('__proxy_') || name.startsWith('__empty_'))) continue;
+    // Skip invisible proxy/placeholder/spine nodes
+    if (typeof name === 'string' && (name.startsWith('__proxy_') || name.startsWith('__empty_') || name.startsWith('__spine_'))) continue;
     const [cx, cy] = (obj.pos as string).split(',').map(Number);
     // Prefer renderer's measure() (viz.js may report wrong size for HTML-label nodes)
     const r = renderers.get(name);
@@ -137,20 +137,26 @@ function extractLayout(
   // Extract edge waypoints from viz.js B-spline data
   const layoutEdges: LayoutEdge[] = [];
   if (vizJson.edges) {
+    let semanticIdx = 0;
     for (let i = 0; i < vizJson.edges.length; i++) {
       const vizEdge = vizJson.edges[i];
       let fromName: string = vizJson.objects[vizEdge.tail].name;
       let toName: string = vizJson.objects[vizEdge.head].name;
+
+      // Skip spine invisible edges — they are not semantic edges
+      if (fromName.startsWith('__spine_') || toName.startsWith('__spine_')) continue;
+
       // Map proxy node names back to group ids for compound edges
       if (fromName.startsWith('__proxy_')) fromName = fromName.slice('__proxy_'.length);
       if (toName.startsWith('__proxy_')) toName = toName.slice('__proxy_'.length);
       // For compound edges using representative nodes, use the semantic model's
       // from/to (group ids) instead of the viz.js node names
-      const semanticEdge = edges[i];
+      const semanticEdge = edges[semanticIdx];
       if (semanticEdge) {
         fromName = semanticEdge.from;
         toName = semanticEdge.to;
       }
+      semanticIdx++;
       const rawPos: string = vizEdge.pos || '';
 
       if ((globalThis as any).__EDGE_DEBUG__) {
@@ -218,7 +224,7 @@ function extractLayout(
       }
 
       layoutEdges.push({
-        id: edges[i]?.id || `e${i + 1}`,
+        id: semanticEdge?.id || `e${semanticIdx}`,
         from: fromName,
         to: toName,
         points: waypoints,
@@ -436,6 +442,7 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   if (useOrtho) {
     fixNodeSpacing(layout, model, theme);
     fixOrthoEdges(layout, model);
+    separateOverlappingEdges(layout, theme.padXS);
     avoidNodeCollisions(layout, model, theme);
   }
 

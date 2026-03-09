@@ -179,7 +179,8 @@ function buildNodeDotLines(
     lines.push(`${inner}  style=invis`);
     lines.push(`${inner}  margin="0"`);
     // Each region child as its own cluster with zero protection margin
-    for (const regionChild of gn.children) {
+    for (let ri = 0; ri < gn.children.length; ri++) {
+      const regionChild = gn.children[ri];
       const regionLabel = regionChild.label || '';
       const inner2 = inner + '  ';
       lines.push(`${inner2}subgraph "cluster_${regionChild.id}_p0" {`);
@@ -189,7 +190,9 @@ function buildNodeDotLines(
       lines.push(`${inner2}    label="${regionLabel}"`);
       lines.push(`${inner2}    fontsize=${ctx.smallFontSize}`);
       lines.push(`${inner2}    style=rounded`);
-      lines.push(`${inner2}    margin="${ctx.groupPadding}"`)
+      lines.push(`${inner2}    margin="${ctx.groupPadding}"`);
+      // Invisible anchor for spine binding (avoids pulling real content nodes)
+      lines.push(`${inner2}    "__spine_anchor_${ri}" [shape=point,width=0.01,height=0.01,style=invis,label=""]`);
       // Lane's leaf nodes
       if (regionChild.children) {
         for (const leaf of regionChild.children) {
@@ -674,10 +677,10 @@ export function layoutGraphToDot(
     for (let i = 0; i < spineIds.length - 1; i++) {
       spineLines.push(`  "${spineIds[i]}" -> "${spineIds[i + 1]}" [style=invis]`);
     }
-    // High-weight downward edges pull each cluster under its spine node
+    // Bind each spine to the anchor inside its region cluster
     for (let i = 0; i < swimlaneSpineOrder.length; i++) {
-      const rep = swimlaneSpineOrder[i].repNodeId;
-      spineLines.push(`  "${spineIds[i]}" -> "${rep}" [style=invis,weight=1000]`);
+      const anchorId = `__spine_anchor_${swimlaneSpineOrder[i].regionIdx}`;
+      spineLines.push(`  "${spineIds[i]}" -> "${anchorId}" [style=invis,weight=1000]`);
     }
   }
 
