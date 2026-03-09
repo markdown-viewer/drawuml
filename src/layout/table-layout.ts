@@ -1135,11 +1135,12 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       const anchor = useNodeEdge ? p1.x + p1.width : p1.centerX;
       x = anchor + smallPad;
     } else if (n.position === 'over' && p1 && p2) {
-      const minX = Math.min(p1.centerX, p2.centerX);
-      const maxX = Math.max(p1.centerX, p2.centerX);
-      const span = maxX - minX;
+      // Span note from left-participant left edge to right-participant right edge
+      const leftEdge = Math.min(p1.x, p2.x);
+      const rightEdge = Math.max(p1.x + p1.width, p2.x + p2.width);
+      const span = rightEdge - leftEdge;
       noteW = Math.max(noteW, span);
-      x = (minX + maxX) / 2 - noteW / 2;
+      x = (leftEdge + rightEdge) / 2 - noteW / 2;
     } else if (n.position === 'over' && p1) {
       x = p1.centerX - noteW / 2;
     }
