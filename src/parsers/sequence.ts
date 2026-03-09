@@ -22,7 +22,13 @@ const PARTICIPANT_KEYWORDS = {
 };
 
 function normalizeId(token) {
-  return String(token || '').trim().replace(/\s+/g, '_');
+  const id = String(token || '').trim().replace(/\s+/g, '_');
+  // Avoid clashing with DrawIO reserved root cell IDs "0" and "1".
+  // cellId() passes "0"/"1" through unmodified (they are the root/layer ids),
+  // so a participant whose id is literally "0" or "1" would collide.
+  // Use a prefix that cannot appear as a user-defined identifier.
+  if (id === '0' || id === '1') return '__participant_' + id;
+  return id;
 }
 
 function isSequenceMessageStatement(st) {
@@ -1006,11 +1012,14 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         }
         continue;
       }
-      // 'end' closes a fragment (partition/group/alt/etc.)
+      // 'end' / 'break' close or start a fragment (partition/group/alt/etc.)
       const ctrlText = String(st.text || '').toLowerCase();
       if (ctrlText === 'end') {
         handleFragment('end', '');
         continue;
+      }
+      if (FRAGMENT_KEYWORDS.includes(ctrlText)) {
+        if (handleFragment(ctrlText, '')) continue;
       }
     }
 
