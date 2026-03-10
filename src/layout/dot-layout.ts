@@ -13,6 +13,7 @@ import { createNodeRenderer } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
 import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges, simplifyBacktrackEdges } from './post-process.ts';
+import { routeOrthogonal } from './orthogonal-router.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
 
@@ -348,11 +349,10 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   // 3. Generate DOT string from LayoutGraphNode IR
   const rootNodes = rootRenderers.map(r => r.buildLayoutGraph());
 
-  // Inject splines=ortho for swimlane diagrams when requested
-  // Skip ortho for LR mode — Graphviz hangs with splines=ortho + rankdir=LR + cross-cluster edges
-  const skipOrthoSplines = model.rankdir === 'LR';
-  const injectOrtho = (d: string) => (useOrtho && !skipOrthoSplines)
-    ? d.replace('remincross=true', 'remincross=true\n  splines=ortho') : d;
+  // No splines=ortho injection — DOT's orthogonal routing is unreliable for
+  // activity diagrams. We use DOT only for node placement, then ELK orthogonal
+  // routing replaces the edge points entirely.
+  const injectOrtho = (d: string) => d;
 
   const renderViz = async (dotStr: string) => {
     const viz = await getViz();
@@ -413,16 +413,13 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
     }
   }
 
-  // 5a. Swimlane column rearrangement (if activity swimlanes present)
-  rearrangeSwimlanes(layout, model, theme);
+  // 5a. Swimlane column rearrangement — skipped for DOT mode;
+  //      DOT cluster layout already handles lane positioning correctly.
+  // rearrangeSwimlanes(layout, model, theme);
 
-  // 5a2. Fix node spacing, ortho edges, and node collision avoidance for swimlane diagrams
+  // 5a2. Orthogonal edge routing for swimlane diagrams
   if (useOrtho) {
-    fixNodeSpacing(layout, model, theme);
-    fixOrthoEdges(layout, model);
-    separateOverlappingEdges(layout, theme.padXS);
-    avoidNodeCollisions(layout, model, theme);
-    simplifyBacktrackEdges(layout, theme.padL);
+    routeOrthogonal(layout, model, theme);
   }
 
   // 5b. Snap port nodes to their parent group boundary

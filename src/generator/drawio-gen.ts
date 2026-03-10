@@ -103,7 +103,10 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // by waypoints placed in the gap between nodes.
     const hasPort = !!(edge.fromPort || edge.toPort);
     const le = layout.edges.find(e => e.id === edge.id);
-    if (engine !== 'elk') {
+    const hasOrthoConstraint = !!le?.orthoRouted;
+    if (hasOrthoConstraint) {
+      style += `edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=${theme.arcSize};`;
+    } else if (engine !== 'elk') {
       style += 'curved=1;';
     } else {
       style += `edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=${theme.arcSize};`;
@@ -243,7 +246,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         //   exitPerimeter=0 / entryPerimeter=0 prevents perimeter point recalc.
         // - 3+ points (polyline): pass all points as waypoints, no constraints,
         //   let DrawIO's orthogonal algorithm handle both endpoints.
-        const cellBound = engine === 'elk' && !omitSource && !omitTarget && !hasPort;
+        const cellBound = (engine === 'elk' || hasOrthoConstraint) && !omitSource && !omitTarget && !hasPort;
         if (cellBound) {
           if (points.length === 2) {
             // Straight line: place 2 waypoints in the gap between source and
@@ -264,6 +267,21 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
             // Polyline: strip source/target boundary endpoints so DrawIO
             // auto-computes perimeter intersection via floating endpoints.
             const wp = points.slice(1, -1);
+            // SegmentConnector alternates H/V segment directions. Odd waypoint
+            // count flips the final approach direction, causing incorrect
+            // perimeter connection to non-rectangular shapes (diamond, hexagon).
+            // Replace the last waypoint with a ±1 pair perpendicular to the
+            // approach direction, ensuring even count and correct final approach.
+            if (wp.length > 0 && wp.length % 2 === 1) {
+              const last = wp.pop()!;
+              const tgt = points[points.length - 1];
+              const isVert = Math.abs(tgt.y - last.y) >= Math.abs(tgt.x - last.x);
+              if (isVert) {
+                wp.push({ x: last.x - 1, y: last.y }, { x: last.x + 1, y: last.y });
+              } else {
+                wp.push({ x: last.x, y: last.y - 1 }, { x: last.x, y: last.y + 1 });
+              }
+            }
             geometry = { waypoints: wp.length > 0 ? wp : undefined };
           }
         } else {

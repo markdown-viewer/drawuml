@@ -95,6 +95,8 @@ export interface LayoutEdge {
   cardFromPos?: { x: number; y: number };
   /** DrawIO-coordinate center of the headlabel (cardTo), if laid out by Graphviz */
   cardToPos?: { x: number; y: number };
+  /** Whether this edge was routed by the orthogonal router. */
+  orthoRouted?: boolean;
 }
 
 export interface LayoutGroup {
