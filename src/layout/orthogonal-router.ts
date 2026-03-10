@@ -18,6 +18,7 @@ import type { SemanticModel } from '../model/index.ts';
 import type { Theme } from '../shared/theme.ts';
 import { HyperEdgeSegment, insertSorted } from './orthogonal/hyper-edge-segment.ts';
 import { routeEdgesBetweenLayers, TOLERANCE } from './orthogonal/orthogonal-routing-generator.ts';
+import { LabelRenderer } from '../primitives/shapes/label.ts';
 
 /** Spacing parameters for orthogonal routing. */
 interface RoutingSpacing {
@@ -27,6 +28,8 @@ interface RoutingSpacing {
   edgeNode: number;
   /** Additional node-to-node spacing per pass-through edge. */
   nodeNode: number;
+  /** Spacing between edge trunk and its label (matches ELK elk.spacing.edgeLabel). */
+  edgeLabelSpacing: number;
 }
 
 function spacingFromTheme(theme: Theme): RoutingSpacing {
@@ -34,6 +37,7 @@ function spacingFromTheme(theme: Theme): RoutingSpacing {
     edgeEdge: theme.padXS,
     edgeNode: theme.padL,
     nodeNode: theme.padL,
+    edgeLabelSpacing: theme.padXS,
   };
 }
 
@@ -44,6 +48,22 @@ function spacingFromTheme(theme: Theme): RoutingSpacing {
 export function routeOrthogonal(layout: LayoutResult, model: SemanticModel, theme: Theme): void {
   const sp = spacingFromTheme(theme);
   const isLR = model.rankdir === 'LR';
+
+  // Pre-compute label sizes for edges that have center labels
+  if (layout.edges) {
+    const edgeById = new Map<string, typeof model.edges[0]>();
+    for (const se of model.edges) edgeById.set(se.id, se);
+    for (const le of layout.edges) {
+      if (le.labelPos && !le.labelSize) {
+        const se = edgeById.get(le.id);
+        if (se?.label) {
+          const lr = new LabelRenderer({ id: le.id + '__label', label: se.label, theme });
+          le.labelSize = lr.measure();
+        }
+      }
+    }
+  }
+
   routeAllEdges(layout, sp, isLR);
 }
 
@@ -106,8 +126,32 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
   // Preprocess: adjust node spacing for layers with pass-through long edges
   adjustNodeSpacing(nodes, edges, layers, nodeLayerIndex, sp, isLR, layout.groups);
 
+  // Pre-compute pass-through positions for long edges (needed for port ordering)
+  const edgePassThrough = new Map<string, number>();
+  for (const edge of edges) {
+    const srcNode = nodes[edge.from];
+    const tgtNode = nodes[edge.to];
+    if (!srcNode || !tgtNode) continue;
+
+    let srcLayer = nodeLayerIndex.get(edge.from);
+    let tgtLayer = nodeLayerIndex.get(edge.to);
+    if (srcLayer === undefined || tgtLayer === undefined) continue;
+    if (srcLayer > tgtLayer) { const tmp = srcLayer; srcLayer = tgtLayer; tgtLayer = tmp; }
+    if (tgtLayer - srcLayer <= 1) continue;
+
+    // Use node centers as initial port estimate for pass-through calculation
+    const srcN = nodes[edge.from];
+    const tgtN = nodes[edge.to];
+    const srcCenter = isLR ? srcN.y + srcN.height / 2 : srcN.x + srcN.width / 2;
+    const tgtCenter = isLR ? tgtN.y + tgtN.height / 2 : tgtN.x + tgtN.width / 2;
+    const passThrough = findPassThroughPos(
+      nodes, layers, srcLayer, tgtLayer, srcCenter, tgtCenter, isLR, sp.edgeNode
+    );
+    edgePassThrough.set(edge.id, passThrough);
+  }
+
   // Compute port positions — distribute multiple edges evenly across each node side
-  const portAssignments = assignPorts(nodes, edges, nodeLayerIndex, isLR);
+  const portAssignments = assignPorts(nodes, edges, nodeLayerIndex, isLR, edgePassThrough);
 
   // Compute gap boundaries: for each gap i, the start position for routing slots
   const gapStartPos: number[] = [];
@@ -129,6 +173,9 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
   // gapSegments[gapIndex] = list of GapSegments for that gap
   const gapSegments: GapSegment[][] = [];
   for (let i = 0; i < layers.length - 1; i++) gapSegments.push([]);
+
+  // Collect long edge pass-through allocations for collinear separation
+  const longEdgeAllocations: LongEdgeAllocation[] = [];
 
   for (const edge of edges) {
     const srcNode = nodes[edge.from];
@@ -166,22 +213,42 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
         totalGaps: 1,
       });
     } else {
-      // Long edge — find a pass-through position that avoids intermediate layer nodes
-      const passThrough = findPassThroughPos(
-        nodes, layers, srcLayer, tgtLayer, srcPortPos, tgtPortPos, isLR, sp.edgeNode
-      );
-
-      for (let g = 0; g < totalGaps; g++) {
-        const gapIdx = srcLayer + g;
-        const gs: GapSegment = {
-          edgeId: edge.id,
-          sourcePos: g === 0 ? srcPortPos : passThrough,
-          targetPos: g === totalGaps - 1 ? tgtPortPos : passThrough,
-          gapIndex: g,
-          totalGaps,
-        };
-        gapSegments[gapIdx].push(gs);
+      // Long edge — use pre-computed pass-through position (may be refined with actual port positions)
+      let passThrough = edgePassThrough.get(edge.id);
+      if (passThrough === undefined) {
+        passThrough = findPassThroughPos(
+          nodes, layers, srcLayer, tgtLayer, srcPortPos, tgtPortPos, isLR, sp.edgeNode
+        );
       }
+
+      longEdgeAllocations.push({
+        edgeId: edge.id,
+        srcLayer,
+        tgtLayer,
+        passThrough,
+        srcPortPos,
+        tgtPortPos,
+      });
+    }
+  }
+
+  // Separate collinear long edges: when two long edges share intermediate layers
+  // and have the same pass-through position, offset one to avoid visual overlap.
+  separateCollinearLongEdges(longEdgeAllocations, sp.edgeEdge);
+
+  // Now create gap segments from (possibly adjusted) long edge allocations
+  for (const alloc of longEdgeAllocations) {
+    const totalGaps = alloc.tgtLayer - alloc.srcLayer;
+    for (let g = 0; g < totalGaps; g++) {
+      const gapIdx = alloc.srcLayer + g;
+      const gs: GapSegment = {
+        edgeId: alloc.edgeId,
+        sourcePos: g === 0 ? alloc.srcPortPos : alloc.passThrough,
+        targetPos: g === totalGaps - 1 ? alloc.tgtPortPos : alloc.passThrough,
+        gapIndex: g,
+        totalGaps,
+      };
+      gapSegments[gapIdx].push(gs);
     }
   }
 
@@ -340,7 +407,59 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
 
     edge.points = cleaned;
     edge.orthoRouted = true;
+
+    // Reposition edge labels to match the new orthogonal route.
+    // CENTER label → below/beside the trunk (longest segment), matching ELK style.
+    // TAIL (cardFrom) → midpoint of the first segment.
+    // HEAD (cardTo) → midpoint of the last segment.
+    if (cleaned.length >= 2) {
+      if (edge.labelPos) {
+        const { idx } = longestSegment(cleaned);
+        const a = cleaned[idx], b = cleaned[idx + 1];
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+        if (edge.labelSize) {
+          // Place label beside the trunk segment with edgeLabelSpacing offset
+          const isHoriz = Math.abs(b.y - a.y) < TOLERANCE;
+          if (isHoriz) {
+            // Horizontal trunk (TB layout) → label below
+            edge.labelPos = { x: midX, y: midY + sp.edgeLabelSpacing + edge.labelSize.height / 2 };
+          } else {
+            // Vertical trunk (LR layout) → label to the right
+            edge.labelPos = { x: midX + sp.edgeLabelSpacing + edge.labelSize.width / 2, y: midY };
+          }
+        } else {
+          edge.labelPos = { x: midX, y: midY };
+        }
+      }
+      if (edge.cardFromPos) {
+        edge.cardFromPos = segmentMidpoint(cleaned, 0);
+      }
+      if (edge.cardToPos) {
+        edge.cardToPos = segmentMidpoint(cleaned, cleaned.length - 2);
+      }
+    }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Edge label helpers
+// ---------------------------------------------------------------------------
+
+/** Return the index of the longest segment (by Manhattan distance). */
+function longestSegment(pts: { x: number; y: number }[]): { idx: number; len: number } {
+  let best = 0, bestLen = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const len = Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
+    if (len > bestLen) { bestLen = len; best = i; }
+  }
+  return { idx: best, len: bestLen };
+}
+
+/** Midpoint of segment at index `idx`. */
+function segmentMidpoint(pts: { x: number; y: number }[], idx: number): { x: number; y: number } {
+  const a = pts[idx], b = pts[idx + 1];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 // ---------------------------------------------------------------------------
@@ -365,14 +484,17 @@ function portKey(nodeId: string, edgeId: string, dir: 'in' | 'out'): string {
  * For TB: ports are distributed along the X axis of the node border.
  * For LR: ports are distributed along the Y axis of the node border.
  *
- * Edges are sorted by the position of the other endpoint so that
- * port ordering minimizes crossings.
+ * Edges are sorted by the effective trajectory position so that
+ * port ordering minimizes crossings.  For long edges (spanning >1 gap),
+ * the pass-through position is used instead of the far-end node center
+ * because the actual path detours through that position.
  */
 function assignPorts(
   nodes: Record<string, LayoutNode>,
   edges: LayoutEdge[],
   nodeLayerIndex: Map<string, number>,
   isLR: boolean,
+  edgePassThrough?: Map<string, number>,
 ): PortMap {
   const portMap: PortMap = new Map();
 
@@ -398,9 +520,12 @@ function assignPorts(
     const outNode = isForward ? srcNode : tgtNode;
     const inNode = isForward ? tgtNode : srcNode;
 
-    // Position of the other endpoint on the port axis (for sorting)
-    const inOtherPos = isLR ? outNode.y + outNode.height / 2 : outNode.x + outNode.width / 2;
-    const outOtherPos = isLR ? inNode.y + inNode.height / 2 : inNode.x + inNode.width / 2;
+    // Position of the other endpoint on the port axis (for sorting).
+    // For long edges, use pass-through position (the actual path trajectory)
+    // instead of the far-end node center, because the path detours there.
+    const pt = edgePassThrough?.get(edge.id);
+    const inOtherPos = pt !== undefined ? pt : (isLR ? outNode.y + outNode.height / 2 : outNode.x + outNode.width / 2);
+    const outOtherPos = pt !== undefined ? pt : (isLR ? inNode.y + inNode.height / 2 : inNode.x + inNode.width / 2);
 
     if (!nodeOutEdges.has(outNodeId)) nodeOutEdges.set(outNodeId, []);
     nodeOutEdges.get(outNodeId)!.push({ edgeId: edge.id, otherPos: outOtherPos });
@@ -516,6 +641,9 @@ function adjustNodeSpacing(
   // Count pass-through edges per layer
   const passThroughCount = new Array(layers.length).fill(0) as number[];
 
+  // Max label dimension per gap (gap i = between layer i and layer i+1)
+  const gapLabelExtra = new Array(layers.length - 1).fill(0) as number[];
+
   for (const edge of edges) {
     let srcLayer = nodeLayerIndex.get(edge.from);
     let tgtLayer = nodeLayerIndex.get(edge.to);
@@ -525,9 +653,15 @@ function adjustNodeSpacing(
     for (let li = srcLayer + 1; li < tgtLayer; li++) {
       passThroughCount[li]++;
     }
+    // Reserve gap space for center labels (placed in the middle gap, like ELK label dummies)
+    if (edge.labelSize && tgtLayer > srcLayer) {
+      const midGap = srcLayer + Math.floor((tgtLayer - srcLayer) / 2);
+      const labelDim = isLR ? edge.labelSize.width : edge.labelSize.height;
+      gapLabelExtra[midGap] = Math.max(gapLabelExtra[midGap], labelDim + sp.edgeLabelSpacing);
+    }
   }
 
-  // Accumulate shifts: each layer with pass-through edges shifts subsequent layers
+  // Accumulate shifts from pass-through edges and label space
   let cumulativeShift = 0;
   for (let li = 0; li < layers.length; li++) {
     if (cumulativeShift > 0) {
@@ -540,6 +674,10 @@ function adjustNodeSpacing(
       }
     }
     cumulativeShift += passThroughCount[li] * sp.nodeNode;
+    // Add label space for the gap after this layer
+    if (li < layers.length - 1) {
+      cumulativeShift += gapLabelExtra[li];
+    }
   }
 
   // Sync container (group) sizes: stretch to cover shifted child nodes
@@ -615,4 +753,44 @@ function findPassThroughPos(
     return leftPos;
   }
   return rightPos;
+}
+
+// ---------------------------------------------------------------------------
+// Collinear long-edge separation
+// ---------------------------------------------------------------------------
+
+interface LongEdgeAllocation {
+  edgeId: string;
+  srcLayer: number;
+  tgtLayer: number;
+  passThrough: number;
+  srcPortPos: number;
+  tgtPortPos: number;
+}
+
+/**
+ * Detect and separate long edges that share intermediate layers and have the
+ * same pass-through position (collinear overlap).
+ *
+ * Two long edges are collinear when their intermediate layer ranges overlap
+ * and their passThrough values are equal. We offset later edges by edgeEdge
+ * spacing to visually separate them.
+ */
+function separateCollinearLongEdges(allocs: LongEdgeAllocation[], edgeEdge: number): void {
+  for (let i = 0; i < allocs.length; i++) {
+    for (let j = i + 1; j < allocs.length; j++) {
+      const a = allocs[i], b = allocs[j];
+      if (Math.abs(a.passThrough - b.passThrough) > TOLERANCE) continue;
+
+      // Check intermediate layer overlap:
+      // Edge A intermediates: [srcLayer+1 .. tgtLayer-1]
+      // Edge B intermediates: [srcLayer+1 .. tgtLayer-1]
+      const aStart = a.srcLayer + 1, aEnd = a.tgtLayer - 1;
+      const bStart = b.srcLayer + 1, bEnd = b.tgtLayer - 1;
+      if (aStart > bEnd || bStart > aEnd) continue;
+
+      // Collinear conflict — offset edge B's passThrough
+      b.passThrough += edgeEdge;
+    }
+  }
 }
