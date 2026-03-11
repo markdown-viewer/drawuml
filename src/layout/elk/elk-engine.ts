@@ -91,13 +91,10 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   const theme = options?.theme ?? createTheme();
   const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
-  // 9. Enforce minimum edge-edge spacing (ELK doesn't guarantee it for cross-hierarchy edges)
-  separateOverlappingEdges(layout, theme.padXS);
-
-  // 10. Swimlane column rearrangement (if activity swimlanes present)
+  // 9. Swimlane column rearrangement (if activity swimlanes present)
   rearrangeSwimlanes(layout, model, theme);
 
-  // 11. Post-processing (shared with DOT engine)
+  // 10. Post-processing (shared with DOT engine)
   // Build set of port node IDs that were laid out as ELK ports — these
   // already have correct positions and should not be re-snapped.
   const elkPortIds = new Set<string>();
@@ -110,6 +107,10 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   snapPortNodes(layout, model, renderers, theme, elkPortIds);
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
   positionTitle(layout, renderers);
+
+  // 11. Enforce minimum edge-edge spacing — must run AFTER snapPortNodes
+  //     which may replace edge.points via clipPathAtGroupBoundary.
+  separateOverlappingEdges(layout, theme.padXS);
 
   return { layout, renderers };
 }

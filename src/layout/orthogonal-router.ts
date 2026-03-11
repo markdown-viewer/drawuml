@@ -1056,26 +1056,66 @@ function separateCollinearLongEdges(
   layers: string[][],
   isLR: boolean,
 ): void {
+  if (allocs.length < 2) return;
+
+  // 1. Union-find grouping: merge edges that are collinear (same passThrough
+  //    within edgeEdge, overlapping intermediate layers).
+  const parent = allocs.map((_, i) => i);
+  const find = (x: number): number => {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+    return x;
+  };
+  const unite = (a: number, b: number): void => { parent[find(a)] = find(b); };
+
   for (let i = 0; i < allocs.length; i++) {
     for (let j = i + 1; j < allocs.length; j++) {
       const a = allocs[i], b = allocs[j];
-      const gap = Math.abs(a.passThrough - b.passThrough);
-      if (gap >= edgeEdge) continue;
-
-      // Check intermediate layer overlap:
-      // Edge A intermediates: [srcLayer+1 .. tgtLayer-1]
-      // Edge B intermediates: [srcLayer+1 .. tgtLayer-1]
+      if (Math.abs(a.passThrough - b.passThrough) >= edgeEdge) continue;
       const aStart = a.srcLayer + 1, aEnd = a.tgtLayer - 1;
       const bStart = b.srcLayer + 1, bEnd = b.tgtLayer - 1;
       if (aStart > bEnd || bStart > aEnd) continue;
+      unite(i, j);
+    }
+  }
 
-      // Collinear conflict — offset edge B so gap reaches edgeEdge
-      const offset = edgeEdge - gap;
-      const newPos = b.passThrough > a.passThrough
-        ? b.passThrough + offset
-        : b.passThrough - offset;
-      if (!overlapsIntermediateNodes(newPos, b.srcLayer, b.tgtLayer, nodes, layers, isLR)) {
-        b.passThrough = newPos;
+  // Collect groups with 2+ members
+  const groups = new Map<number, number[]>();
+  for (let i = 0; i < allocs.length; i++) {
+    const root = find(i);
+    let g = groups.get(root);
+    if (!g) { g = []; groups.set(root, g); }
+    g.push(i);
+  }
+
+  // 2. For each conflict group, fan out members around the anchor position.
+  for (const [, memberIdxs] of groups) {
+    if (memberIdxs.length < 2) continue;
+
+    // Sort by intermediate span length descending — longest keeps anchor.
+    const members = memberIdxs.map(i => allocs[i]);
+    members.sort((a, b) => {
+      const spanA = (a.tgtLayer - 1) - (a.srcLayer + 1);
+      const spanB = (b.tgtLayer - 1) - (b.srcLayer + 1);
+      return spanB - spanA;
+    });
+
+    const anchor = members[0].passThrough;
+    const usedPositions = new Set<number>();
+    usedPositions.add(anchor);
+
+    for (let k = 1; k < members.length; k++) {
+      // Try alternating sides: +1, -1, +2, -2, ...
+      let placed = false;
+      for (let dist = 1; dist <= members.length * 2 && !placed; dist++) {
+        for (const sign of [1, -1]) {
+          const candidate = anchor + sign * dist * edgeEdge;
+          if (usedPositions.has(candidate)) continue;
+          if (overlapsIntermediateNodes(candidate, members[k].srcLayer, members[k].tgtLayer, nodes, layers, isLR)) continue;
+          members[k].passThrough = candidate;
+          usedPositions.add(candidate);
+          placed = true;
+          break;
+        }
       }
     }
   }

@@ -158,18 +158,22 @@ export function clipPathAtGroupBoundary(
 // Edge-edge spacing enforcement
 // ---------------------------------------------------------------------------
 
-/** A vertical or horizontal segment extracted from an edge's point list. */
-interface EdgeSegment {
+/**
+ * A "trunk" is a maximal run of consecutive points in an edge that share
+ * the same x (vertical) or y (horizontal) coordinate.  Moving an entire
+ * trunk preserves edge continuity — adjacent segments simply stretch or
+ * shrink because the shared endpoint moves with the trunk.
+ */
+interface EdgeTrunk {
   edgeIdx: number;
-  /** Index of the first point in the segment pair */
-  ptIdx: number;
-  /** Is this segment vertical (true) or horizontal (false)? */
-  vertical: boolean;
-  /** Constant coordinate (x for vertical, y for horizontal) */
+  /** First point index in the trunk (inclusive) */
+  startPtIdx: number;
+  /** Last point index in the trunk (inclusive) */
+  endPtIdx: number;
+  /** Shared coordinate (x for vertical, y for horizontal) */
   pos: number;
-  /** Range start (y-min for vertical, x-min for horizontal) */
+  /** Range extent (y-min/max for vertical, x-min/max for horizontal) */
   rangeMin: number;
-  /** Range end (y-max for vertical, x-max for horizontal) */
   rangeMax: number;
 }
 
@@ -178,94 +182,110 @@ interface EdgeSegment {
  *
  * ELK does not guarantee edge-edge spacing for cross-hierarchy edges
  * (edges routed through different hierarchy levels). This function
- * detects overlapping parallel edge segments and nudges them apart.
+ * detects overlapping parallel edge trunks and fans them apart.
+ *
+ * Unlike a per-segment approach, this moves ALL consecutive points at
+ * the same coordinate together, so edge polylines stay connected.
  */
 export function separateOverlappingEdges(layout: LayoutResult, minGap: number): void {
   if (minGap <= 0) return;
   const edges = layout.edges;
   if (!edges || edges.length < 2) return;
 
-  // Collect all axis-aligned segments from all edges
-  const vertSegs: EdgeSegment[] = [];
-  const horizSegs: EdgeSegment[] = [];
+  _separateTrunks(edges, minGap, true);   // vertical trunks
+  _separateTrunks(edges, minGap, false);  // horizontal trunks
+}
+
+/**
+ * Build trunks, group overlapping ones via union-find, and fan each group apart.
+ */
+function _separateTrunks(
+  edges: LayoutEdge[],
+  minGap: number,
+  vertical: boolean,
+): void {
+  // 1. Build trunks — maximal runs of consecutive points at the same coord
+  const trunks: EdgeTrunk[] = [];
   for (let ei = 0; ei < edges.length; ei++) {
     const pts = edges[ei].points;
     if (!pts || pts.length < 2) continue;
-    for (let pi = 0; pi < pts.length - 1; pi++) {
-      const dx = Math.abs(pts[pi].x - pts[pi + 1].x);
-      const dy = Math.abs(pts[pi].y - pts[pi + 1].y);
-      if (dx < 0.5 && dy > 0.5) {
-        // vertical segment
-        vertSegs.push({
-          edgeIdx: ei, ptIdx: pi, vertical: true,
-          pos: pts[pi].x,
-          rangeMin: Math.min(pts[pi].y, pts[pi + 1].y),
-          rangeMax: Math.max(pts[pi].y, pts[pi + 1].y),
-        });
-      } else if (dy < 0.5 && dx > 0.5) {
-        // horizontal segment
-        horizSegs.push({
-          edgeIdx: ei, ptIdx: pi, vertical: false,
-          pos: pts[pi].y,
-          rangeMin: Math.min(pts[pi].x, pts[pi + 1].x),
-          rangeMax: Math.max(pts[pi].x, pts[pi + 1].x),
-        });
+    let i = 0;
+    while (i < pts.length) {
+      const coord = vertical ? pts[i].x : pts[i].y;
+      let j = i + 1;
+      while (j < pts.length && Math.abs((vertical ? pts[j].x : pts[j].y) - coord) < 0.5) {
+        j++;
+      }
+      if (j - i >= 2) {
+        let rMin = Infinity, rMax = -Infinity;
+        for (let k = i; k < j; k++) {
+          const v = vertical ? pts[k].y : pts[k].x;
+          if (v < rMin) rMin = v;
+          if (v > rMax) rMax = v;
+        }
+        if (rMax - rMin > 0.5) {
+          trunks.push({ edgeIdx: ei, startPtIdx: i, endPtIdx: j - 1, pos: coord, rangeMin: rMin, rangeMax: rMax });
+        }
+      }
+      i = j;
+    }
+  }
+  if (trunks.length < 2) return;
+
+  // 2. Union-find grouping: trunks from different edges that are within
+  //    minGap and overlap in range belong to the same conflict group.
+  const parent = trunks.map((_, idx) => idx);
+  const find = (x: number): number => {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+    return x;
+  };
+  const unite = (a: number, b: number): void => { parent[find(a)] = find(b); };
+
+  const byPos = trunks.map((t, idx) => ({ idx, pos: t.pos }));
+  byPos.sort((a, b) => a.pos - b.pos);
+
+  for (let i = 0; i < byPos.length; i++) {
+    for (let j = i + 1; j < byPos.length; j++) {
+      if (byPos[j].pos - byPos[i].pos >= minGap) break;
+      const ti = trunks[byPos[i].idx], tj = trunks[byPos[j].idx];
+      if (ti.edgeIdx === tj.edgeIdx) continue;
+      // Range overlap?
+      if (Math.min(ti.rangeMax, tj.rangeMax) > Math.max(ti.rangeMin, tj.rangeMin)) {
+        unite(byPos[i].idx, byPos[j].idx);
       }
     }
   }
 
-  // For each pair of parallel segments from DIFFERENT edges,
-  // check if they overlap in range and are too close.
-  _nudgeSegments(vertSegs, edges, minGap);
-  _nudgeSegments(horizSegs, edges, minGap);
-}
-
-/**
- * Nudge overlapping parallel segments apart.
- * Mutates edge points in-place.
- */
-function _nudgeSegments(
-  segs: EdgeSegment[],
-  edges: LayoutEdge[],
-  minGap: number,
-): void {
-  // Sort by position so we can process neighbors
-  segs.sort((a, b) => a.pos - b.pos);
-
-  for (let i = 0; i < segs.length; i++) {
-    for (let j = i + 1; j < segs.length; j++) {
-      const a = segs[i], b = segs[j];
-      // Different edges only
-      if (a.edgeIdx === b.edgeIdx) continue;
-      const gap = b.pos - a.pos;
-      if (gap >= minGap) break; // sorted, so no more close pairs for this i
-      // Check range overlap
-      const overlapMin = Math.max(a.rangeMin, b.rangeMin);
-      const overlapMax = Math.min(a.rangeMax, b.rangeMax);
-      if (overlapMax <= overlapMin) continue;
-      // Segments overlap and are too close — nudge them apart symmetrically
-      const shift = (minGap - gap) / 2;
-      _shiftSegment(a, edges, -shift);
-      _shiftSegment(b, edges, shift);
-      // Update pos for subsequent comparisons
-      a.pos -= shift;
-      b.pos += shift;
-    }
+  // Collect groups with 2+ members
+  const groups = new Map<number, number[]>();
+  for (let i = 0; i < trunks.length; i++) {
+    const root = find(i);
+    let arr = groups.get(root);
+    if (!arr) { arr = []; groups.set(root, arr); }
+    arr.push(i);
   }
-}
 
-/**
- * Shift one segment along its perpendicular axis.
- * Updates both endpoints of the segment in the edge's point array.
- */
-function _shiftSegment(seg: EdgeSegment, edges: LayoutEdge[], delta: number): void {
-  const pts = edges[seg.edgeIdx].points!;
-  if (seg.vertical) {
-    pts[seg.ptIdx].x += delta;
-    pts[seg.ptIdx + 1].x += delta;
-  } else {
-    pts[seg.ptIdx].y += delta;
-    pts[seg.ptIdx + 1].y += delta;
+  // 3. For each conflict group, fan trunks apart.
+  //    Longest trunk stays at anchor position; others fan out to the right.
+  for (const memberIdxs of Array.from(groups.values())) {
+    if (memberIdxs.length < 2) continue;
+    const members = memberIdxs.map(i => trunks[i]);
+    // Sort by range extent descending — longest trunk stays in place
+    members.sort((a, b) => (b.rangeMax - b.rangeMin) - (a.rangeMax - a.rangeMin));
+    const anchorPos = members[0].pos;
+    for (let k = 1; k < members.length; k++) {
+      const newPos = anchorPos + k * minGap;
+      const delta = newPos - members[k].pos;
+      if (Math.abs(delta) < 0.01) continue;
+      const pts = edges[members[k].edgeIdx].points!;
+      for (let pi = members[k].startPtIdx; pi <= members[k].endPtIdx; pi++) {
+        if (vertical) {
+          pts[pi].x += delta;
+        } else {
+          pts[pi].y += delta;
+        }
+      }
+    }
   }
 }
 
