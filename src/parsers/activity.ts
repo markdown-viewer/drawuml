@@ -223,7 +223,7 @@ export function parseActivityDiagram(
   // Swimlane management
   // ---------------------------------------------------------------------------
 
-  function switchSwimlane(name: string, color?: string | null): void {
+  function switchSwimlane(name: string, color?: string | null, label?: string | null): void {
     if (swimlaneMap.has(name)) {
       currentSwimlane = swimlaneMap.get(name)!;
       return;
@@ -232,7 +232,7 @@ export function parseActivityDiagram(
     const id = `swim_${swimlaneCounter}`;
     const group: SemanticGroup = {
       id,
-      label: name,
+      label: label || name,
       type: 'rectangle',
       stereotype: '',
       children: [],
@@ -311,6 +311,7 @@ export function parseActivityDiagram(
     condId: string; // diamond at loop head
     yesLabel: string;
     noLabel: string;
+    backwardLabel: string;
     breakPoints: BreakPoint[];
   }
 
@@ -374,7 +375,7 @@ export function parseActivityDiagram(
     // ── Swimlane ──
     if (kind === 'block_statement' && type === 'swimlane') {
       flushActivity();
-      switchSwimlane(st.name, st.color);
+      switchSwimlane(st.name, st.color, st.label);
       continue;
     }
 
@@ -468,8 +469,10 @@ export function parseActivityDiagram(
 
     // ── Kill / Detach ──
     if (kind === 'control_statement' && (rawText === 'kill' || rawText === 'detach')) {
-      // Terminate current flow — just clear cursors
+      // Terminate current flow — clear cursors and pending arrow state
       cursors = [];
+      pendingArrowLabel = null;
+      pendingArrowColor = null;
       continue;
     }
 
@@ -738,6 +741,7 @@ export function parseActivityDiagram(
           condId: diamondId,
           yesLabel,
           noLabel: '',
+          backwardLabel: '',
           breakPoints: [],
         });
       } else if (kw === 'endwhile') {
@@ -746,8 +750,14 @@ export function parseActivityDiagram(
         const noLabel = outMatch ? outMatch[1] : 'no';
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'while') {
-          // Loop back edge: current → diamond
-          for (const c of cursors) { addEdge(c, ctx.condId); }
+          // Loop back edge: current → diamond (via backward node if present)
+          if (ctx.backwardLabel) {
+            const bwId = createActionNode(ctx.backwardLabel);
+            for (const c of cursors) { addEdge(c, bwId); }
+            addEdge(bwId, ctx.condId);
+          } else {
+            for (const c of cursors) { addEdge(c, ctx.condId); }
+          }
 
           if (ctx.breakPoints.length > 0) {
             // Create merge junction for break exits + normal while exit
@@ -829,10 +839,10 @@ export function parseActivityDiagram(
       continue;
     }
 
-    // ── Backward (inside repeat) ──
+    // ── Backward (inside repeat or while) ──
     if (kind === 'control_statement' && type === 'backward') {
       const ctx = controlStack[controlStack.length - 1];
-      if (ctx && ctx.type === 'repeat') {
+      if (ctx && (ctx.type === 'repeat' || ctx.type === 'while')) {
         const text = String(st.text || '').trim().replace(/^:/, '').replace(/;$/, '');
         if (text) ctx.backwardLabel = text;
       }
@@ -905,15 +915,30 @@ export function parseActivityDiagram(
     if (kind === 'control_statement' && type === 'split') {
       const kw = String(st.keyword || '').toLowerCase();
       if (kw === 'split') {
-        // Split doesn't create a bar — just saves current cursors as branch start
-        controlStack.push({
-          type: 'fork',
-          forkBarId: cursors[0] || '',
-          branchEnds: [],
-          branchLabels: [],
-          branchColors: [],
-          keyword: 'split',
-        });
+        if (cursors.length > 0) {
+          // Create a start bar when there's incoming flow
+          const barId = createForkBar();
+          connectCursorsTo(barId);
+          cursors = [barId];
+          controlStack.push({
+            type: 'fork',
+            forkBarId: barId,
+            branchEnds: [],
+            branchLabels: [],
+            branchColors: [],
+            keyword: 'split',
+          });
+        } else {
+          // No incoming flow — no start bar
+          controlStack.push({
+            type: 'fork',
+            forkBarId: '',
+            branchEnds: [],
+            branchLabels: [],
+            branchColors: [],
+            keyword: 'split',
+          });
+        }
       } else if (kw === 'split again') {
         const ctx = controlStack[controlStack.length - 1];
         if (ctx && ctx.type === 'fork' && ctx.keyword === 'split') {
