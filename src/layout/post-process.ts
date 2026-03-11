@@ -1347,3 +1347,258 @@ export function simplifyBacktrackEdges(layout: LayoutResult, threshold: number):
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Layer compression — merge solo-node layers into adjacent layers
+// ---------------------------------------------------------------------------
+
+/**
+ * Compress layers by merging nodes that sit alone on a layer
+ * into an adjacent layer, when edge-direction constraints allow it.
+ *
+ * For TB layout: layers are determined by Y center; merging means
+ * adjusting Y to match the target layer's Y center.
+ *
+ * Only nodes that are solo on their layer are candidates.  A node
+ * can merge UP (preferred) if all its predecessors are ≥2 layers above,
+ * or merge DOWN if all its successors are ≥2 layers below.
+ *
+ * After merging, empty layer gaps are closed by shifting nodes upward.
+ */
+export function compressLayers(
+  layout: LayoutResult,
+  model: SemanticModel,
+  isLR: boolean = false,
+): void {
+  const nodes = layout.nodes;
+  const edges = model.edges;
+  if (!edges || Object.keys(nodes).length === 0) return;
+
+  // Build edge adjacency (forward direction only — from semantic model)
+  const predsOf = new Map<string, string[]>();
+  const succsOf = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (!nodes[edge.from] || !nodes[edge.to]) continue;
+    if (!predsOf.has(edge.to)) predsOf.set(edge.to, []);
+    predsOf.get(edge.to)!.push(edge.from);
+    if (!succsOf.has(edge.from)) succsOf.set(edge.from, []);
+    succsOf.get(edge.from)!.push(edge.to);
+  }
+
+  // Rebuild layers from current positions
+  const LAYER_TOLERANCE = 5;
+  const buildLayers = (): { center: number; nodes: string[] }[] => {
+    const coords: { id: string; center: number }[] = [];
+    for (const [id, node] of Object.entries(nodes)) {
+      const center = isLR ? node.x + node.width / 2 : node.y + node.height / 2;
+      coords.push({ id, center });
+    }
+    coords.sort((a, b) => a.center - b.center);
+    const layers: { center: number; nodes: string[] }[] = [];
+    for (const { id, center } of coords) {
+      let found = false;
+      for (const layer of layers) {
+        if (Math.abs(center - layer.center) <= LAYER_TOLERANCE) {
+          layer.nodes.push(id);
+          found = true;
+          break;
+        }
+      }
+      if (!found) layers.push({ center, nodes: [id] });
+    }
+    return layers;
+  };
+
+  const layers = buildLayers();
+  if (layers.length < 3) return;
+
+  // Build nodeId → layer index map
+  const nodeLayerIdx = new Map<string, number>();
+  for (let i = 0; i < layers.length; i++) {
+    for (const nid of layers[i].nodes) nodeLayerIdx.set(nid, i);
+  }
+
+  // Check spatial overlap on the perpendicular axis (X for TB, Y for LR)
+  const wouldOverlap = (nid: string, targetLayerNodes: string[], gap: number): boolean => {
+    const n = nodes[nid];
+    if (!n) return true;
+    const nMin = isLR ? n.y : n.x;
+    const nMax = isLR ? n.y + n.height : n.x + n.width;
+    for (const otherId of targetLayerNodes) {
+      const o = nodes[otherId];
+      if (!o) continue;
+      const oMin = isLR ? o.y : o.x;
+      const oMax = isLR ? o.y + o.height : o.x + o.width;
+      if (nMax + gap > oMin && oMax + gap > nMin) return true;
+    }
+    return false;
+  };
+
+  // Attempt to merge solo-node layers
+  const merged = new Set<string>();
+  const GAP = 20; // minimum spacing on perpendicular axis
+
+  for (let li = 0; li < layers.length; li++) {
+    if (layers[li].nodes.length !== 1) continue;
+    const nid = layers[li].nodes[0];
+    if (merged.has(nid)) continue;
+
+    const preds = predsOf.get(nid) || [];
+    const succs = succsOf.get(nid) || [];
+
+    const predLayers = preds.map(p => nodeLayerIdx.get(p)).filter(l => l !== undefined) as number[];
+    const succLayers = succs.map(s => nodeLayerIdx.get(s)).filter(l => l !== undefined) as number[];
+
+    const maxPredLayer = predLayers.length > 0 ? Math.max(...predLayers) : -1;
+    const minSuccLayer = succLayers.length > 0 ? Math.min(...succLayers) : layers.length;
+
+    // Try merge UP first (preferred — moves toward predecessors)
+    if (li > 0 && maxPredLayer < li - 1 && !wouldOverlap(nid, layers[li - 1].nodes, GAP)) {
+      // Move node to layer li-1
+      const targetCenter = layers[li - 1].center;
+      const n = nodes[nid];
+      if (isLR) {
+        n.x = targetCenter - n.width / 2;
+      } else {
+        n.y = targetCenter - n.height / 2;
+      }
+      layers[li - 1].nodes.push(nid);
+      layers[li].nodes = [];
+      merged.add(nid);
+      continue;
+    }
+
+    // Try merge DOWN
+    if (li < layers.length - 1 && minSuccLayer > li + 1 && !wouldOverlap(nid, layers[li + 1].nodes, GAP)) {
+      const targetCenter = layers[li + 1].center;
+      const n = nodes[nid];
+      if (isLR) {
+        n.x = targetCenter - n.width / 2;
+      } else {
+        n.y = targetCenter - n.height / 2;
+      }
+      layers[li + 1].nodes.push(nid);
+      layers[li].nodes = [];
+      merged.add(nid);
+      continue;
+    }
+  }
+
+  if (merged.size === 0) return;
+
+  // Close empty layer gaps: shift nodes upward to fill in removed layers
+  const nonEmptyLayers = layers.filter(l => l.nodes.length > 0);
+  if (nonEmptyLayers.length === layers.length) return;
+
+  // Compute the shift needed: for each remaining layer, how much to shift
+  // based on the gap between its current center and where it "should" be.
+  // We keep the first non-empty layer in place, and shift subsequent layers
+  // closer by the amount of removed layers × typical layer spacing.
+  const removedCenters: number[] = [];
+  for (const l of layers) {
+    if (l.nodes.length === 0) removedCenters.push(l.center);
+  }
+
+  // For each node, compute how many removed layers are before it
+  for (const [nid, node] of Object.entries(nodes)) {
+    const nodeCenter = isLR ? node.x + node.width / 2 : node.y + node.height / 2;
+    let shiftCount = 0;
+    for (const rc of removedCenters) {
+      if (rc < nodeCenter) shiftCount++;
+    }
+    if (shiftCount === 0) continue;
+
+    // Estimate per-layer gap from the average distance between original consecutive layers
+    const avgLayerGap = (layers[layers.length - 1].center - layers[0].center) / (layers.length - 1);
+    const shift = shiftCount * avgLayerGap;
+
+    if (isLR) {
+      node.x -= shift;
+      if (node.xlabelPos) node.xlabelPos.x -= shift;
+    } else {
+      node.y -= shift;
+      if (node.xlabelPos) node.xlabelPos.y -= shift;
+    }
+  }
+
+  // Also shift edge waypoints and label positions
+  if (layout.edges) {
+    for (const edge of layout.edges) {
+      for (const pt of edge.points || []) {
+        const coord = isLR ? pt.x : pt.y;
+        let shiftCount = 0;
+        for (const rc of removedCenters) {
+          if (rc < coord) shiftCount++;
+        }
+        if (shiftCount === 0) continue;
+        const avgLayerGap = (layers[layers.length - 1].center - layers[0].center) / (layers.length - 1);
+        if (isLR) pt.x -= shiftCount * avgLayerGap;
+        else pt.y -= shiftCount * avgLayerGap;
+      }
+      if (edge.labelPos) {
+        const coord = isLR ? edge.labelPos.x : edge.labelPos.y;
+        let shiftCount = 0;
+        for (const rc of removedCenters) {
+          if (rc < coord) shiftCount++;
+        }
+        if (shiftCount > 0) {
+          const avgLayerGap = (layers[layers.length - 1].center - layers[0].center) / (layers.length - 1);
+          if (isLR) edge.labelPos.x -= shiftCount * avgLayerGap;
+          else edge.labelPos.y -= shiftCount * avgLayerGap;
+        }
+      }
+      if (edge.cardFromPos) {
+        const coord = isLR ? edge.cardFromPos.x : edge.cardFromPos.y;
+        let shiftCount = 0;
+        for (const rc of removedCenters) {
+          if (rc < coord) shiftCount++;
+        }
+        if (shiftCount > 0) {
+          const avgLayerGap = (layers[layers.length - 1].center - layers[0].center) / (layers.length - 1);
+          if (isLR) edge.cardFromPos.x -= shiftCount * avgLayerGap;
+          else edge.cardFromPos.y -= shiftCount * avgLayerGap;
+        }
+      }
+      if (edge.cardToPos) {
+        const coord = isLR ? edge.cardToPos.x : edge.cardToPos.y;
+        let shiftCount = 0;
+        for (const rc of removedCenters) {
+          if (rc < coord) shiftCount++;
+        }
+        if (shiftCount > 0) {
+          const avgLayerGap = (layers[layers.length - 1].center - layers[0].center) / (layers.length - 1);
+          if (isLR) edge.cardToPos.x -= shiftCount * avgLayerGap;
+          else edge.cardToPos.y -= shiftCount * avgLayerGap;
+        }
+      }
+    }
+  }
+
+  // Shift groups
+  if (layout.groups) {
+    for (const g of Object.values(layout.groups)) {
+      const gCenter = isLR ? g.x + g.width / 2 : g.y + g.height / 2;
+      let shiftCountStart = 0, shiftCountEnd = 0;
+      const gStart = isLR ? g.x : g.y;
+      const gEnd = isLR ? g.x + g.width : g.y + g.height;
+      for (const rc of removedCenters) {
+        if (rc > gStart && rc < gEnd) {
+          shiftCountEnd++;
+        } else if (rc < gStart) {
+          shiftCountStart++;
+        }
+      }
+      const avgLayerGap = (layers[layers.length - 1].center - layers[0].center) / (layers.length - 1);
+      // Shift position by layers removed before the group
+      if (shiftCountStart > 0) {
+        if (isLR) g.x -= shiftCountStart * avgLayerGap;
+        else g.y -= shiftCountStart * avgLayerGap;
+      }
+      // Shrink size by layers removed inside the group
+      if (shiftCountEnd > 0) {
+        if (isLR) g.width -= shiftCountEnd * avgLayerGap;
+        else g.height -= shiftCountEnd * avgLayerGap;
+      }
+    }
+  }
+}

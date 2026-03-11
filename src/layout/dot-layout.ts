@@ -12,7 +12,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup, SemanticNode } from '.
 import { createNodeRenderer } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges, simplifyBacktrackEdges } from './post-process.ts';
+import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges, simplifyBacktrackEdges, compressLayers } from './post-process.ts';
 import { routeOrthogonal } from './orthogonal-router.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
@@ -417,7 +417,12 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   //      DOT cluster layout already handles lane positioning correctly.
   // rearrangeSwimlanes(layout, model, theme);
 
-  // 5a2. Orthogonal edge routing for swimlane diagrams
+  // 5a2. Compress layers — merge solo-node layers into adjacent layers
+  if (useOrtho) {
+    compressLayers(layout, model);
+  }
+
+  // 5a3. Orthogonal edge routing for swimlane diagrams
   if (useOrtho) {
     routeOrthogonal(layout, model, theme);
   }

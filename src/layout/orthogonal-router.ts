@@ -236,6 +236,11 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
   // and have the same pass-through position, offset one to avoid visual overlap.
   separateCollinearLongEdges(longEdgeAllocations, sp.edgeEdge);
 
+  // Reorder pass-through positions of collinear long edges to eliminate
+  // double crossings (where both horizontal trunks of one edge cross
+  // another edge's vertical trunk).
+  fixDoubleCrossings(longEdgeAllocations);
+
   // Now create gap segments from (possibly adjusted) long edge allocations
   for (const alloc of longEdgeAllocations) {
     const totalGaps = alloc.tgtLayer - alloc.srcLayer;
@@ -626,8 +631,27 @@ function buildLayers(nodes: Record<string, LayoutNode>, useX: boolean): string[]
 // ---------------------------------------------------------------------------
 
 /**
- * Push nodes apart at layers where long edges pass through,
- * creating room for horizontal trunk segments.
+ * Adapt layer spacing based on edge complexity per gap.
+ *
+ * For each gap between adjacent layers, count the total number of edges
+ * crossing it (both direct edges and long-edge pass-throughs). Then set
+ * the gap to:
+ *   desiredGap = edgeNode + N × edgeEdge + labelExtra
+ *
+ * Adapt layer spacing based on edge complexity per gap.
+ *
+ * For each gap between adjacent layers, classify crossing edges:
+ *   - "trunk" edges: edges whose source or target is at one of the
+ *     adjacent layers — these produce visible horizontal trunk segments.
+ *   - "pass-through" edges: long edges passing through intermediate
+ *     gaps — only vertical lines, no visible horizontal trunk.
+ *
+ * Desired gap:
+ *   - If trunk edges exist:  edgeNode + totalEdges * edgeEdge + edgeNode
+ *     (clearance on BOTH source and target sides, plus routing slots)
+ *   - If only pass-throughs:  edgeNode + totalEdges * edgeEdge
+ *     (clearance on source side only;  straight verticals need less room)
+ *   - Plus labelExtra for center labels.
  */
 function adjustNodeSpacing(
   nodes: Record<string, LayoutNode>,
@@ -638,22 +662,35 @@ function adjustNodeSpacing(
   isLR: boolean,
   groups?: Record<string, LayoutGroup>,
 ): void {
-  // Count pass-through edges per layer
-  const passThroughCount = new Array(layers.length).fill(0) as number[];
+  if (layers.length < 2) return;
 
-  // Max label dimension per gap (gap i = between layer i and layer i+1)
-  const gapLabelExtra = new Array(layers.length - 1).fill(0) as number[];
+  const numGaps = layers.length - 1;
+
+  // Per-gap edge counts
+  const gapEdgeCount = new Array(numGaps).fill(0) as number[];
+  // Whether any edge has a visible horizontal trunk in this gap
+  const gapHasTrunk = new Array(numGaps).fill(false) as boolean[];
+
+  // Max label dimension per gap (for center labels placed in the middle gap)
+  const gapLabelExtra = new Array(numGaps).fill(0) as number[];
 
   for (const edge of edges) {
     let srcLayer = nodeLayerIndex.get(edge.from);
     let tgtLayer = nodeLayerIndex.get(edge.to);
     if (srcLayer === undefined || tgtLayer === undefined) continue;
     if (srcLayer > tgtLayer) { const tmp = srcLayer; srcLayer = tgtLayer; tgtLayer = tmp; }
-    // Mark intermediate layers (layers the edge passes through)
-    for (let li = srcLayer + 1; li < tgtLayer; li++) {
-      passThroughCount[li]++;
+    if (srcLayer === tgtLayer) continue;
+
+    for (let gi = srcLayer; gi < tgtLayer; gi++) {
+      gapEdgeCount[gi]++;
+      // Edge has a trunk endpoint in this gap if its source or target
+      // is at one of the adjacent layers (not just passing through)
+      if (gi === srcLayer || gi + 1 === tgtLayer) {
+        gapHasTrunk[gi] = true;
+      }
     }
-    // Reserve gap space for center labels (placed in the middle gap, like ELK label dummies)
+
+    // Reserve gap space for center labels
     if (edge.labelSize && tgtLayer > srcLayer) {
       const midGap = srcLayer + Math.floor((tgtLayer - srcLayer) / 2);
       const labelDim = isLR ? edge.labelSize.width : edge.labelSize.height;
@@ -661,30 +698,77 @@ function adjustNodeSpacing(
     }
   }
 
-  // Accumulate shifts from pass-through edges and label space
-  let cumulativeShift = 0;
+  // Compute layer extents on the layout axis
+  const layerBottom: number[] = []; // max bottom of each layer
+  const layerTop: number[] = [];    // min top of each layer
   for (let li = 0; li < layers.length; li++) {
-    if (cumulativeShift > 0) {
-      for (const nid of layers[li]) {
-        const n = nodes[nid];
-        if (n) {
-          if (isLR) n.x += cumulativeShift;
-          else n.y += cumulativeShift;
-        }
-      }
+    let maxB = -Infinity, minT = Infinity;
+    for (const nid of layers[li]) {
+      const n = nodes[nid];
+      if (!n) continue;
+      const top = isLR ? n.x : n.y;
+      const bottom = isLR ? n.x + n.width : n.y + n.height;
+      minT = Math.min(minT, top);
+      maxB = Math.max(maxB, bottom);
     }
-    cumulativeShift += passThroughCount[li] * sp.nodeNode;
-    // Add label space for the gap after this layer
-    if (li < layers.length - 1) {
-      cumulativeShift += gapLabelExtra[li];
+    layerBottom.push(maxB);
+    layerTop.push(minT);
+  }
+
+  // Compute per-gap delta (desired - actual).
+  const gapDelta: number[] = [];
+  for (let gi = 0; gi < numGaps; gi++) {
+    const actual = layerTop[gi + 1] - layerBottom[gi];
+    // Source-side clearance + routing slots + target-side clearance (if trunks)
+    const desired = sp.edgeNode
+      + gapEdgeCount[gi] * sp.edgeEdge
+      + (gapHasTrunk[gi] ? sp.edgeNode : 0)
+      + gapLabelExtra[gi];
+    gapDelta.push(desired - actual);
+  }
+
+  // Apply cumulative shifts (layer 0 stays in place)
+  const layerCumShift: number[] = [0];
+  let cumulativeShift = 0;
+  for (let li = 1; li < layers.length; li++) {
+    cumulativeShift += gapDelta[li - 1];
+    layerCumShift.push(cumulativeShift);
+    for (const nid of layers[li]) {
+      const n = nodes[nid];
+      if (n) {
+        if (isLR) n.x += cumulativeShift;
+        else n.y += cumulativeShift;
+      }
     }
   }
 
-  // Sync container (group) sizes: stretch to cover shifted child nodes
-  if (cumulativeShift > 0 && groups) {
+  // Adjust groups: use per-layer shifts for position and size
+  if (groups) {
     for (const g of Object.values(groups)) {
-      if (isLR) g.width += cumulativeShift;
-      else g.height += cumulativeShift;
+      const gStart = isLR ? g.x : g.y;
+      const gEnd = gStart + (isLR ? g.width : g.height);
+
+      // Find first layer at/after group start
+      let firstLayer = 0;
+      for (let li = 0; li < layers.length; li++) {
+        if (layerTop[li] >= gStart - 5) { firstLayer = li; break; }
+      }
+      // Find last layer at/before group end
+      let lastLayer = layers.length - 1;
+      for (let li = layers.length - 1; li >= 0; li--) {
+        if (layerBottom[li] <= gEnd + 5) { lastLayer = li; break; }
+      }
+
+      const topShift = layerCumShift[firstLayer];
+      const bottomShift = layerCumShift[lastLayer];
+
+      if (isLR) {
+        g.x += topShift;
+        g.width += (bottomShift - topShift);
+      } else {
+        g.y += topShift;
+        g.height += (bottomShift - topShift);
+      }
     }
   }
 }
@@ -793,4 +877,95 @@ function separateCollinearLongEdges(allocs: LongEdgeAllocation[], edgeEdge: numb
       b.passThrough += edgeEdge;
     }
   }
+}
+
+/**
+ * Fix double-crossings between collinear long edges.
+ *
+ * A double crossing occurs when edge B's horizontal trunks (at source and
+ * target) both cross edge A's vertical trunk.  This happens when B's
+ * pass-through is on the opposite side of A's pass-through from BOTH of
+ * B's port positions.
+ *
+ * Fix: for collinear edge pairs whose pass-through ordering disagrees with
+ * their average port-position ordering, swap the pass-through values.
+ * This ensures the edge with ports closer to the pass-through area is
+ * the outermost vertical, preventing trunks from crossing.
+ */
+function fixDoubleCrossings(allocs: LongEdgeAllocation[]): void {
+  // Iterative pairwise swaps until stable
+  let changed = true;
+  let maxIter = allocs.length * allocs.length;
+  while (changed && maxIter-- > 0) {
+    changed = false;
+    for (let i = 0; i < allocs.length; i++) {
+      for (let j = i + 1; j < allocs.length; j++) {
+        const a = allocs[i], b = allocs[j];
+
+        // Check overlapping intermediate layer ranges
+        const aStart = a.srcLayer + 1, aEnd = a.tgtLayer - 1;
+        const bStart = b.srcLayer + 1, bEnd = b.tgtLayer - 1;
+        if (aStart > bEnd || bStart > aEnd) continue;
+
+        // Count crossings before and after a potential swap
+        const crossBefore = countPairCrossings(a, b);
+        if (crossBefore === 0) continue;
+
+        // Try swapping
+        const tmp = a.passThrough;
+        a.passThrough = b.passThrough;
+        b.passThrough = tmp;
+
+        const crossAfter = countPairCrossings(a, b);
+        if (crossAfter < crossBefore) {
+          changed = true; // keep the swap
+        } else {
+          // Revert
+          b.passThrough = a.passThrough;
+          a.passThrough = tmp;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Count crossings between two long edges' horizontal trunks and
+ * the other edge's vertical trunk.
+ *
+ * A crossing occurs when edge X's horizontal trunk at some layer gap
+ * spans across edge Y's vertical pass-through position at that same gap.
+ */
+function countPairCrossings(a: LongEdgeAllocation, b: LongEdgeAllocation): number {
+  let crossings = 0;
+
+  // A's source trunk crosses B's vertical?
+  // A's source trunk is at gap srcLayerA, connecting srcPortPosA → passThroughA
+  // B's vertical exists in gaps [srcLayerB .. tgtLayerB-1]
+  if (a.srcLayer >= b.srcLayer && a.srcLayer < b.tgtLayer) {
+    if (straddles(a.srcPortPos, a.passThrough, b.passThrough)) crossings++;
+  }
+  // A's target trunk at gap tgtLayerA-1
+  if (a.tgtLayer - 1 >= b.srcLayer && a.tgtLayer - 1 < b.tgtLayer) {
+    if (straddles(a.tgtPortPos, a.passThrough, b.passThrough)) crossings++;
+  }
+  // B's source trunk crosses A's vertical?
+  if (b.srcLayer >= a.srcLayer && b.srcLayer < a.tgtLayer) {
+    if (straddles(b.srcPortPos, b.passThrough, a.passThrough)) crossings++;
+  }
+  // B's target trunk
+  if (b.tgtLayer - 1 >= a.srcLayer && b.tgtLayer - 1 < a.tgtLayer) {
+    if (straddles(b.tgtPortPos, b.passThrough, a.passThrough)) crossings++;
+  }
+
+  return crossings;
+}
+
+/** Check if a horizontal trunk from portPos to ownPT crosses the line at otherPT. */
+function straddles(portPos: number, ownPT: number, otherPT: number): boolean {
+  // The trunk spans from portPos to ownPT.  It crosses otherPT if
+  // otherPT is strictly between portPos and ownPT.
+  const lo = Math.min(portPos, ownPT);
+  const hi = Math.max(portPos, ownPT);
+  return otherPT > lo + TOLERANCE && otherPT < hi - TOLERANCE;
 }
