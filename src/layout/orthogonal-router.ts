@@ -714,8 +714,9 @@ function adjustNodeSpacing(
 
   const numGaps = layers.length - 1;
 
-  // Per-gap edge counts
-  const gapEdgeCount = new Array(numGaps).fill(0) as number[];
+  // Per-gap: count edges that have a horizontal trunk (fold-line) in this gap.
+  // Pass-through edges (vertical only) don't need extra vertical space.
+  const gapTrunkCount = new Array(numGaps).fill(0) as number[];
   // Whether any edge has a visible horizontal trunk in this gap
   const gapHasTrunk = new Array(numGaps).fill(false) as boolean[];
 
@@ -730,10 +731,10 @@ function adjustNodeSpacing(
     if (srcLayer === tgtLayer) continue;
 
     for (let gi = srcLayer; gi < tgtLayer; gi++) {
-      gapEdgeCount[gi]++;
       // Edge has a trunk endpoint in this gap if its source or target
       // is at one of the adjacent layers (not just passing through)
       if (gi === srcLayer || gi + 1 === tgtLayer) {
+        gapTrunkCount[gi]++;
         gapHasTrunk[gi] = true;
       }
     }
@@ -767,9 +768,9 @@ function adjustNodeSpacing(
   const gapDelta: number[] = [];
   for (let gi = 0; gi < numGaps; gi++) {
     const actual = layerTop[gi + 1] - layerBottom[gi];
-    // Source-side clearance + routing slots + target-side clearance (if trunks)
+    // Source-side clearance + trunk routing slots + target-side clearance (if trunks)
     const desired = sp.edgeNode
-      + gapEdgeCount[gi] * sp.edgeEdge
+      + gapTrunkCount[gi] * sp.edgeEdge
       + (gapHasTrunk[gi] ? sp.edgeNode : 0)
       + gapLabelExtra[gi];
     gapDelta.push(desired - actual);
