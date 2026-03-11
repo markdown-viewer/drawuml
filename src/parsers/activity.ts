@@ -469,6 +469,26 @@ export function parseActivityDiagram(
 
     // ── Kill / Detach ──
     if (kind === 'control_statement' && (rawText === 'kill' || rawText === 'detach')) {
+      // When kill follows end split/fork, the last branch is detached from
+      // the join bar and the join bar remains as cursor (PlantUML behaviour).
+      if (cursors.length === 1) {
+        const cNode = nodes.find(n => n.id === cursors[0]);
+        const isJoinBar = cNode && (cNode.type as any) === NodeType.StateFork &&
+          !controlStack.some(ctx => (ctx as any).forkBarId === cursors[0]);
+        if (isJoinBar) {
+          const joinId = cursors[0];
+          // Remove the last edge pointing to this join bar
+          for (let ei = edges.length - 1; ei >= 0; ei--) {
+            if (edges[ei].to === joinId) {
+              edges.splice(ei, 1);
+              break;
+            }
+          }
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
+          continue;
+        }
+      }
       // Terminate current flow — clear cursors and pending arrow state
       cursors = [];
       pendingArrowLabel = null;
