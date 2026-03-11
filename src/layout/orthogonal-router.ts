@@ -123,6 +123,9 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
     }
   }
 
+  // Preprocess: nudge nearly-aligned adjacent nodes to eliminate tiny bends
+  alignNearbyNodes(nodes, edges, nodeLayerIndex, isLR, sp.edgeNode);
+
   // Preprocess: adjust node spacing for layers with pass-through long edges
   adjustNodeSpacing(nodes, edges, layers, nodeLayerIndex, sp, isLR, layout.groups);
 
@@ -677,6 +680,100 @@ function buildLayers(nodes: Record<string, LayoutNode>, useX: boolean): string[]
 // ---------------------------------------------------------------------------
 // Preprocessing: adjust node spacing for long-edge pass-through
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Pre-routing node alignment — eliminate tiny bends from DOT jitter
+// ---------------------------------------------------------------------------
+
+/**
+ * When DOT places two connected adjacent-layer nodes with nearly identical
+ * cross-axis centers (< threshold), nudge them to share the same center.
+ *
+ * Finds chains of 1:1 connected nodes across layers, then aligns all chain
+ * members to the widest node's center (which is least likely to overlap
+ * neighbours).
+ */
+function alignNearbyNodes(
+  nodes: Record<string, LayoutNode>,
+  edges: LayoutEdge[],
+  nodeLayerIndex: Map<string, number>,
+  isLR: boolean,
+  threshold: number,
+): void {
+  // Build per-node degree maps for single-gap edges only
+  const outDeg = new Map<string, number>();
+  const inDeg = new Map<string, number>();
+  // Adjacency: outEdge[nodeId] = target nodeId (only if exactly 1 out-edge)
+  const outTarget = new Map<string, string>();
+  const inSource = new Map<string, string>();
+
+  for (const edge of edges) {
+    let srcLayer = nodeLayerIndex.get(edge.from);
+    let tgtLayer = nodeLayerIndex.get(edge.to);
+    if (srcLayer === undefined || tgtLayer === undefined) continue;
+    const lo = Math.min(srcLayer, tgtLayer);
+    const hi = Math.max(srcLayer, tgtLayer);
+    if (hi - lo !== 1) continue;
+    const outId = srcLayer < tgtLayer ? edge.from : edge.to;
+    const inId = srcLayer < tgtLayer ? edge.to : edge.from;
+    outDeg.set(outId, (outDeg.get(outId) || 0) + 1);
+    inDeg.set(inId, (inDeg.get(inId) || 0) + 1);
+    outTarget.set(outId, inId);
+    inSource.set(inId, outId);
+  }
+
+  // Find chains: sequences of 1:1 connected nodes
+  const visited = new Set<string>();
+  for (const [startId] of Object.entries(nodes)) {
+    if (visited.has(startId)) continue;
+    // Start from a node that has no 1:1 predecessor (unless predecessor was already visited/chain-broken)
+    const pred = inSource.get(startId);
+    if (pred && !visited.has(pred) && (inDeg.get(startId) || 0) === 1 && (outDeg.get(pred) || 0) === 1) continue;
+
+    // Walk forward through 1:1 connections
+    const chain: string[] = [];
+    let cur = startId;
+    while (cur) {
+      if (visited.has(cur)) break;
+      chain.push(cur);
+      visited.add(cur);
+
+      const target = outTarget.get(cur);
+      if (!target) break;
+      if ((outDeg.get(cur) || 0) !== 1) break;
+      if ((inDeg.get(target) || 0) !== 1) break;
+
+      // Break chain if center gap to next node exceeds threshold
+      const curNode = nodes[cur];
+      const tgtNode = nodes[target];
+      const curCenter = isLR ? curNode.y + curNode.height / 2 : curNode.x + curNode.width / 2;
+      const tgtCenter = isLR ? tgtNode.y + tgtNode.height / 2 : tgtNode.x + tgtNode.width / 2;
+      if (Math.abs(curCenter - tgtCenter) >= threshold) break;
+
+      cur = target;
+    }
+
+    if (chain.length < 2) continue;
+
+    // Align to the widest node's center
+    let widestId = chain[0];
+    let widestSize = isLR ? nodes[chain[0]].height : nodes[chain[0]].width;
+    for (const id of chain) {
+      const size = isLR ? nodes[id].height : nodes[id].width;
+      if (size > widestSize) { widestSize = size; widestId = id; }
+    }
+    const alignCenter = isLR
+      ? nodes[widestId].y + nodes[widestId].height / 2
+      : nodes[widestId].x + nodes[widestId].width / 2;
+
+    for (const id of chain) {
+      if (id === widestId) continue;
+      const n = nodes[id];
+      if (isLR) n.y = alignCenter - n.height / 2;
+      else n.x = alignCenter - n.width / 2;
+    }
+  }
+}
 
 /**
  * Adapt layer spacing based on edge complexity per gap.

@@ -248,6 +248,23 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         //   let DrawIO's orthogonal algorithm handle both endpoints.
         const cellBound = (engine === 'elk' || hasOrthoConstraint) && !omitSource && !omitTarget && !hasPort;
         if (cellBound) {
+          // Remove collinear intermediate points (e.g. 3 points on same X/Y).
+          // This turns straight 3-point paths into 2-point paths so they use
+          // the correct straight-line handling below.
+          if (points.length > 2) {
+            const simplified = [points[0]];
+            for (let i = 1; i < points.length - 1; i++) {
+              const prev = simplified[simplified.length - 1];
+              const curr = points[i];
+              const next = points[i + 1];
+              const sameX = Math.abs(curr.x - prev.x) < 0.5 && Math.abs(next.x - curr.x) < 0.5;
+              const sameY = Math.abs(curr.y - prev.y) < 0.5 && Math.abs(next.y - curr.y) < 0.5;
+              if (!sameX && !sameY) simplified.push(curr);
+            }
+            simplified.push(points[points.length - 1]);
+            points = simplified;
+          }
+
           if (points.length === 2) {
             // Straight line: place 2 waypoints in the gap between source and
             // target nodes to guide SegmentConnector's routing direction.
