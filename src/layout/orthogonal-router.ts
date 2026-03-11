@@ -237,12 +237,12 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
 
   // Separate collinear long edges: when two long edges share intermediate layers
   // and have the same pass-through position, offset one to avoid visual overlap.
-  separateCollinearLongEdges(longEdgeAllocations, sp.edgeEdge);
+  separateCollinearLongEdges(longEdgeAllocations, sp.edgeEdge, nodes, layers, isLR);
 
   // Reorder pass-through positions of collinear long edges to eliminate
   // double crossings (where both horizontal trunks of one edge cross
   // another edge's vertical trunk).
-  fixDoubleCrossings(longEdgeAllocations);
+  fixDoubleCrossings(longEdgeAllocations, nodes, layers, isLR);
 
   // Re-assign ports using final pass-through values so that port ordering
   // matches the actual routing direction after separation/fixDoubleCrossings.
@@ -722,6 +722,15 @@ function alignNearbyNodes(
     inSource.set(inId, outId);
   }
 
+  // Build per-layer node lists for collision detection
+  const layerNodes = new Map<number, string[]>();
+  for (const [id] of Object.entries(nodes)) {
+    const li = nodeLayerIndex.get(id);
+    if (li === undefined) continue;
+    if (!layerNodes.has(li)) layerNodes.set(li, []);
+    layerNodes.get(li)!.push(id);
+  }
+
   // Find chains: sequences of 1:1 connected nodes
   const visited = new Set<string>();
   for (const [startId] of Object.entries(nodes)) {
@@ -769,6 +778,19 @@ function alignNearbyNodes(
     for (const id of chain) {
       if (id === widestId) continue;
       const n = nodes[id];
+      // Check collision with same-layer neighbors before aligning
+      const li = nodeLayerIndex.get(id)!;
+      const newStart = isLR ? alignCenter - n.height / 2 : alignCenter - n.width / 2;
+      const newEnd = isLR ? alignCenter + n.height / 2 : alignCenter + n.width / 2;
+      let collision = false;
+      for (const otherId of layerNodes.get(li) || []) {
+        if (otherId === id) continue;
+        const o = nodes[otherId];
+        const oStart = isLR ? o.y : o.x;
+        const oEnd = isLR ? o.y + o.height : o.x + o.width;
+        if (newStart < oEnd && newEnd > oStart) { collision = true; break; }
+      }
+      if (collision) continue;
       if (isLR) n.y = alignCenter - n.height / 2;
       else n.x = alignCenter - n.width / 2;
     }
@@ -1006,11 +1028,39 @@ interface LongEdgeAllocation {
  * and their passThrough values are equal. We offset later edges by edgeEdge
  * spacing to visually separate them.
  */
-function separateCollinearLongEdges(allocs: LongEdgeAllocation[], edgeEdge: number): void {
+/** Check if a passThrough position overlaps any node in intermediate layers. */
+function overlapsIntermediateNodes(
+  passThrough: number,
+  srcLayer: number,
+  tgtLayer: number,
+  nodes: Record<string, LayoutNode>,
+  layers: string[][],
+  isLR: boolean,
+): boolean {
+  for (let li = srcLayer + 1; li < tgtLayer; li++) {
+    for (const nid of layers[li]) {
+      const n = nodes[nid];
+      if (!n) continue;
+      const min = isLR ? n.y : n.x;
+      const max = min + (isLR ? n.height : n.width);
+      if (passThrough > min && passThrough < max) return true;
+    }
+  }
+  return false;
+}
+
+function separateCollinearLongEdges(
+  allocs: LongEdgeAllocation[],
+  edgeEdge: number,
+  nodes: Record<string, LayoutNode>,
+  layers: string[][],
+  isLR: boolean,
+): void {
   for (let i = 0; i < allocs.length; i++) {
     for (let j = i + 1; j < allocs.length; j++) {
       const a = allocs[i], b = allocs[j];
-      if (Math.abs(a.passThrough - b.passThrough) > TOLERANCE) continue;
+      const gap = Math.abs(a.passThrough - b.passThrough);
+      if (gap >= edgeEdge) continue;
 
       // Check intermediate layer overlap:
       // Edge A intermediates: [srcLayer+1 .. tgtLayer-1]
@@ -1019,8 +1069,14 @@ function separateCollinearLongEdges(allocs: LongEdgeAllocation[], edgeEdge: numb
       const bStart = b.srcLayer + 1, bEnd = b.tgtLayer - 1;
       if (aStart > bEnd || bStart > aEnd) continue;
 
-      // Collinear conflict — offset edge B's passThrough
-      b.passThrough += edgeEdge;
+      // Collinear conflict — offset edge B so gap reaches edgeEdge
+      const offset = edgeEdge - gap;
+      const newPos = b.passThrough > a.passThrough
+        ? b.passThrough + offset
+        : b.passThrough - offset;
+      if (!overlapsIntermediateNodes(newPos, b.srcLayer, b.tgtLayer, nodes, layers, isLR)) {
+        b.passThrough = newPos;
+      }
     }
   }
 }
@@ -1038,7 +1094,12 @@ function separateCollinearLongEdges(allocs: LongEdgeAllocation[], edgeEdge: numb
  * This ensures the edge with ports closer to the pass-through area is
  * the outermost vertical, preventing trunks from crossing.
  */
-function fixDoubleCrossings(allocs: LongEdgeAllocation[]): void {
+function fixDoubleCrossings(
+  allocs: LongEdgeAllocation[],
+  nodes: Record<string, LayoutNode>,
+  layers: string[][],
+  isLR: boolean,
+): void {
   // Iterative pairwise swaps until stable
   let changed = true;
   let maxIter = allocs.length * allocs.length;
@@ -1064,7 +1125,16 @@ function fixDoubleCrossings(allocs: LongEdgeAllocation[]): void {
 
         const crossAfter = countPairCrossings(a, b);
         if (crossAfter < crossBefore) {
-          changed = true; // keep the swap
+          // Reject swap if it would route through intermediate nodes
+          const aOverlaps = overlapsIntermediateNodes(a.passThrough, a.srcLayer, a.tgtLayer, nodes, layers, isLR);
+          const bOverlaps = overlapsIntermediateNodes(b.passThrough, b.srcLayer, b.tgtLayer, nodes, layers, isLR);
+          if (aOverlaps || bOverlaps) {
+            // Revert — node overlap is worse than edge crossing
+            b.passThrough = a.passThrough;
+            a.passThrough = tmp;
+          } else {
+            changed = true; // keep the swap
+          }
         } else {
           // Revert
           b.passThrough = a.passThrough;
