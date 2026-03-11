@@ -241,6 +241,54 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
   // another edge's vertical trunk).
   fixDoubleCrossings(longEdgeAllocations);
 
+  // Re-assign ports using final pass-through values so that port ordering
+  // matches the actual routing direction after separation/fixDoubleCrossings.
+  {
+    let ptChanged = false;
+    for (const alloc of longEdgeAllocations) {
+      const orig = edgePassThrough.get(alloc.edgeId);
+      if (orig !== undefined && Math.abs(orig - alloc.passThrough) > 0.1) {
+        edgePassThrough.set(alloc.edgeId, alloc.passThrough);
+        ptChanged = true;
+      }
+    }
+    if (ptChanged) {
+      const finalPorts = assignPorts(nodes, edges, nodeLayerIndex, isLR, edgePassThrough);
+      // Build an edge lookup for efficiency
+      const edgeById = new Map<string, LayoutEdge>();
+      for (const e of edges) edgeById.set(e.id, e);
+      // Update long edge allocation port positions
+      for (const alloc of longEdgeAllocations) {
+        const edge = edgeById.get(alloc.edgeId);
+        if (!edge) continue;
+        const srcLayer = nodeLayerIndex.get(edge.from)!;
+        const tgtLayer = nodeLayerIndex.get(edge.to)!;
+        const isForward = srcLayer <= tgtLayer;
+        const srcN = nodes[isForward ? edge.from : edge.to];
+        const tgtN = nodes[isForward ? edge.to : edge.from];
+        if (!srcN || !tgtN) continue;
+        alloc.srcPortPos = getPort(finalPorts, isForward ? edge.from : edge.to, alloc.edgeId, 'out', srcN, isLR);
+        alloc.tgtPortPos = getPort(finalPorts, isForward ? edge.to : edge.from, alloc.edgeId, 'in', tgtN, isLR);
+      }
+      // Update single-gap segments already in gapSegments
+      for (const segs of gapSegments) {
+        for (const gs of segs) {
+          if (gs.totalGaps !== 1) continue;
+          const edge = edgeById.get(gs.edgeId);
+          if (!edge) continue;
+          const srcLayer = nodeLayerIndex.get(edge.from)!;
+          const tgtLayer = nodeLayerIndex.get(edge.to)!;
+          const isForward = srcLayer <= tgtLayer;
+          const srcN = nodes[isForward ? edge.from : edge.to];
+          const tgtN = nodes[isForward ? edge.to : edge.from];
+          if (!srcN || !tgtN) continue;
+          gs.sourcePos = getPort(finalPorts, isForward ? edge.from : edge.to, gs.edgeId, 'out', srcN, isLR);
+          gs.targetPos = getPort(finalPorts, isForward ? edge.to : edge.from, gs.edgeId, 'in', tgtN, isLR);
+        }
+      }
+    }
+  }
+
   // Now create gap segments from (possibly adjusted) long edge allocations
   for (const alloc of longEdgeAllocations) {
     const totalGaps = alloc.tgtLayer - alloc.srcLayer;
