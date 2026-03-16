@@ -1075,23 +1075,41 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
           rawLeft = Math.min(rawLeft, lm.fromX - labelPad - msgLabelW - smallPad);
         }
       } else if (lm.fromX !== undefined && lm.toX !== undefined) {
+        const msgFrom = model.messages[mIdx].from;
+        const msgTo = model.messages[mIdx].to;
+        const fromIsExt = msgFrom === '__external_left__' || msgFrom === '__external_right__';
+        const toIsExt = msgTo === '__external_left__' || msgTo === '__external_right__';
+        // Skip external endpoints — they reach the diagram boundary and must not
+        // expand the fragment bounds beyond the real participants involved.
+        const effectiveLeft = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : Math.min(lm.fromX, lm.toX));
+        const effectiveRight = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : Math.max(lm.fromX, lm.toX));
+        rawLeft = Math.min(rawLeft, effectiveLeft);
+        rawRight = Math.max(rawRight, effectiveRight);
+        // Label: anchor at the real-participant end for external messages
         const isLeftward = lm.toX < lm.fromX;
-        rawLeft = Math.min(rawLeft, Math.min(lm.fromX, lm.toX));
-        rawRight = Math.max(rawRight, Math.max(lm.fromX, lm.toX));
-        if (isLeftward) {
-          rawLeft = Math.min(rawLeft, lm.fromX - labelPad - msgLabelW - smallPad);
-        } else {
+        const labelAnchorX = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : (isLeftward ? lm.fromX : lm.fromX));
+        if (fromIsExt) {
+          // incoming from left: label is right of toX
+          rawRight = Math.max(rawRight, lm.toX + labelPad + msgLabelW + smallPad);
+        } else if (toIsExt) {
+          // outgoing to right: label to right of fromX
           rawRight = Math.max(rawRight, lm.fromX + labelPad + msgLabelW + smallPad);
+        } else if (isLeftward) {
+          rawLeft = Math.min(rawLeft, labelAnchorX - labelPad - msgLabelW - smallPad);
+        } else {
+          rawRight = Math.max(rawRight, labelAnchorX + labelPad + msgLabelW + smallPad);
         }
       }
     }
 
-    // Rule 5: activation bars active during [startRow, endRow) contribute to bounds.
+    // Rule 5: activation bars that START within [startRow, endRow) contribute to bounds.
+    // Bars that started before the fragment and "pass through" it don't expand the frame —
+    // the frame is defined by its own content, not by activations inherited from outside.
     for (let aIdx = 0; aIdx < (model.activations || []).length; aIdx++) {
       const ma = model.activations[aIdx];
       const la = activations[aIdx];
       if (!la) continue;
-      if (ma.endRow <= startRow || ma.startRow >= endRow) continue;
+      if (ma.startRow < startRow || ma.startRow >= endRow) continue;
       rawLeft = Math.min(rawLeft, la.x);
       rawRight = Math.max(rawRight, la.x + la.width);
     }
