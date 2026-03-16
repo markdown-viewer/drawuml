@@ -623,6 +623,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         inlineActivateStack.push({
           caller: fromId,
           target: toId,
+          bidirectional: arrowStyle.bidirectional || false,
           endDecorator: arrowStyle.endDecorator !== 'none' ? arrowStyle.endDecorator : undefined,
           endHeadToken: arrowStyle.endHeadToken !== '>' ? arrowStyle.endHeadToken : undefined,
         });
@@ -683,6 +684,10 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         retMeta = { ...returnArrowMeta, endHeadToken: entry.endHeadToken };
       } else if (entry.endDecorator === 'circle') {
         retMeta = { ...returnArrowMeta, endHeadToken: '>o' };
+      }
+      if (entry.bidirectional) {
+        // Bidirectional original (<->): return arrow also has arrowhead at source end
+        retMeta = { ...retMeta, startHeadToken: '<' };
       }
       pushMessage(entry.target, entry.caller, label, '-->', retMeta, { skipAutoactivate: true });
       const stack = activationStack.get(entry.target) || [];

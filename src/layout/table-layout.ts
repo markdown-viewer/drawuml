@@ -195,11 +195,10 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     for (let k = lo + 1; k < hi; k++) available += participantSizes[k].visualWidth;
     // Activation bars reduce available space (they protrude into the gap)
     const fromActExt = actExtend[fi] || 0;
-    const toActExt = actExtend[ti] || 0;
-    // For create messages, the arrow ends at the target box edge (not center),
-    // so the label-fitting span is shorter by targetWidth/2. Add it back.
-    const createTargetExtra = isCreateMsg ? participantSizes[ti].visualWidth / 2 : 0;
-    const requiredWidth = labelWidth + fromActExt + toActExt + createTargetExtra;
+    // For create messages: target has no activation bar yet; arrow ends at box
+    // left edge, not center. Replace toActExt with the full target half-width.
+    const toActExt = isCreateMsg ? participantSizes[ti].visualWidth / 2 : (actExtend[ti] || 0);
+    const requiredWidth = labelWidth + fromActExt + toActExt;
     const neededGapTotal = requiredWidth - available;
 
     if (hi - lo === 1) {
@@ -1061,7 +1060,10 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       const lm = messages[mIdx];
       const row = model.messages[mIdx].row ?? 0;
       if (row < startRow || row >= endRow) continue;
-      const msgLabelW = measureHtmlWidth(model.messages[mIdx].label || '');
+      const rawMsgLabel = model.messages[mIdx].numberPrefix
+        ? (model.messages[mIdx].label ? model.messages[mIdx].numberPrefix + ' ' + model.messages[mIdx].label : model.messages[mIdx].numberPrefix)
+        : (model.messages[mIdx].label || '');
+      const msgLabelW = measureHtmlWidth(rawMsgLabel);
       if (lm.self && lm.waypoints && lm.waypoints.length > 0) {
         const dir = model.messages[mIdx].arrowStyle?.direction || 'right';
         const wpX = lm.waypoints[0].x;
