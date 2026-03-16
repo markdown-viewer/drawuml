@@ -251,6 +251,15 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
       let selfFinalStyle = selfStyleExtra ? baseStyle + selfStyleExtra : style;
       selfFinalStyle += `verticalAlign=${geo.vAlign};align=${geo.labelAlign};`;
 
+      // For self-loops, the final arrow segment approaches the target from the OPPOSITE
+      // direction to the message direction (a right-loop returns leftward, vice versa).
+      // DrawIO renders halfTop/halfBottom relative to the final segment direction, so swap
+      // them to preserve the intended visual orientation of the arrowhead wing.
+      selfFinalStyle = selfFinalStyle
+        .replace(/endArrow=halfTop(Dot)?;/g, 'endArrow=__swapHalfBottom__$1;')
+        .replace(/endArrow=halfBottom(Dot)?;/g, 'endArrow=halfTop$1;')
+        .replace(/endArrow=__swapHalfBottom__(Dot)?;/g, 'endArrow=halfBottom$1;');
+
       const wp = msg.waypoints || [];
 
       cells.push(...buildEdgeCells({

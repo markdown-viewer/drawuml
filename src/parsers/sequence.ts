@@ -1139,12 +1139,14 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         const id = resolveParticipant(t);
         ensureParticipant(id, t, NodeType.Participant);
       }
+      const refSingleParticipants = targets.map(t => resolveParticipant(t));
       fragments.push({
         type: 'ref',
         label: st.text || '',
         startRow: row,
         endRow: row + 1,
         sections: [],
+        participants: refSingleParticipants,
       });
       row++;
       lastPushType = 'note';
@@ -1152,11 +1154,14 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     }
 
     if (st.kind === 'block_statement' && st.type === 'ref_start') {
+      const refStartTargets = Array.isArray(st.targets) ? st.targets : [];
+      const refStartParticipants = refStartTargets.map(t => resolveParticipant(t));
       refBlock = {
         type: 'ref',
         label: '',
         startRow: row,
         sections: [],
+        participants: refStartParticipants,
       };
       continue;
     }

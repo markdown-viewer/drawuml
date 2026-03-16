@@ -835,12 +835,32 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
           }
         }
       } else if (fromAct) {
-        // Single-depth self-ref: both ends on the same activation
-        sourceActId = fromAct.id;
-        targetActId = fromAct.id;
+        // Single-depth self-ref: three sub-cases based on activation lifecycle
         const dir = msg.arrowStyle?.direction || 'right';
-        fromX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
-        toX = fromX;
+        const isCreating = fromAct.startRow === msgRow;
+        const isReturning = fromAct.endRow - 1 === msgRow;
+
+        if (isCreating) {
+          // Creating: message creates the activation — source from lifeline center,
+          // target to the activation bar that was just created
+          sourceActId = undefined;
+          targetActId = fromAct.id;
+          fromX = fromP.centerX;
+          toX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
+        } else if (isReturning) {
+          // Returning: message ends the activation — source from activation bar,
+          // target back to lifeline center
+          sourceActId = fromAct.id;
+          targetActId = undefined;
+          fromX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
+          toX = fromP.centerX;
+        } else {
+          // Normal loop within the activation
+          sourceActId = fromAct.id;
+          targetActId = fromAct.id;
+          fromX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
+          toX = fromX;
+        }
       }
     }
     const fromRelY = Math.max(0, Math.min(1, (y - fromP.y) / Math.max(fromP.height, 1)));
@@ -889,10 +909,10 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     if (!participant) return null;
     const depth = nestingDepth.get(idx) || 0;
     const x = participant.centerX - actBarWidth / 2 + depth * smallPad;
-    // When a nested activation starts at a self-reference row, offset its
-    // start Y to the bottom of the self-ref loop (rowY + selfRefDrop).
+    // When an activation starts at a self-reference row (creating self-ref),
+    // offset its start Y to the bottom of the self-ref loop (rowY + selfRefDrop).
     let y = rowY(a.startRow);
-    if (depth > 0 && selfRefRows.has(a.startRow)) {
+    if (selfRefRows.has(a.startRow)) {
       y = rowY(a.startRow) + selfRefDrop;
     }
     // For timed/slanted messages: if the participant is the target,
@@ -975,10 +995,19 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       }
     }
 
-    // Fallback: if no messages/notes found, use full range
+    // Fallback: if no messages/notes found, use the fragment's explicit participants list,
+    // or the full range if that is also absent.
     if (minIdx > maxIdx) {
-      minIdx = 0;
-      maxIdx = pList.length - 1;
+      if (f.participants && f.participants.length > 0) {
+        for (const pid of f.participants) {
+          const pi = pIndex[pid];
+          if (pi !== undefined) { minIdx = Math.min(minIdx, pi); maxIdx = Math.max(maxIdx, pi); }
+        }
+      }
+      if (minIdx > maxIdx) {
+        minIdx = 0;
+        maxIdx = pList.length - 1;
+      }
     }
 
     return { minIdx, maxIdx };
@@ -992,14 +1021,63 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // First compute raw pixel bounds for each fragment (including note bounds)
   const fragmentBounds = modelFragments.map((f, idx) => {
     const range = fragmentParticipantRange[idx];
-    // Use fixed padding from lifeline center, not participant box width
-    const lifelinePad = minGap; // px from lifeline center to frame edge
-    let rawLeft = centerXs[range.minIdx] - lifelinePad;
-    let rawRight = centerXs[range.maxIdx] + lifelinePad;
+    const lifelinePad = minGap; // px from lifeline center to frame edge (for non-ref)
+    // ref frames: align to participant header box edges (geomWidth/2) with no extra margin;
+    // other frames: center ± lifelinePad (container padding from lifeline center).
+    let rawLeft: number, rawRight: number;
+    if (f.type === 'ref') {
+      rawLeft = centerXs[range.minIdx] - participantSizes[range.minIdx].geomWidth / 2;
+      rawRight = centerXs[range.maxIdx] + participantSizes[range.maxIdx].geomWidth / 2;
+    } else {
+      rawLeft = centerXs[range.minIdx] - lifelinePad;
+      rawRight = centerXs[range.maxIdx] + lifelinePad;
+    }
 
-    // Expand bounds to include notes within the fragment's row range
     const startRow = f.startRow;
     const endRow = f.endRow ?? f.startRow + 1;
+    const labelPad = smallPad;
+
+    // Rule 5: all messages in [startRow, endRow) contribute to bounds.
+    // Self-loops: arm extends to waypoint; label starts at source point.
+    // Regular messages: arrow spans fromX..toX; label is near the source end.
+    for (let mIdx = 0; mIdx < messages.length; mIdx++) {
+      const lm = messages[mIdx];
+      const row = model.messages[mIdx].row ?? 0;
+      if (row < startRow || row >= endRow) continue;
+      const msgLabelW = measureHtmlWidth(model.messages[mIdx].label || '');
+      if (lm.self && lm.waypoints && lm.waypoints.length > 0) {
+        const dir = model.messages[mIdx].arrowStyle?.direction || 'right';
+        const wpX = lm.waypoints[0].x;
+        if (dir === 'right') {
+          rawRight = Math.max(rawRight, wpX + lifelinePad);
+          rawRight = Math.max(rawRight, lm.fromX + labelPad + msgLabelW + smallPad);
+        } else {
+          rawLeft = Math.min(rawLeft, wpX - lifelinePad);
+          rawLeft = Math.min(rawLeft, lm.fromX - labelPad - msgLabelW - smallPad);
+        }
+      } else if (lm.fromX !== undefined && lm.toX !== undefined) {
+        const isLeftward = lm.toX < lm.fromX;
+        rawLeft = Math.min(rawLeft, Math.min(lm.fromX, lm.toX));
+        rawRight = Math.max(rawRight, Math.max(lm.fromX, lm.toX));
+        if (isLeftward) {
+          rawLeft = Math.min(rawLeft, lm.fromX - labelPad - msgLabelW - smallPad);
+        } else {
+          rawRight = Math.max(rawRight, lm.fromX + labelPad + msgLabelW + smallPad);
+        }
+      }
+    }
+
+    // Rule 5: activation bars active during [startRow, endRow) contribute to bounds.
+    for (let aIdx = 0; aIdx < (model.activations || []).length; aIdx++) {
+      const ma = model.activations[aIdx];
+      const la = activations[aIdx];
+      if (!la) continue;
+      if (ma.endRow <= startRow || ma.startRow >= endRow) continue;
+      rawLeft = Math.min(rawLeft, la.x);
+      rawRight = Math.max(rawRight, la.x + la.width);
+    }
+
+    // Rule 5: notes in [startRow, endRow) contribute to bounds.
     (model.notes || []).forEach((n, nIdx) => {
       const r = n.row ?? 0;
       if (r < startRow || r >= endRow) return;
@@ -1030,6 +1108,15 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       rawRight = Math.max(rawRight, noteRight + fragmentNoteMargin);
     });
 
+    // For ref frames, the label content determines the minimum width.
+    // Center the label over the participant span, then expand bounds as needed.
+    if (f.type === 'ref' && f.label) {
+      const refLabelW = Math.max(...f.label.split('\n').map((l: string) => measureHtmlWidth(l))) + smallPad * 2;
+      const refCenterX = (centerXs[range.minIdx] + centerXs[range.maxIdx]) / 2;
+      rawLeft = Math.min(rawLeft, refCenterX - refLabelW / 2);
+      rawRight = Math.max(rawRight, refCenterX + refLabelW / 2);
+    }
+
     return { left: rawLeft, right: rawRight };
   });
 
@@ -1043,6 +1130,72 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
         fragmentBounds[idx].left = Math.min(fragmentBounds[idx].left, fragmentBounds[j].left - nestingIndent);
         fragmentBounds[idx].right = Math.max(fragmentBounds[idx].right, fragmentBounds[j].right + nestingIndent);
       }
+    }
+  }
+
+  // Expand only the innermost fragment enclosing each divider so the frame
+  // visually contains the full divider line extent (x1/x2). Done after
+  // parent-child so depth ordering is stable; then re-propagate to parents.
+  for (const d of (model.dividers || [])) {
+    const dRow = d.row ?? 0;
+    let innermostIdx = -1;
+    let innermostDepth = -1;
+    for (let fIdx = 0; fIdx < modelFragments.length; fIdx++) {
+      const mf = modelFragments[fIdx];
+      const fragEndRow = mf.endRow ?? (mf.startRow + 1);
+      if (dRow >= mf.startRow && dRow < fragEndRow) {
+        const depth = fragmentNestingDepth[fIdx] ?? 0;
+        if (depth > innermostDepth) { innermostDepth = depth; innermostIdx = fIdx; }
+      }
+    }
+    if (innermostIdx >= 0) {
+      const dType = d.type || 'section';
+      if (dType === 'delay') {
+        // delay: only a text label, no lines — expand to label text bounds only
+        const dLabelW = measureHtmlWidth(d.label || '') + titlePadX;
+        const dCenterX = (left + right) / 2;
+        const dLabelX = dCenterX - dLabelW / 2;
+        fragmentBounds[innermostIdx].left = Math.min(fragmentBounds[innermostIdx].left, dLabelX);
+        fragmentBounds[innermostIdx].right = Math.max(fragmentBounds[innermostIdx].right, dLabelX + dLabelW);
+      } else {
+        // section / other: has full-width lines, expand to full diagram extent
+        fragmentBounds[innermostIdx].left = Math.min(fragmentBounds[innermostIdx].left, left - minGap);
+        fragmentBounds[innermostIdx].right = Math.max(fragmentBounds[innermostIdx].right, right + minGap);
+      }
+    }
+  }
+
+  // Re-propagate after divider expansion so parent fragments still contain children.
+  for (const idx of fragOrder) {
+    const parent = modelFragments[idx];
+    for (let j = 0; j < modelFragments.length; j++) {
+      if (idx === j) continue;
+      const child = modelFragments[j];
+      if (parent.startRow <= child.startRow && (parent.endRow ?? Infinity) >= (child.endRow ?? 0)) {
+        fragmentBounds[idx].left = Math.min(fragmentBounds[idx].left, fragmentBounds[j].left - nestingIndent);
+        fragmentBounds[idx].right = Math.max(fragmentBounds[idx].right, fragmentBounds[j].right + nestingIndent);
+      }
+    }
+  }
+
+  // Re-check condition label right bound using the final (post-divider) left edge.
+  // Divider expansion may have pushed frame.left further left than naturalLeft, which
+  // would otherwise leave extra whitespace on the right side.
+  // ref type is skipped: its label is body content, not a tab condition.
+  for (let idx = 0; idx < modelFragments.length; idx++) {
+    const f = modelFragments[idx];
+    if (f.type === 'ref') continue;
+    const isGroupLike2 = f.type === 'group' || f.type === 'partition';
+    const tabLabel2 = isGroupLike2 ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
+    const tabTextW2 = TextBlock.inline(tabLabel2 || f.type, { ...seqFont, weight: 'bold' }).width;
+    const tabWidth2 = Math.max(Math.ceil(tabTextW2) + fontSize, theme.sizeL);
+    const condLabel2 = isGroupLike2
+      ? ((f.label || '').match(/\[([^\]]*)\]/)?.[1] || '')
+      : (f.label || '');
+    if (condLabel2) {
+      const condW2 = measureHtmlWidth(condLabel2) + smallPad * 2;
+      const minRight2 = fragmentBounds[idx].left + tabWidth2 + smallPad + condW2 + smallPad;
+      fragmentBounds[idx].right = Math.max(fragmentBounds[idx].right, minRight2);
     }
   }
 

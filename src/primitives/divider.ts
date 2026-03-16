@@ -34,15 +34,17 @@ export function renderDivider(divider: {
   const theme = divider.theme ?? createTheme();
   const fontSize = theme.fontSize;
 
-  // Delay dividers: plain text, no lines
+  // Delay dividers: plain text, no lines — render at label size, not full span
   if (divider.type === 'delay') {
     const labelHtml = TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily }).html;
     const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};${fontFamilyStyle(theme)}`;
     const hh = divider.halfHeight;
+    const lx = divider.labelX ?? divider.x1;
+    const lw = divider.labelWidth ?? (divider.x2 - divider.x1);
     cells.push(mxVertex({
       id: divider.id, value: labelHtml, style: divStyle,
       parent: '1',
-      x: divider.x1, y: divider.y - hh, width: divider.x2 - divider.x1, height: hh * 2,
+      x: lx, y: divider.y - hh, width: lw, height: hh * 2,
     }));
     return cells;
   }
