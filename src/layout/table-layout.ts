@@ -396,7 +396,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const labelH = d.label
       ? TextBlock.inline(d.label, seqFont).height
       : 0;
-    const halfH = Math.max(smallPad, Math.ceil(labelH / 2));
+    const halfH = Math.max(smallPad, Math.ceil(labelH / 2) + smallPad);
     dividerHalfHeightByRow[row] = Math.max(dividerHalfHeightByRow[row] || 0, halfH);
   }
 
@@ -1183,7 +1183,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       const dType = d.type || 'section';
       if (dType === 'delay') {
         // delay: only a text label, no lines — expand to label text bounds only
-        const dLabelW = measureHtmlWidth(d.label || '') + titlePadX;
+        const dLabelW = measureHtmlWidth(d.label || '') + titlePadX * 2;
         const dCenterX = (left + right) / 2;
         const dLabelX = dCenterX - dLabelW / 2;
         fragmentBounds[innermostIdx].left = Math.min(fragmentBounds[innermostIdx].left, dLabelX);
@@ -1280,7 +1280,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const row = d.row ?? 0;
     // Center between first and last participant's lifeline center (matches PlantUML's DelayTile logic)
     const divCenterX = (firstPCenter + lastPCenter) / 2;
-    const labelW = measureHtmlWidth(d.label || '') + titlePadX; // text width + padding
+    const labelW = measureHtmlWidth(d.label || '') + titlePadX * 2; // text width + left/right padding
     const halfHeight = dividerHalfHeightByRow[row] || smallPad;
     return {
       id: `div${idx + 1}`,
