@@ -204,7 +204,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
   let actorStyle: string | undefined;
   const titleLines: string[] = [];
   let mainframeLabel: string | undefined;
-  let currentBox: { label: string; color?: string; participants: string[] } | null = null;
+  let currentBoxStack: { label: string; color?: string; participants: string[] }[] = [];
 
   const fragmentStack = [];
   const activationStack = new Map();
@@ -482,8 +482,10 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     participantMap.set(id, participant);
     participantOrder.push(id);
     registerParticipantRefs(participant);
-    // Track participants inside current box
-    if (currentBox) currentBox.participants.push(id);
+    // Track participants inside innermost current box only
+    if (currentBoxStack.length > 0) {
+      currentBoxStack[currentBoxStack.length - 1].participants.push(id);
+    }
   }
 
   function pushMessage(fromToken, toToken, label, arrowToken, arrowMeta = null, options?: { decor?: string; color?: string; skipAutoactivate?: boolean; delay?: number; concurrent?: boolean }) {
@@ -855,7 +857,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       if (stereo.spot) participant.spot = stereo.spot;
       if (!participantMap.has(id)) {
         participantOrder.push(id);
-        if (currentBox) currentBox.participants.push(id);
+        if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
       }
       participantMap.set(id, participant);
       registerParticipantRefs(participant);
@@ -870,7 +872,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       if (lines.length) participant.bracketLines = lines;
       if (!participantMap.has(id)) {
         participantOrder.push(id);
-        if (currentBox) currentBox.participants.push(id);
+        if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
       }
       participantMap.set(id, participant);
       registerParticipantRefs(participant);
@@ -893,7 +895,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         if (stereo.spot) participant.spot = stereo.spot;
         if (!participantMap.has(id)) {
           participantOrder.push(id);
-          if (currentBox) currentBox.participants.push(id);
+          if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
         }
         participantMap.set(id, participant);
         registerParticipantRefs(participant);
@@ -909,7 +911,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         const participant = { id, type: PARTICIPANT_KEYWORDS[dt], label };
         if (!participantMap.has(id)) {
           participantOrder.push(id);
-          if (currentBox) currentBox.participants.push(id);
+          if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
         }
         participantMap.set(id, participant);
         registerParticipantRefs(participant);
@@ -1030,7 +1032,9 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
               };
               participantMap.set(alias, participant);
               participantOrder.push(alias);
-              if (currentBox) currentBox.participants.push(alias);
+        if (currentBoxStack.length > 0) {
+          currentBoxStack[currentBoxStack.length - 1].participants.push(alias);
+        }
               registerParticipantRefs(participant);
             }
             const p = participantMap.get(alias);
@@ -1075,13 +1079,12 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     }
 
     if (st.kind === 'block_statement' && st.type === 'box_start') {
-      currentBox = { label: st.label || '', color: st.color || undefined, participants: [] };
+      currentBoxStack.push({ label: st.label || '', color: st.color || undefined, participants: [] });
       continue;
     }
     if (st.kind === 'block_statement' && st.type === 'box_end') {
-      if (currentBox) {
-        boxes.push(currentBox);
-        currentBox = null;
+      if (currentBoxStack.length > 0) {
+        boxes.push(currentBoxStack.pop()!);
       }
       continue;
     }

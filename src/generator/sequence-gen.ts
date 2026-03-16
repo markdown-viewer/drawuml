@@ -292,6 +292,16 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     const timedAlignStyle = isTimed ? `align=${geo.labelAlign};` : '';
     let finalStyle = style + `verticalAlign=${geo.vAlign};${timedAlignStyle}`;
 
+    // For left-going arrows, DrawIO renders halfTop/halfBottom relative to the
+    // arrow direction (going left), so swap them to preserve the intended visual
+    // orientation of the arrowhead wing (same reason as the self-loop swap).
+    if (goingLeft) {
+      finalStyle = finalStyle
+        .replace(/endArrow=halfTop(Dot)?;/g, 'endArrow=__swapHalfBottom__$1;')
+        .replace(/endArrow=halfBottom(Dot)?;/g, 'endArrow=halfTop$1;')
+        .replace(/endArrow=__swapHalfBottom__(Dot)?;/g, 'endArrow=halfBottom$1;');
+    }
+
     // Build source/target ids for edge binding.
     // Priority: activation box > lifeline participant > none (external).
     let sourceId: string | undefined;
