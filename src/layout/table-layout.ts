@@ -150,10 +150,18 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     return maxDepth * smallPad + actBarWidth / 2;
   });
 
+  // Track which created participants have had their create-message processed.
+  // A create-message arrow targets the participant box edge (not center), so
+  // the effective span is shorter by targetWidth/2 — we compensate with extra gap.
+  const firstCreateMsgSeen = new Set<string>();
+
   for (const msg of model.messages) {
     const fi = pIndex[msg.from];
     const ti = pIndex[msg.to];
     if (fi === undefined || ti === undefined) continue;
+
+    const isCreateMsg = pList[ti]?.createdAtRow != null && !firstCreateMsgSeen.has(msg.to);
+    if (pList[ti]?.createdAtRow != null) firstCreateMsgSeen.add(msg.to);
 
     // Self-reference: ensure minimum gap on the loop side.
     // The loop extends selfRefLoopOffset from the activation bar edge,
@@ -188,7 +196,10 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // Activation bars reduce available space (they protrude into the gap)
     const fromActExt = actExtend[fi] || 0;
     const toActExt = actExtend[ti] || 0;
-    const requiredWidth = labelWidth + fromActExt + toActExt;
+    // For create messages, the arrow ends at the target box edge (not center),
+    // so the label-fitting span is shorter by targetWidth/2. Add it back.
+    const createTargetExtra = isCreateMsg ? participantSizes[ti].visualWidth / 2 : 0;
+    const requiredWidth = labelWidth + fromActExt + toActExt + createTargetExtra;
     const neededGapTotal = requiredWidth - available;
 
     if (hi - lo === 1) {
