@@ -573,8 +573,14 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const lifelineEnd = totalRows > 0 ? lastRowBottom + unitGap : y + iconH + lifelineMinHeight;
     const height = lifelineEnd - y;
 
-    // Destroy Y: where the X marker is placed on the lifeline
-    const destroyY = isDestroyed ? rowY(p.destroyedAtRow) : undefined;
+    // Destroy Y: where the X marker is placed on the lifeline.
+    // For self-loop messages (from === to), the arrival point is at rowY + selfRefDrop.
+    const destroyY = (() => {
+      if (!isDestroyed) return undefined;
+      const baseY = rowY(p.destroyedAtRow);
+      const isSelfDestroy = model.messages.some(m => m.row === p.destroyedAtRow && m.from === p.id && m.to === p.id);
+      return isSelfDestroy ? baseY + selfRefDrop : baseY;
+    })();
 
     participants[p.id] = {
       id: p.id,
@@ -1108,6 +1114,18 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       rawRight = Math.max(rawRight, noteRight + fragmentNoteMargin);
     });
 
+    // Created participants whose header box first appears inside this fragment
+    // (e.g. 'create participant X' inside a break/opt) must be fully contained,
+    // with the same container-level padding (lifelinePad) as regular participants.
+    for (const mp of model.participants) {
+      if (mp.createdAtRow == null) continue;
+      if (mp.createdAtRow < startRow || mp.createdAtRow >= endRow) continue;
+      const pData = participants[mp.id];
+      if (!pData) continue;
+      rawLeft = Math.min(rawLeft, pData.x - lifelinePad);
+      rawRight = Math.max(rawRight, pData.x + pData.width + lifelinePad);
+    }
+
     // For ref frames, the label content determines the minimum width.
     // Center the label over the participant span, then expand bounds as needed.
     if (f.type === 'ref' && f.label) {
@@ -1241,10 +1259,15 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     };
   });
 
+  const allParticipantLayouts = model.participants.map(p => participants[p.id]).filter(Boolean);
+  const firstPCenter = allParticipantLayouts.length > 0 ? allParticipantLayouts[0].centerX : left + (right - left) / 2;
+  const lastPCenter = allParticipantLayouts.length > 0 ? allParticipantLayouts[allParticipantLayouts.length - 1].centerX : firstPCenter;
+
   const dividers = (model.dividers || []).map((d, idx) => {
-    const divCenterX = (left + right) / 2;
-    const labelW = measureHtmlWidth(d.label || '') + titlePadX; // text width + padding
     const row = d.row ?? 0;
+    // Center between first and last participant's lifeline center (matches PlantUML's DelayTile logic)
+    const divCenterX = (firstPCenter + lastPCenter) / 2;
+    const labelW = measureHtmlWidth(d.label || '') + titlePadX; // text width + padding
     const halfHeight = dividerHalfHeightByRow[row] || smallPad;
     return {
       id: `div${idx + 1}`,

@@ -226,7 +226,9 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
   const lastCallerMap = new Map<string, string>();
 
   // Inline activation stack: tracks ++ decor activations for LIFO return matching
-  const inlineActivateStack: { caller: string; target: string }[] = [];
+  // endDecorator: if the triggering message had a target decorator (e.g. ->o), carry it to the return
+  // endHeadToken: if the triggering message had a non-default arrowhead (e.g. \\), carry it to the return
+  const inlineActivateStack: { caller: string; target: string; endDecorator?: string; endHeadToken?: string }[] = [];
 
   // Participants pending creation via 'create' statement (will set createdAtRow on next message)
   const pendingCreate = new Set<string>();
@@ -601,8 +603,13 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         const stack = activationStack.get(toId) || [];
         stack.push({ startRow: msgRow, color: activationColor });
         activationStack.set(toId, stack);
-        // Track caller for return matching (LIFO)
-        inlineActivateStack.push({ caller: fromId, target: toId });
+        // Track caller for return matching (LIFO), carry target decorator for return dot/half-arrow
+        inlineActivateStack.push({
+          caller: fromId,
+          target: toId,
+          endDecorator: arrowStyle.endDecorator !== 'none' ? arrowStyle.endDecorator : undefined,
+          endHeadToken: arrowStyle.endHeadToken !== '>' ? arrowStyle.endHeadToken : undefined,
+        });
       }
     }
 
@@ -652,7 +659,15 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     // Prefer inlineActivateStack (LIFO from ++ decor)
     if (inlineActivateStack.length > 0) {
       const entry = inlineActivateStack.pop()!;
-      pushMessage(entry.target, entry.caller, label, '-->', returnArrowMeta, { skipAutoactivate: true });
+      // If the activating message had a target decorator (e.g. ->o), add matching dot to return.
+      // If it had a non-standard arrowhead (e.g. \\), carry it to the return.
+      let retMeta = returnArrowMeta;
+      if (entry.endDecorator === 'circle') {
+        retMeta = { ...returnArrowMeta, endHeadToken: '>o' };
+      } else if (entry.endHeadToken) {
+        retMeta = { ...returnArrowMeta, endHeadToken: entry.endHeadToken };
+      }
+      pushMessage(entry.target, entry.caller, label, '-->', retMeta, { skipAutoactivate: true });
       const stack = activationStack.get(entry.target) || [];
       const top = stack.pop();
       if (top) {
@@ -994,19 +1009,40 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         continue;
       }
       if (st.type === 'create') {
-        // 'create [type] Name' - grammar provides structured name and optional participantType
+        // 'create [type] Name [as alias]' - grammar provides structured name/alias and optional participantType
         const name = st.name || '';
         if (name) {
           const ptKey = (st.participantType || '').toLowerCase();
           const participantType = Object.prototype.hasOwnProperty.call(PARTICIPANT_KEYWORDS, ptKey)
             ? PARTICIPANT_KEYWORDS[ptKey]
             : NodeType.Participant;
-          const id = resolveParticipant(name);
-          ensureParticipant(id, name, participantType);
-          // Update type if participant was already registered as default
-          const p = participantMap.get(id);
-          if (p && participantType !== NodeType.Participant) {
-            p.type = participantType;
+          // When 'as alias' is present, use alias as the id key; the display label is name
+          const alias = st.alias ? normalizeId(st.alias) : undefined;
+          const id = alias ? alias : resolveParticipant(name);
+          const label = name;
+          if (alias) {
+            // Register alias → display name mapping so messages using alias resolve to correct id
+            if (!participantMap.has(alias)) {
+              const participant = {
+                id: alias,
+                type: participantType,
+                label,
+              };
+              participantMap.set(alias, participant);
+              participantOrder.push(alias);
+              if (currentBox) currentBox.participants.push(alias);
+              registerParticipantRefs(participant);
+            }
+            const p = participantMap.get(alias);
+            if (p && participantType !== NodeType.Participant) p.type = participantType;
+            if (p) p.label = label;
+          } else {
+            ensureParticipant(id, name, participantType);
+            // Update type if participant was already registered as default
+            const p = participantMap.get(id);
+            if (p && participantType !== NodeType.Participant) {
+              p.type = participantType;
+            }
           }
           pendingCreate.add(id);
         }
