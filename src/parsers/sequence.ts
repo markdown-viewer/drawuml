@@ -600,6 +600,20 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         }
         activationStack.set(deactId, stack);
       }
+      // !! (destroy): close activation on target immediately
+      if (decor === '!!') {
+        const stack = activationStack.get(toId) || [];
+        const top = stack.pop();
+        if (top) {
+          activations.push({
+            participant: toId,
+            startRow: top.startRow,
+            endRow: Math.max(top.startRow + 1, msgRow + 1),
+            color: top.color,
+          });
+        }
+        activationStack.set(toId, stack);
+      }
       // ++ or --++ : activate target
       if (decor === '++' || decor === '--++') {
         const stack = activationStack.get(toId) || [];
