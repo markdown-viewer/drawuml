@@ -68,8 +68,7 @@ export function renderDivider(divider: {
   // Bordered text box centered between the lines
   const labelHtml = TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily, weight: 'bold' }).html;
   const hh = divider.halfHeight;
-  const largeArcSize = theme.largeArcSize;
-  const boxStyle = `rounded=1;absoluteArcSize=1;arcSize=${largeArcSize};whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
+  const boxStyle = `rounded=0;whiteSpace=nowrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
     parent: '1',

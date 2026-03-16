@@ -678,10 +678,11 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       // If the activating message had a target decorator (e.g. ->o), add matching dot to return.
       // If it had a non-standard arrowhead (e.g. \\), carry it to the return.
       let retMeta = returnArrowMeta;
-      if (entry.endDecorator === 'circle') {
-        retMeta = { ...returnArrowMeta, endHeadToken: '>o' };
-      } else if (entry.endHeadToken) {
+      if (entry.endHeadToken) {
+        // endHeadToken already encodes both shape and decorator (e.g. '//o'), use it directly
         retMeta = { ...returnArrowMeta, endHeadToken: entry.endHeadToken };
+      } else if (entry.endDecorator === 'circle') {
+        retMeta = { ...returnArrowMeta, endHeadToken: '>o' };
       }
       pushMessage(entry.target, entry.caller, label, '-->', retMeta, { skipAutoactivate: true });
       const stack = activationStack.get(entry.target) || [];
