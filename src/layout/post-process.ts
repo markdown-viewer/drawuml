@@ -274,10 +274,14 @@ function _separateTrunks(
     members.sort((a, b) => (b.rangeMax - b.rangeMin) - (a.rangeMax - a.rangeMin));
     const anchorPos = members[0].pos;
     for (let k = 1; k < members.length; k++) {
+      const pts = edges[members[k].edgeIdx].points!;
+      // Skip the first segment (exit from source) and the last segment
+      // (entry to target): ELK has already placed these perimeter points
+      // correctly; moving them shifts the connection away from the intended face.
+      if (members[k].startPtIdx === 0 || members[k].endPtIdx === pts.length - 1) continue;
       const newPos = anchorPos + k * minGap;
       const delta = newPos - members[k].pos;
       if (Math.abs(delta) < 0.01) continue;
-      const pts = edges[members[k].edgeIdx].points!;
       for (let pi = members[k].startPtIdx; pi <= members[k].endPtIdx; pi++) {
         if (vertical) {
           pts[pi].x += delta;
