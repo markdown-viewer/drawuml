@@ -1086,17 +1086,25 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
         const msgTo = model.messages[mIdx].to;
         const fromIsExt = msgFrom === '__external_left__' || msgFrom === '__external_right__';
         const toIsExt = msgTo === '__external_left__' || msgTo === '__external_right__';
-        // Skip external endpoints — they reach the diagram boundary and must not
-        // expand the fragment bounds beyond the real participants involved.
-        const effectiveLeft = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : Math.min(lm.fromX, lm.toX));
-        const effectiveRight = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : Math.max(lm.fromX, lm.toX));
+        // For inbound-from-left ([->): the frame is the starting point, expand rawLeft to lm.fromX (=leftBoundaryX).
+        // For inbound-from-right (<-]): do NOT expand rawRight to rightBoundaryX (label bounds are enough; see 096 fix).
+        // For outbound-to-left ([<-): do NOT expand rawLeft to leftBoundaryX (participant side only; see 096 fix).
+        // For outbound-to-right (->]): expand rawRight to lm.toX (=rightBoundaryX).
+        const effectiveLeft = (fromIsExt && msgFrom === '__external_left__') ? lm.fromX
+          : fromIsExt ? lm.toX
+          : toIsExt ? lm.fromX
+          : Math.min(lm.fromX, lm.toX);
+        const effectiveRight = (toIsExt && msgTo === '__external_right__') ? lm.toX
+          : fromIsExt ? lm.toX
+          : toIsExt ? lm.fromX
+          : Math.max(lm.fromX, lm.toX);
         rawLeft = Math.min(rawLeft, effectiveLeft);
         rawRight = Math.max(rawRight, effectiveRight);
         // Label: anchor at the real-participant end for external messages
         const isLeftward = lm.toX < lm.fromX;
         const labelAnchorX = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : (isLeftward ? lm.fromX : lm.fromX));
         if (fromIsExt) {
-          // incoming from left: label is right of toX
+          // incoming from left/right: label anchored at real-participant side
           rawRight = Math.max(rawRight, lm.toX + labelPad + msgLabelW + smallPad);
         } else if (toIsExt) {
           // outgoing to right: label to right of fromX
