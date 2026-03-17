@@ -1086,11 +1086,12 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
         const msgTo = model.messages[mIdx].to;
         const fromIsExt = msgFrom === '__external_left__' || msgFrom === '__external_right__';
         const toIsExt = msgTo === '__external_left__' || msgTo === '__external_right__';
-        // For inbound-from-left ([->): the frame is the starting point, expand rawLeft to lm.fromX (=leftBoundaryX).
-        // For inbound-from-right (<-]): do NOT expand rawRight to rightBoundaryX (label bounds are enough; see 096 fix).
-        // For outbound-to-left ([<-): do NOT expand rawLeft to leftBoundaryX (participant side only; see 096 fix).
+        // For inbound-from-left ([->): expand rawLeft to lm.fromX (=leftBoundaryX).
+        // For outbound-to-left ([<-): expand rawLeft to lm.toX (=leftBoundaryX).
         // For outbound-to-right (->]): expand rawRight to lm.toX (=rightBoundaryX).
+        // For inbound-from-right (<-]): do NOT expand rawRight to rightBoundaryX (096 fix).
         const effectiveLeft = (fromIsExt && msgFrom === '__external_left__') ? lm.fromX
+          : (toIsExt && msgTo === '__external_left__') ? lm.toX
           : fromIsExt ? lm.toX
           : toIsExt ? lm.fromX
           : Math.min(lm.fromX, lm.toX);
@@ -1100,19 +1101,21 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
           : Math.max(lm.fromX, lm.toX);
         rawLeft = Math.min(rawLeft, effectiveLeft);
         rawRight = Math.max(rawRight, effectiveRight);
-        // Label: anchor at the real-participant end for external messages
+        // Label bounds: anchor at the real-participant end for external messages
         const isLeftward = lm.toX < lm.fromX;
-        const labelAnchorX = fromIsExt ? lm.toX : (toIsExt ? lm.fromX : (isLeftward ? lm.fromX : lm.fromX));
         if (fromIsExt) {
-          // incoming from left/right: label anchored at real-participant side
+          // inbound: label anchored at real-participant (toX) side, extends right
           rawRight = Math.max(rawRight, lm.toX + labelPad + msgLabelW + smallPad);
+        } else if (toIsExt && msgTo === '__external_left__') {
+          // outbound-to-left: label anchored at fromX, extends left
+          rawLeft = Math.min(rawLeft, lm.fromX - labelPad - msgLabelW - smallPad);
         } else if (toIsExt) {
-          // outgoing to right: label to right of fromX
+          // outbound-to-right: label anchored at fromX, extends right
           rawRight = Math.max(rawRight, lm.fromX + labelPad + msgLabelW + smallPad);
         } else if (isLeftward) {
-          rawLeft = Math.min(rawLeft, labelAnchorX - labelPad - msgLabelW - smallPad);
+          rawLeft = Math.min(rawLeft, lm.fromX - labelPad - msgLabelW - smallPad);
         } else {
-          rawRight = Math.max(rawRight, labelAnchorX + labelPad + msgLabelW + smallPad);
+          rawRight = Math.max(rawRight, lm.fromX + labelPad + msgLabelW + smallPad);
         }
       }
     }
