@@ -836,18 +836,25 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
         }
         if (outer) {
           const dir = msg.arrowStyle?.direction || 'right';
+          const isReturning = fromAct.endRow - 1 === msgRow;
           if (isCreating) {
             // Creating self-ref: from outer layer edge, to inner layer edge
             sourceActId = outer.id;
             targetActId = fromAct.id;
             fromX = dir === 'left' ? outer.x : outer.x + outer.width;
             toX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
-          } else {
+          } else if (isReturning) {
             // Return self-ref: from inner layer edge, to outer layer edge
             sourceActId = fromAct.id;
             targetActId = outer.id;
             fromX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
             toX = dir === 'left' ? outer.x : outer.x + outer.width;
+          } else {
+            // Normal self-loop within deepest activation: both endpoints on inner bar
+            sourceActId = fromAct.id;
+            targetActId = fromAct.id;
+            fromX = dir === 'left' ? fromAct.x : fromAct.x + fromAct.width;
+            toX = fromX;
           }
         }
       } else if (fromAct) {
@@ -1245,6 +1252,19 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       const condW2 = measureHtmlWidth(condLabel2) + smallPad * 2;
       const minRight2 = fragmentBounds[idx].left + tabWidth2 + smallPad + condW2 + smallPad;
       fragmentBounds[idx].right = Math.max(fragmentBounds[idx].right, minRight2);
+    }
+  }
+
+  // Re-propagate after condLabel expansion so parent fragments still contain children.
+  for (const idx of fragOrder) {
+    const parent = modelFragments[idx];
+    for (let j = 0; j < modelFragments.length; j++) {
+      if (idx === j) continue;
+      const child = modelFragments[j];
+      if (parent.startRow <= child.startRow && (parent.endRow ?? Infinity) >= (child.endRow ?? 0)) {
+        fragmentBounds[idx].left = Math.min(fragmentBounds[idx].left, fragmentBounds[j].left - nestingIndent);
+        fragmentBounds[idx].right = Math.max(fragmentBounds[idx].right, fragmentBounds[j].right + nestingIndent);
+      }
     }
   }
 
