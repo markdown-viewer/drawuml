@@ -2155,6 +2155,11 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         } else {
           // Simple state (no block)
           const bodyLines: BodyLine[] = [];
+          // Inline colon-text: "state NAME : text" or "state ... as ID : text"
+          // The PEG FreeText tail captures ": text" including the colon prefix;
+          // strip it before adding to bodyLines.
+          const inlineText = String(st.text || '').replace(/^:\s*/, '').trim();
+          if (inlineText) bodyLines.push(inlineText);
           if (!nodesById[id]) nodeOrder.push(id);
           nodesById[id] = {
             id,
