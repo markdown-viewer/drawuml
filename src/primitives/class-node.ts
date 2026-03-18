@@ -304,7 +304,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       'align=center', 'verticalAlign=middle',
       `fontSize=${fs}`, 'fontStyle=2',
       `fontFamily=${this.theme.fontFamily}`,
-      `fillColor=${this.theme.defaultFill}`,
+      `fillColor=${this.theme.groupFill}`,
       `strokeColor=${this.theme.colorDark}`,
       'dashed=1', 'dashPattern=5 2',
       `strokeWidth=${this.theme.strokeWidth}`,
