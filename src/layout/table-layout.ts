@@ -1255,7 +1255,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const isGroupLike2 = f.type === 'group' || f.type === 'partition';
     const tabLabel2 = isGroupLike2 ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
     const tabTextW2 = TextBlock.inline(tabLabel2 || f.type, { ...seqFont, weight: 'bold' }).width;
-    const tabWidth2 = Math.max(Math.ceil(tabTextW2) + fontSize, theme.sizeL);
+    const tabWidth2 = Math.max(Math.ceil(tabTextW2) + 2 * theme.cornerClip, theme.sizeL);
     const condLabel2 = isGroupLike2
       ? ((f.label || '').match(/\[([^\]]*)\]/)?.[1] || '')
       : (f.label || '');
@@ -1300,7 +1300,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const isGroupLike = f.type === 'group' || f.type === 'partition';
     const tabLabel = isGroupLike ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
     const tabTextW = TextBlock.inline(tabLabel || f.type, { ...seqFont, weight: 'bold' }).width;
-    const tabWidth = Math.max(Math.ceil(tabTextW) + fontSize, theme.sizeL);
+    const tabWidth = Math.max(Math.ceil(tabTextW) + 2 * theme.cornerClip, theme.sizeL);
 
     return {
       id: `frag${idx + 1}`,

@@ -68,18 +68,19 @@ class FrameShapeRenderer extends RichRenderer {
   protected buildStyle(): string {
     // Measure tab text with bold font (Creole markup stripped by TextBlock.inline)
     const tabBlock = TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' });
-    const tabW = Math.max(Math.ceil(tabBlock.width) + this.theme.fontSize, this.theme.sizeM);
+    // tabWidth must accommodate spacingLeft (cornerClip) + text + right bevel (cornerClip)
+    const tabW = Math.max(Math.ceil(tabBlock.width) + 2 * this.theme.cornerClip, this.theme.sizeM);
+    const tabH = this.theme.sizeS;
     if (this.isMainframe) {
-      const tabH = this.desc.fixedHeight ?? this.theme.sizeS;
       return buildUmlFrameStyle({
-        tabWidth: tabW, tabHeight: tabH,
+        tabWidth: tabW, tabHeight: this.desc.fixedHeight ?? tabH,
         fontSize: this.theme.fontSize, cornerClip: this.theme.cornerClip,
         strokeWidth: this.theme.strokeWidth,
         fillColor: this.theme.defaultFill,
       });
     }
     return buildUmlFrameStyle({
-      tabWidth: tabW, tabHeight: this.theme.sizeS,
+      tabWidth: tabW, tabHeight: tabH,
       fontSize: this.theme.fontSize, cornerClip: this.theme.cornerClip,
       strokeWidth: this.theme.strokeWidth, arcSize: this.theme.arcSize,
       fillColor: 'none', strokeColor: this.theme.colorDark,
