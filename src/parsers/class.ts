@@ -525,6 +525,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // Capture layout direction directive
       if (st.kind === 'directive_statement') {
         const kw = String(st.keyword || '').toLowerCase().trim();
+        // Stop at newpage — only render the first page
+        if (kw === 'newpage') break;
         if (kw === 'left to right direction') rankdir = 'LR';
         else if (kw === 'top to bottom direction') rankdir = 'TB';
         // Handle "set namespaceSeparator <sep>" or "set separator <sep>" directive
