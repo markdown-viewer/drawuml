@@ -490,6 +490,20 @@ export function parseActivityDiagram(
         }
       }
       // Terminate current flow — clear cursors and pending arrow state
+      // Exception: when inside an if‐branch and the cursor is a merge diamond
+      // from a just‐closed inner if/elseif (has multiple incoming edges),
+      // PlantUML's InstructionIf.kill() early‐returns without actually killing
+      // the surviving branches.  We replicate that: treat kill as no‐op for the
+      // merge diamond, so the outer endif still sees a surviving branch.
+      if (cursors.length === 1 && controlStack.length > 0 && controlStack[controlStack.length - 1].type === 'if') {
+        const inCount = edges.filter(e => e.to === cursors[0]).length;
+        if (inCount > 1) {
+          // Merge diamond from inner if/elseif — kill is no-op
+          pendingArrowLabel = null;
+          pendingArrowColor = null;
+          continue;
+        }
+      }
       cursors = [];
       pendingArrowLabel = null;
       pendingArrowColor = null;
