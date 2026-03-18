@@ -63,7 +63,7 @@ class MapNodeRenderer extends Renderer {
     const rowH = mapRowHeight(this.theme);
     const padX = cellPadX(this.theme);
     const paddingX = this.theme.sizeL;                  // title horizontal padding
-    const titlePadY = this.theme.fontSize;                      // title vertical padding
+    const titlePadY = this.theme.padS;                      // title vertical padding
 
     // Title dimensions
     const titleSize = this.titleBlock.measure();

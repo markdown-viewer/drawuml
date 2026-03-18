@@ -55,6 +55,7 @@ export interface Theme {
   readonly sizeMax: number;   //  @12→720 — max row width for row-packing layout
 
   // ── Spacing — 5 unified tiers (sorted small → large @base12) ──────────────
+  readonly padXXS: number;              //   2 — micro spacing    (@base12: fontSize×2/12)
   readonly padXS: number;               //   5 — extra small spacing (@base12: fontSize×5/12)
   readonly padS: number;                //  10 — small spacing  (@base12: fontSize×10/12)
   readonly padM: number;                //  15 — medium spacing (@base12: fontSize×15/12)
@@ -107,6 +108,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     sizeMax: r4(fontSize * 720 / 12),   // 720
 
     // ── Spacing — 5 unified tiers ──
+    padXXS: r4(fontSize * 2 / 12),      //   2
     padXS: r4(fontSize * 5 / 12),       //   5
     padS: r4(fontSize * 10 / 12),       //  10
     padM: r4(fontSize * 15 / 12),       //  15

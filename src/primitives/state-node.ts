@@ -258,7 +258,11 @@ export class ConcurrentRegionRenderer extends Renderer {
   get clusterLabel(): string { return this.regionLabel; }
 
   /** Height of the region title bar (startSize in DrawIO swimlane). */
-  private get titleBarHeight(): number { return this.theme.sizeS; }
+  private get titleBarHeight(): number {
+    if (!this.regionLabel) return 0;
+    const m = TextBlock.inline(this.regionLabel, { size: this.theme.smallFontSize, family: this.theme.fontFamily }).measure();
+    return Math.ceil(m.height) + this.theme.padS;
+  }
 
   // Uniform padding on all sides inside each region lane.
   override get groupTopPadding(): number {
@@ -395,7 +399,10 @@ class StateNodeRenderer extends SwimlaneRenderer {
   get clusterLabel(): string { return this._nodeLabel; }
 
   /** Height of the state title bar (startSize in DrawIO swimlane). */
-  private get titleBarHeight(): number { return this.theme.sizeS; }
+  private get titleBarHeight(): number {
+    const m = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure();
+    return Math.ceil(m.height) + this.theme.padS;
+  }
 
   // State title bar is a fixed title area
   // +2 compensates for visual gap difference vs non-fixed shapes
@@ -406,10 +413,12 @@ class StateNodeRenderer extends SwimlaneRenderer {
    */
   render(box: ContentBox): string[] {
     if (this.children.length > 0) {
-      const labelHtml = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
+      const labelMeas = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily });
+      const labelHtml = labelMeas.html;
       const parentCellId = this.parentId || '1';
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
-      const style = stateGroupStyle(this.theme, this.nodeStyle, hasConcurrentRegions);
+      const titleBarH = Math.ceil(labelMeas.measure().height) + this.theme.padS;
+      const style = stateGroupStyle(titleBarH, this.theme, this.nodeStyle, hasConcurrentRegions);
       const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
         + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
         + `</mxCell>`];
@@ -489,9 +498,9 @@ class StateNodeRenderer extends SwimlaneRenderer {
 // ---------------------------------------------------------------------------
 
 /** DrawIO style for a composite state container with optional color. */
-function stateGroupStyle(theme: Theme, style?: string | null, noRounding?: boolean): string {
+function stateGroupStyle(startSize: number, theme: Theme, style?: string | null, noRounding?: boolean): string {
   const parsed = parseNodeStyle(style);
-  const titleBarHeight = theme.sizeS; // swimlane startSize = title bar height
+  const titleBarHeight = startSize;
   const base = noRounding ? [
     'swimlane', 'html=1', 'rounded=0',
     'align=center', 'verticalAlign=middle',

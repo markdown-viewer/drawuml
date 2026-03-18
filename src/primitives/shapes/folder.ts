@@ -20,9 +20,9 @@ class FolderRenderer extends RichRenderer {
     this.isPackage = isPackage;
   }
 
-  /** Tab width: text width + fontSize padding (left+right spacing). */
+  /** Tab width: text width + 2 × cornerClip padding (left spacingLeft + right bevel). */
   private computeTabWidth(): number {
-    return Math.max(Math.ceil(TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' }).width) + this.theme.fontSize, this.theme.sizeM);
+    return Math.max(Math.ceil(TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' }).width) + 2 * this.theme.cornerClip, this.theme.sizeM);
   }
 
   protected buildStyle(): string {
@@ -36,7 +36,7 @@ class FolderRenderer extends RichRenderer {
     // Ensure element width > tabWidth so drawio2svg arc clipping
     // does not eat into the tab's right padding.
     const tabWidth = this.computeTabWidth();
-    const minWidth = tabWidth + this.theme.fontSize;
+    const minWidth = tabWidth + this.theme.cornerClip;
     return {
       width: Math.max(base.width, minWidth),
       height: base.height,
