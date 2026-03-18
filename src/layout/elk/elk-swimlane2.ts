@@ -506,13 +506,13 @@ export async function elkSwimlaneLayout2(
   // Lane width = content extent + 2 * pad.  Content extent = ownWidth - minOwnX
   // (stripping ghost-node-induced left offset).  pad ensures uniform padding on
   // both sides regardless of where ELK placed own nodes internally.
-  const pad = theme.padXL;
+  const pad = theme.groupPad;
   // Measure lane title widths — title must fit within the lane
   const titleFont = { family: theme.fontFamily, size: theme.smallFontSize };
   const titleMinWidths = regions.map((_r, li) => {
     const label = swimContainer.concurrentRegionLabels?.[li] || '';
     if (!label) return 0;
-    return TextBlock.plain(label, titleFont).measure().width + 2 * theme.padXS;
+    return TextBlock.plain(label, titleFont).measure().width + 2 * theme.edgeGap;
   });
   const laneWidths = laneResults.map((lr, li) => {
     const minX = isFinite(lr.minOwnX) ? lr.minOwnX : 0;
@@ -529,7 +529,7 @@ export async function elkSwimlaneLayout2(
     lr.globalX = laneXStart[lr.laneIdx] + (laneWidths[lr.laneIdx] - (lr.ownWidth - minX)) / 2 - minX;
   }
 
-  const titleBarOffset = theme.sizeS;
+  const titleBarOffset = theme.titleBarH;
   // Compute totalH from actual content Y extent (not elkHeight which may have extra space).
   // All lanes share the same layer assignment so minOwnY should be consistent,
   // but we use the global min/max to be safe.
@@ -650,7 +650,7 @@ export async function elkSwimlaneLayout2(
     const rid = `${swimContainer.id}.__conc_region__${li}`;
     const label = swimContainer.concurrentRegionLabels?.[li] || '';
     const color = swimContainer.concurrentRegionColors?.[li] || '';
-    const startSize = label ? theme.sizeS : 0;
+    const startSize = label ? theme.titleBarH : 0;
     const fill = color || theme.groupFill;
     const style = `swimlane;html=1;startSize=${startSize};`
       + `collapsible=0;rounded=0;`

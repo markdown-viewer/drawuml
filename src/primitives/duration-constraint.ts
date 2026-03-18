@@ -39,7 +39,7 @@ export function renderDurationConstraint(dc: {
     // Convert raw Creole label to HTML
     const labelHtml = TextBlock.inline(dc.label, { size: smallFontSize, family: theme.fontFamily }).html;
     const lineH = dc.y2 - dc.y1;
-    const labelH = Math.ceil(smallFontSize + theme.padXS);
+    const labelH = Math.ceil(smallFontSize + theme.edgeGap);
     const labelY = dc.y1 + lineH / 2 - labelH / 2;
     const labelStyle = `text;html=1;align=left;verticalAlign=middle;whiteSpace=nowrap;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
     cells.push(mxVertex({

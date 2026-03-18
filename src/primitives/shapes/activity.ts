@@ -29,7 +29,7 @@ class ActivityNodeRenderer extends RichRenderer {
   }
 
   protected shapePadding(): ShapePadding {
-    return this.isOctagon ? { left: this.theme.padS, right: this.theme.padS, top: this.theme.padXS, bottom: this.theme.padXS } : {};
+    return this.isOctagon ? { left: this.theme.contentPad, right: this.theme.contentPad, top: this.theme.edgeGap, bottom: this.theme.edgeGap } : {};
   }
 }
 

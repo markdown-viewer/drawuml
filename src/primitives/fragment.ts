@@ -92,18 +92,18 @@ export function renderFragment(frag: {
 
   // Condition label to the right of the tab (or centered in content area for ref)
   const smallFontSize = theme.smallFontSize;
-  const labelGap = theme.padXS;           // horizontal gap between tab / section line and label text
-  const labelSpacingX = theme.padXS;      // DrawIO spacingLeft for condition labels
-  const sectionSpacingX = theme.padS;     // DrawIO spacingLeft for section labels (wider for readability)
-  const sectionH = theme.sizeS;           // section label cell height
+  const labelGap = theme.edgeGap;           // horizontal gap between tab / section line and label text
+  const labelSpacingX = theme.edgeGap;      // DrawIO spacingLeft for condition labels
+  const sectionSpacingX = theme.contentPad;     // DrawIO spacingLeft for section labels (wider for readability)
+  const sectionH = theme.tabH;           // section label cell height
 
   const isRef = frag.type === 'ref';
   if (conditionLabel) {
     const condBlock = TextBlock.inline(conditionLabel, { size: smallFontSize, family: theme.fontFamily });
     const condHtml = condBlock.html;
     const condSize = condBlock.measure();
-    const condMinH = theme.sizeS;
-    const condH = Math.max(condMinH, Math.ceil(condSize.height) + theme.padXS);
+    const condMinH = theme.tabH;
+    const condH = Math.max(condMinH, Math.ceil(condSize.height) + theme.edgeGap);
     if (isRef) {
       // ref: label text centered in content area, no brackets
       const contentY = frag.y + tabH;

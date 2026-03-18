@@ -34,10 +34,10 @@ interface RoutingSpacing {
 
 function spacingFromTheme(theme: Theme): RoutingSpacing {
   return {
-    edgeEdge: theme.padXS,
-    edgeNode: theme.padL,
-    nodeNode: theme.padL,
-    edgeLabelSpacing: theme.padXS,
+    edgeEdge: theme.edgeGap,
+    edgeNode: theme.nodeGap,
+    nodeNode: theme.nodeGap,
+    edgeLabelSpacing: theme.edgeGap,
   };
 }
 

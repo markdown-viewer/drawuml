@@ -70,7 +70,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
     if (!lp) continue;
-    const { cellX } = participantCellGeom(p.type, lp.x, lp.width, theme.sizeM);
+    const { cellX } = participantCellGeom(p.type, lp.x, lp.width, theme.iconSize);
     participantCellMap[p.id] = { cellX, cellY: lp.y };
   }
 
@@ -121,7 +121,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
   }
 
   // Build participant layout map for lifeline-connected edges (no activation)
-  const pConfig = getScaledParticipantConfig(theme.sizeM);
+  const pConfig = getScaledParticipantConfig(theme.iconSize);
   const pLayoutMap: Record<string, { x: number; y: number; width: number; height: number; centerX: number }> = {};
   for (const p of model.participants) {
     const lp = layout.participants[p.id];
@@ -145,7 +145,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     const labelBelow = model.responseMessageBelowArrow && isLeftward;
     const vAlign = labelBelow ? 'top' : 'bottom';
     const isTimed = !msg.self && (msg.toY ?? msg.y) !== msg.y;
-    const labelPad = theme.padXS;
+    const labelPad = theme.edgeGap;
 
     if (msg.self) {
       const dir = msg.arrowStyle?.direction || 'right';

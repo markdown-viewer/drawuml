@@ -14,7 +14,7 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class CollectionsRenderer extends RichRenderer {
   /** Offset between the back and front rectangles. */
-  private get shadowOffset(): number { return this.theme.padXS; }
+  private get shadowOffset(): number { return this.theme.edgeGap; }
 
   protected buildStyle(): string {
     return `shape=mxgraph.basic.rect;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;

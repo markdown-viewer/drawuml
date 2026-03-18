@@ -22,7 +22,7 @@ export function renderDestroyMarker(
   parentGeom?: { x: number; y: number },
   theme: Theme = createTheme(),
 ): string {
-  const s = theme.sizeXS;
+  const s = theme.portSize;
   const destroyStroke = theme.destroyStroke;
   const destroyStyle = `shape=umlDestroy;strokeColor=${destroyStroke};strokeWidth=${theme.boldStrokeWidth};`;
   if (parentId && parentGeom) {

@@ -228,7 +228,7 @@ export async function elkSwimlaneLayout(
         // Padding inside each sub-group: top/bottom margin keeps nodes away
         // from the sub-group boundary (also accounts for the lane title bar
         // when yStart is offset by sizeS in the overlap enforcement below).
-        'elk.padding':                                      `[top=${String(theme.padL)},left=0,bottom=${String(theme.padL)},right=0]`,
+        'elk.padding':                                      `[top=${String(theme.nodeGap)},left=0,bottom=${String(theme.nodeGap)},right=0]`,
       },
       ports: grp.bPorts.map(p => ({
         id: p.id,
@@ -354,7 +354,7 @@ export async function elkSwimlaneLayout(
   // Global vertical offset: shift all sub-groups down by the lane title-bar height
   // so nodes don't overlap the title. Applied after all yStart values are finalised
   // (including cross-group alignment) so edge routing is not distorted.
-  const titleBarOffset = theme.sizeS;
+  const titleBarOffset = theme.titleBarH;
   for (const g of allSubGroups) g.yStart += titleBarOffset;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -448,7 +448,7 @@ export async function elkSwimlaneLayout(
   }
 
   // --- Lane container groups ---
-  const totalH = Math.max(...allSubGroups.map(g => g.yStart + g.elkH), 100) + theme.padL;
+  const totalH = Math.max(...allSubGroups.map(g => g.yStart + g.elkH), 100) + theme.nodeGap;
   const groups: Record<string, LayoutGroup> = {};
 
   // Swimlane container

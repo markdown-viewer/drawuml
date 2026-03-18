@@ -308,7 +308,7 @@ export function snapPortNodes(
   theme: Theme = createTheme(),
   elkPortIds?: Set<string>,
 ): void {
-  const PORT_SIZE = theme.sizeXS;
+  const PORT_SIZE = theme.portSize;
   const PORT_HALF = PORT_SIZE / 2;
   const nodeGroupMap = new Map<string, string>();
   for (const group of model.groups || []) {
@@ -512,7 +512,7 @@ export function alignFieldNotes(
       const prev = nodes[group[i - 1].id];
       const cur = nodes[group[i].id];
       if (!prev || !cur) continue;
-      const minY = prev.y + prev.height + theme.padS; // note overlap gap
+      const minY = prev.y + prev.height + theme.contentPad; // note overlap gap
       if (cur.y < minY) cur.y = minY;
     }
   }
@@ -655,8 +655,8 @@ function _rearrangeSwimlaneDotLR(
 ): void {
   const regions = group.concurrentRegions;
   const numLanes = regions.length;
-  const LANE_PAD = theme.padXL;
-  const LANE_HEADER = theme.sizeS; // left-side title width for horizontal lanes
+  const LANE_PAD = theme.groupPad;
+  const LANE_HEADER = theme.rowH; // left-side title width for horizontal lanes
 
   // Build node→lane index map
   const nodeLane = new Map<string, number>();
@@ -674,7 +674,7 @@ function _rearrangeSwimlaneDotLR(
       const n = layout.nodes[nid];
       if (n) maxH = Math.max(maxH, n.height);
     }
-    const minLaneH = theme.padL * 2; // 80 at base 12
+    const minLaneH = theme.nodeGap * 2; // 80 at base 12
     laneHeights.push(Math.max(maxH + 2 * LANE_PAD, minLaneH));
   }
 
@@ -774,7 +774,7 @@ function _rearrangeSwimlaneDotLR(
 export function fixNodeSpacing(layout: LayoutResult, model: SemanticModel, theme: Theme = createTheme()): void {
   if (!model.groups) return;
 
-  const minGap = theme.padL;
+  const minGap = theme.nodeGap;
 
   const swimContainer = model.groups.find(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
@@ -1078,7 +1078,7 @@ export function fixOrthoEdges(layout: LayoutResult, model: SemanticModel): void 
  *   4. Pick the shorter one, splice it in, and remove bypassed points.
  */
 export function avoidNodeCollisions(layout: LayoutResult, _model: SemanticModel, theme: Theme = createTheme()): void {
-  const margin = theme.padL / 3;
+  const margin = theme.nodeGap / 3;
   const edges = layout.edges;
   if (!edges || edges.length === 0) return;
   const nodes = layout.nodes;

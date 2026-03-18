@@ -88,22 +88,22 @@ function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string
 
 export function elkSpacing(theme: Theme = createTheme()) {
   return {
-    nodeNode: String(theme.padL),
-    nodeNodeBetweenLayers: String(theme.padXXL),
-    edgeEdge: String(theme.padS),
-    edgeEdgeBetweenLayers: String(theme.padS),
-    edgeNode: String(theme.padL),
-    edgeNodeBetweenLayers: String(theme.padL),
-    nodeSelfLoop: String(theme.padL),
+    nodeNode: String(theme.nodeGap),
+    nodeNodeBetweenLayers: String(theme.layerGap),
+    edgeEdge: String(theme.contentPad),
+    edgeEdgeBetweenLayers: String(theme.contentPad),
+    edgeNode: String(theme.nodeGap),
+    edgeNodeBetweenLayers: String(theme.nodeGap),
+    nodeSelfLoop: String(theme.nodeGap),
     // Spacing between disconnected components (independent sub-graphs).
     // Without this, ELK uses a fixed 20px default that doesn't scale.
-    componentComponent: String(theme.padL),
+    componentComponent: String(theme.nodeGap),
     // Reduced same-layer spacing for root level when groups are present —
     // groups already have internal padding, so inter-group gaps
     // should be smaller than inter-node gaps.
     // Between-layers spacing stays normal so edge channels aren't cramped.
-    groupNodeNode: String(theme.padS),
-    groupNodeNodeBetweenLayers: String(theme.padXXL),
+    groupNodeNode: String(theme.contentPad),
+    groupNodeNodeBetweenLayers: String(theme.layerGap),
   };
 }
 
@@ -302,7 +302,7 @@ export function layoutGraphToElk(
     // don't hug the node boundary (avoids cramped arrow decorations).
     'elk.layered.spacing.edgeNodeBetweenLayers': es.edgeNodeBetweenLayers,
     // Edge-label gap — scaled with font size
-    'elk.spacing.edgeLabel': String(theme.padXS),
+    'elk.spacing.edgeLabel': String(theme.edgeGap),
     // Node placement & alignment
     'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
     'elk.contentAlignment': 'H_CENTER V_CENTER',
@@ -409,7 +409,7 @@ function mapNode(
           'elk.direction': perpDir,
           'elk.spacing.nodeNode': '0',
           'elk.layered.spacing.nodeNodeBetweenLayers': '0',
-          'elk.padding': `[top=${gn.padding?.top ?? renderers.get(gn.children[0]?.id)?.theme?.sizeS ?? createTheme().sizeS},left=0,bottom=0,right=0]`,
+          'elk.padding': `[top=${gn.padding?.top ?? renderers.get(gn.children[0]?.id)?.theme?.titleBarH ?? createTheme().titleBarH},left=0,bottom=0,right=0]`,
         };
       }
     } else {
@@ -913,7 +913,7 @@ function mapNodeSimple(gn: LayoutGraphNode, renderers: Map<string, Renderer>, gr
           'elk.direction': perpDir,
           'elk.spacing.nodeNode': '0',
           'elk.layered.spacing.nodeNodeBetweenLayers': '0',
-          'elk.padding': `[top=${gn.padding?.top ?? renderers.values().next().value?.theme?.sizeS ?? createTheme().sizeS},left=0,bottom=0,right=0]`,
+          'elk.padding': `[top=${gn.padding?.top ?? renderers.values().next().value?.theme?.titleBarH ?? createTheme().titleBarH},left=0,bottom=0,right=0]`,
         };
       }
     } else {

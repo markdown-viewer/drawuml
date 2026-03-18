@@ -85,7 +85,7 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
  * (e.g. object, state). Returns emptyBodyPad for empty body.
  */
 function skipAutoSeparator(ctx: FinalizeBodyCtx, theme: Theme = createTheme()): Partial<Record<string, any>> {
-  if (ctx.lines.length === 0) return { emptyBodyPad: theme.padS };
+  if (ctx.lines.length === 0) return { emptyBodyPad: theme.contentPad };
   return {};
 }
 
@@ -230,7 +230,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     const gb = this.measureGenericBox();
     if (!gb) return style;
     // Shift title centering to the left of the generic label
-    return style + `spacingRight=${gb.width - this.theme.padXS};`;
+    return style + `spacingRight=${gb.width - this.theme.edgeGap};`;
   }
 
   protected getChildStyleOpts() {
@@ -239,7 +239,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       childStroke: this.childStroke,
       childLineStyle: this.childLineStyle,
       portConstraint: true as const,
-      spacingX: this.theme.padXS,
+      spacingX: this.theme.edgeGap,
     };
   }
 
@@ -281,7 +281,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       // Header must fit title + generic label side by side
       const titleHtml = buildTitleHtml(this.node);
       const tb = TextBlock.fromHtml(titleHtml, { size: this.theme.fontSize, family: this.theme.fontFamily });
-      const titleW = Math.ceil(tb.width) + this.theme.padXL;
+      const titleW = Math.ceil(tb.width) + this.theme.titlePadX;
       base.width = Math.max(base.width, titleW + gb.width);
     }
     return base;
@@ -294,7 +294,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
 
     const gb = this.measureGenericBox()!;
     const fs = this.theme.smallFontSize;
-    const pad = this.theme.padXS;
+    const pad = this.theme.edgeGap;
     // Label's right-top corner at class right-top corner + (pad, -pad)
     const gx = box.x + box.width + pad - gb.width;
     const gy = box.y - pad;

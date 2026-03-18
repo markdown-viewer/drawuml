@@ -11,7 +11,7 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class PersonRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `shape=mxgraph.c4.person2;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.padXXS)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
+    return `shape=mxgraph.c4.person2;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.spacingTop)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};whiteSpace=wrap;`;
   }
   // Compute top padding to match the mxgraph.c4.person2 stencil head area.
   // Stencil draws head circle of diameter d = 0.45 * min(w, h), body starts

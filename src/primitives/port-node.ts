@@ -43,7 +43,7 @@ export class PortNodeRenderer extends Renderer {
 
   protected doMeasure(): { width: number; height: number } {
     // DOT sees only the square (portSize × portSize); label is rendered outside the bounding box.
-    const ps = this.theme.sizeXS;
+    const ps = this.theme.portSize;
     return { width: ps, height: ps };
   }
 
@@ -65,9 +65,9 @@ export class PortNodeRenderer extends Renderer {
       else if (parsed.lineStyle === 'bold') extraStyle += `strokeWidth=${n4(this.theme.strokeWidth * 3)};`;
     }
 
-    const portSize = this.theme.sizeXS;
+    const portSize = this.theme.portSize;
     const portHalf = portSize / 2;
-    const portLabelH = this.theme.sizeS;
+    const portLabelH = this.theme.rowH;
     const squareStyle =
       `rounded=0;fillColor=${fillColor};strokeColor=${strokeColor};strokeWidth=${n4(this.theme.strokeWidth * 1.5)};${extraStyle}`;
 
@@ -85,10 +85,10 @@ export class PortNodeRenderer extends Renderer {
 
     // Label cell — positioned above (portin) or below (portout) the square
     if (this._label) {
-      const labelPad = this.theme.padXS || LABEL_PAD_DEFAULT;
+      const labelPad = this.theme.edgeGap || LABEL_PAD_DEFAULT;
       const plainBlock = TextBlock.plain(this._label, { size: this.theme.fontSize, family: this.theme.fontFamily });
       const textW = plainBlock.width;
-      const labelWidth = Math.max(Math.ceil(textW) + this.theme.padS, portSize + this.theme.sizeS);
+      const labelWidth = Math.max(Math.ceil(textW) + this.theme.contentPad, portSize + this.theme.rowH);
       const labelX = box.x + portHalf - labelWidth / 2;
       const labelY = this._portKind === 'portout'
         ? box.y + portSize + labelPad       // below the square

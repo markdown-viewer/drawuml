@@ -31,7 +31,7 @@ class CircleRenderer extends IconRenderer {
   }
 
   protected override get iconGap(): number { return this.theme.padM; }
-  protected override get paddingX(): number { return this.theme.padXL; }
+  protected override get paddingX(): number { return this.theme.groupPad; }
 
   // Override: circle uses titleFontSize for measurement
   protected override measureLabel() {

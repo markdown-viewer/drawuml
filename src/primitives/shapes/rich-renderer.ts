@@ -98,7 +98,7 @@ export abstract class RichRenderer extends Renderer {
    * non-titlebar shapes render label in the content area.
    */
   protected get titleAreaHeight(): number {
-    return this.hasTitlebar ? this.theme.sizeS : 0;
+    return this.hasTitlebar ? this.theme.titleBarH : 0;
   }
 
   /**
@@ -106,7 +106,7 @@ export abstract class RichRenderer extends Renderer {
    * Applied by base class in doMeasure() and buildRichBodyContainerStyle().
    * The mxGraph +2 horizontal compensation is handled transparently.
    */
-  protected get contentPad(): number { return this.theme.padXS; }
+  protected get contentPad(): number { return this.theme.edgeGap; }
 
   /** Content rect including contentPad, strokeWidth, and title area height. */
   private computeContentRect(): { width: number; height: number } {
@@ -131,9 +131,9 @@ export abstract class RichRenderer extends Renderer {
   override get groupTopPadding(): number {
     const pad = this.shapePadding(this.computeContentRect());
     const shapeTop = pad.top ?? 0;
-    const titleH = this.hasTitlebar ? this.theme.sizeS
-      : this.label ? this.theme.sizeXS : 0;
-    return this.theme.padXL + titleH + shapeTop;
+    const titleH = this.hasTitlebar ? this.theme.titleBarH
+      : this.label ? this.theme.portSize : 0;
+    return this.theme.groupPad + titleH + shapeTop;
   }
 
   // ── Content construction ──────────────────────────────────────────────────
@@ -283,8 +283,8 @@ export abstract class RichRenderer extends Renderer {
       };
     }
     return {
-      width: Math.max(this.theme.sizeXL, size.width + this.theme.padS * 2 + padLeft + padRight),
-      height: size.height + this.theme.padS * 2 + padTop + padBottom + this.titleAreaHeight,
+      width: Math.max(this.theme.titleMinW, size.width + this.theme.contentPad * 2 + padLeft + padRight),
+      height: size.height + this.theme.contentPad * 2 + padTop + padBottom + this.titleAreaHeight,
     };
   }
 
@@ -344,7 +344,7 @@ export abstract class RichRenderer extends Renderer {
           style: stereoStyle,
           parent: this.id,
           x: 0, y: this.resolvedTopPad,
-          width: fb.width, height: this.theme.sizeS,
+          width: fb.width, height: this.theme.titleBarH,
         }));
       }
       cells.push(...this.renderChildren());

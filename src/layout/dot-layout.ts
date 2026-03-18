@@ -377,7 +377,7 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   let vizJson = await renderViz(dot);
 
   // 5. Extract + transform coordinates
-  const layout = extractLayout(vizJson, renderers, model.edges, groupIds, theme.padXS);
+  const layout = extractLayout(vizJson, renderers, model.edges, groupIds, theme.edgeGap);
 
   // 5.0 Strip spine nodes/edges and shift content up
   if (swimGroup) {

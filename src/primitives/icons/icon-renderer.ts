@@ -33,7 +33,7 @@ export abstract class IconRenderer extends Renderer {
    * the base class normalises so min(iconWidth, iconHeight) === sizeM.
    */
   protected get iconScale(): number {
-    return this.theme.sizeM / Math.min(this.baseIconWidth, this.baseIconHeight);
+    return this.theme.iconSize / Math.min(this.baseIconWidth, this.baseIconHeight);
   }
 
   /** Computed icon width (baseIconWidth × iconScale). Override for non-scaled icons. */
@@ -44,11 +44,11 @@ export abstract class IconRenderer extends Renderer {
   // ── Configurable layout constants (override to customize) ──────────────────
 
   /** Gap between icon bottom and label top (px). */
-  protected get iconGap(): number { return this.theme.padXS; }
-  /** Horizontal padding added to label width (px). */
-  protected get paddingX(): number { return this.theme.padL; }
+  protected get iconGap(): number { return this.theme.edgeGap; }
+  /** Horizontal padding added to label width (px). nodeGap provides a visually comfortable icon margin. */
+  protected get paddingX(): number { return this.theme.nodeGap; }
   /** Minimum label height — single-line floor (px). */
-  protected get minLabelHeight(): number { return this.theme.sizeS; }
+  protected get minLabelHeight(): number { return this.theme.rowH; }
 
   // ── Label ──────────────────────────────────────────────────────────────────
 

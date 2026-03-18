@@ -169,7 +169,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // layout endpoints and add constraints so drawio2svg pins the connection
     // to the field cell's left/right border.
     if (hasPort && points && points.length >= 2) {
-      const sides = computePortEdgeSides(points, edge, layout, renderers, theme.padS);
+      const sides = computePortEdgeSides(points, edge, layout, renderers, theme.contentPad);
       if (sides.exitX != null) {
         style += `exitX=${n4(sides.exitX)};exitY=${n4(sides.exitY)};exitDx=0;exitDy=0;`;
       }

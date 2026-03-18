@@ -67,13 +67,13 @@ const DEFAULTS: ContentMetrics = {
 /** Build class metrics from theme. */
 function classMetrics(theme: Theme = createTheme()): Partial<ContentMetrics> {
   return {
-    paddingX: theme.padL,
-    titlePaddingY: theme.padS,
-    bodyPaddingY: theme.padXS,
-    rowHeight: theme.sizeS,
-    separatorHeight: theme.sizeXS,
-    titledSeparatorHeight: theme.sizeS,
-    minWidth: theme.sizeXL,
+    paddingX: theme.nodeGap,
+    titlePaddingY: theme.titlePadY,
+    bodyPaddingY: theme.edgeGap,
+    rowHeight: theme.rowH,
+    separatorHeight: theme.portSize,
+    titledSeparatorHeight: theme.rowH,
+    minWidth: theme.titleMinW,
   };
 }
 
@@ -82,8 +82,8 @@ function richBodyMetrics(theme: Theme = createTheme()): Partial<ContentMetrics> 
   // paddingX and bodyPaddingY are intentionally omitted (default 0).
   // RichRenderer.contentPad provides unified four-side content padding.
   return {
-    separatorHeight: theme.sizeXS,
-    titledSeparatorHeight: theme.sizeS,
+    separatorHeight: theme.portSize,
+    titledSeparatorHeight: theme.rowH,
   };
 }
 
@@ -395,7 +395,7 @@ export class BlockLayout {
     const ff = this._m.fontFamily;
     if (co?.portConstraint) {
       // Swimlane row: textRowStyle style with port constraint
-      const sx = co.spacingX ?? this._theme.padXS;
+      const sx = co.spacingX ?? this._theme.edgeGap;
       const parts = [
         'text', 'html=1', 'strokeColor=none', 'fillColor=none',
         `align=${co.align ?? 'left'}`, 'verticalAlign=middle',
@@ -412,7 +412,7 @@ export class BlockLayout {
       return parts.join(';') + ';';
     }
     // Rich body row: richTextStyle
-    const sx = co?.spacingX ?? this._theme.padXS;
+    const sx = co?.spacingX ?? this._theme.edgeGap;
     return richTextStyle(sx, sx, co?.align ?? 'left', fs, ff);
   }
 

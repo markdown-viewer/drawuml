@@ -126,7 +126,7 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   snapPortNodes(layout, model, renderers, theme, elkPortIds);
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
   positionTitle(layout, renderers);
-  separateOverlappingEdges(layout, theme.padXS);
+  separateOverlappingEdges(layout, theme.edgeGap);
 
   return { layout, renderers };
 }

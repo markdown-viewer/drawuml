@@ -297,7 +297,7 @@ class ArchimateRenderer extends RichRenderer {
       'whiteSpace=wrap', 'html=1',
       `fontStyle=1`, `fontSize=${this.theme.fontSize}`,
       'align=center', 'verticalAlign=top',
-      `spacingTop=${Math.round(this.theme.padXXS)}`,
+      `spacingTop=${Math.round(this.theme.spacingTop)}`,
       `fillColor=none`, `strokeColor=${this.theme.colorDark}`, `fontColor=${this.theme.colorDark}`,
       `strokeWidth=${this.theme.strokeWidth}`,
       'collapsible=0', 'container=1',
@@ -324,15 +324,15 @@ class ArchimateRenderer extends RichRenderer {
     if (this.icon) {
       // Scale icon dimensions from BASE_ICON_SIZE table to theme.sizeS.
       const [bw, bh] = ARCHIMATE3_ICON_SIZE[this.icon] ?? [BASE_ICON_SIZE, BASE_ICON_SIZE];
-      const iw = bw * this.theme.sizeS / BASE_ICON_SIZE * 0.8;
-      const ih = bh * this.theme.sizeS / BASE_ICON_SIZE * 0.8;
+      const iw = bw * this.theme.spotSize / BASE_ICON_SIZE * 0.8;
+      const ih = bh * this.theme.spotSize / BASE_ICON_SIZE * 0.8;
       // Vertically center the icon within the titlebar band.
-      const iy = this.theme.padXS + (this.theme.sizeS - ih) / 2;
+      const iy = this.theme.edgeGap + (this.theme.spotSize - ih) / 2;
       // For 'archimate' keyword nodes the icon is horizontally centered;
       // for all other archimate nodes it sits at the top-right corner.
       const ix = this.desc.centeredIcon
         ? (box.width - iw) / 2
-        : box.width - this.theme.padXS - (this.theme.sizeS + iw) / 2;
+        : box.width - this.theme.edgeGap - (this.theme.spotSize + iw) / 2;
       // Resolve icon stroke color from inline style override
       const parsedStyle = parseNodeStyle(this.desc.style);
       const iconStroke = parsedStyle?.strokeColor || this.theme.colorDark;
@@ -362,7 +362,7 @@ class FolderArchimateRenderer extends ArchimateRenderer {
 
   constructor(desc: RenderDescriptor, folderFill: string, extraStyle = '') {
     // Pass extraStyle as part of shapeStyle so buildStyle() picks it up.
-    super(desc, `shape=folder;tabWidth=${desc.theme.sizeM};tabHeight=${desc.theme.sizeS};tabPosition=left;${extraStyle}`, null, '');
+    super(desc, `shape=folder;tabWidth=${desc.theme.tabMinW};tabHeight=${desc.theme.tabH};tabPosition=left;${extraStyle}`, null, '');
     this.folderFill = folderFill;
   }
 
@@ -374,7 +374,7 @@ class FolderArchimateRenderer extends ArchimateRenderer {
       'whiteSpace=wrap', 'html=1',
       `fontStyle=1`, `fontSize=${this.theme.fontSize}`,
       'align=center', 'verticalAlign=top',
-      `spacingTop=${Math.round(this.theme.padXXS)}`,
+      `spacingTop=${Math.round(this.theme.spacingTop)}`,
       `fillColor=${this.folderFill}`, `strokeColor=${this.theme.colorDark}`, `fontColor=${this.theme.colorDark}`,
       `strokeWidth=${this.theme.strokeWidth}`,
       'collapsible=0', 'container=1',

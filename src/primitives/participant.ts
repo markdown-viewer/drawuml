@@ -212,7 +212,7 @@ export function measureBracketBody(bracketLines: string[], bodyFontSize?: number
   if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
   if (fontFamily != null) metrics.fontFamily = fontFamily;
   const size = BlockLayout.bracketBody(bracketLines, Object.keys(metrics).length ? metrics : undefined, theme).measure();
-  const contentPad = theme.padXS;
+  const contentPad = theme.edgeGap;
   const sw = theme.strokeWidth;
   return {
     width: size.width + contentPad * 2 + sw * 2,
@@ -234,7 +234,7 @@ export function renderParticipant(
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
   const theme = opts?.theme ?? createTheme();
-  const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width, theme.sizeM);
+  const { cellW, cellX } = participantCellGeom(p.type, layout.x, layout.width, theme.iconSize);
 
   if (p.bracketLines && p.bracketLines.length > 0) {
     // Bracket body participant: container + rich content children
@@ -256,18 +256,18 @@ export function renderParticipant(
     // Content area algorithm copied from RichRenderer.renderRichBody:
     // childStartY = titlebarH + contentPad + padTop
     // Participant has no titlebar/shapePadding, so startY = contentPad.
-    const contentPad = theme.padXS;
+    const contentPad = theme.edgeGap;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(p.id, cellW, {
         align: opts?.participantAlign,
-        spacingX: theme.padXS,
+        spacingX: theme.edgeGap,
         fillColor,
         strokeColor,
       }, contentPad));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.padXS),
+        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.edgeGap),
         parent: p.id,
         y: 0, width: cellW, height: layout.iconHeight || 28,
       }));
@@ -275,7 +275,7 @@ export function renderParticipant(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.spotSize, spotFontSize: theme.spotFontSize, spotMargin: theme.edgeGap });
   return [mxVertex({
     id: p.id, value: labelHtml,
     style: participantStyle(p.type, { color: p.color, participantFill: theme.participantFill, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),
@@ -294,7 +294,7 @@ export function renderFootbox(
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
   const theme = opts?.theme ?? createTheme();
-  const pCfg = getScaledParticipantConfig(theme.sizeM);
+  const pCfg = getScaledParticipantConfig(theme.iconSize);
   const cfg = pCfg[p.type] || pCfg.participant;
   const footY = layout.y + layout.height;
   const footW = cfg.iconW > 0 ? cfg.iconW : layout.width;
@@ -318,18 +318,18 @@ export function renderFootbox(
       parent: '1',
       x: footX, y: footY, width: footW, height: footH,
     }));
-    const contentPad = theme.padXS;
+    const contentPad = theme.edgeGap;
     if (content.hasSeparators) {
       cells.push(...content.renderChildren(footId, footW, {
         align: opts?.participantAlign,
-        spacingX: theme.padXS,
+        spacingX: theme.edgeGap,
         fillColor,
         strokeColor,
       }, contentPad));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.padXS),
+        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.edgeGap),
         parent: footId,
         y: 0, width: footW, height: footH,
       }));
@@ -337,7 +337,7 @@ export function renderFootbox(
     return cells;
   }
 
-  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
+  const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.spotSize, spotFontSize: theme.spotFontSize, spotMargin: theme.edgeGap });
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
     style: participantStyle(p.type, { isFootbox: true, color: p.color, participantFill: theme.participantFill, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth }),

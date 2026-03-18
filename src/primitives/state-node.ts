@@ -38,15 +38,17 @@ class StateForkJoinRenderer extends Renderer {
   constructor(node: { id: string; theme?: Theme }) { super(node.id, node.theme); this.node = node; }
 
   protected doMeasure() {
-    return { width: this.theme.sizeXL, height: this.theme.sizeXXS };
+    const forkBarH = this.theme.sizeXXS;
+    return { width: this.theme.titleMinW, height: forkBarH };
   }
 
   render(box: ContentBox) {
-    const w = this.theme.sizeXL;
-    const h = this.theme.sizeXXS;
+    const forkBarH = this.theme.sizeXXS;
+    const w = this.theme.titleMinW;
+    const h = forkBarH;
     const x = box.x + (box.width - w) / 2;
     const y = box.y + (box.height - h) / 2;
-    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=${this.theme.sizeXXS};strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
+    return [mxVertex({ id: this.node.id, value: '', style: `line;html=1;strokeWidth=${forkBarH};strokeColor=${this.theme.colorDark};fillColor=${this.theme.colorDark};perimeter=linePerimeter;`, parent: this.parentId || '1', x, y, width: w, height: h })];
   }
 }
 
@@ -76,7 +78,7 @@ class StateChoiceRenderer extends RichRenderer {
   protected get richBodyStyleComplete(): boolean { return true; }
 
   protected doMeasure() {
-    const choiceSize = this.theme.sizeM;
+    const choiceSize = this.theme.iconSize;
     const hasText = !!this.label;
     if (!hasText) {
       // No text → rhombus; fixed square for 45° diamond
@@ -261,19 +263,19 @@ export class ConcurrentRegionRenderer extends Renderer {
   private get titleBarHeight(): number {
     if (!this.regionLabel) return 0;
     const m = TextBlock.inline(this.regionLabel, { size: this.theme.smallFontSize, family: this.theme.fontFamily }).measure();
-    return Math.ceil(m.height) + this.theme.padS;
+    return Math.ceil(m.height) + this.theme.titlePadY;
   }
 
   // Uniform padding on all sides inside each region lane.
   override get groupTopPadding(): number {
     const headerSize = this.regionLabel ? this.titleBarHeight : 0;
-    return this.theme.padXL + headerSize;
+    return this.theme.groupPad + headerSize;
   }
 
   override buildLayoutGraph() {
     const node = super.buildLayoutGraph();
     if (node.padding) {
-      const p = this.theme.padXL;
+      const p = this.theme.groupPad;
       node.padding.left = p;
       node.padding.right = p;
       node.padding.bottom = p;
@@ -382,7 +384,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
-    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme.padS };
+    if (ctx.lines.length === 0) return { emptyBodyPad: this.theme.contentPad };
     return {};
   }
 
@@ -393,7 +395,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
   protected getChildStyleOpts() {
     const parsed = this.nodeStyle ? parseNodeStyle(this.nodeStyle) : null;
     const fill = parsed?.fillColor || this.theme.defaultFill;
-    return { fillColor: fill, portConstraint: true as const, spacingX: this.theme.padXS };
+    return { fillColor: fill, portConstraint: true as const, spacingX: this.theme.edgeGap };
   }
 
   get clusterLabel(): string { return this._nodeLabel; }
@@ -401,12 +403,12 @@ class StateNodeRenderer extends SwimlaneRenderer {
   /** Height of the state title bar (startSize in DrawIO swimlane). */
   private get titleBarHeight(): number {
     const m = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure();
-    return Math.ceil(m.height) + this.theme.padS;
+    return Math.ceil(m.height) + this.theme.titlePadY;
   }
 
   // State title bar is a fixed title area
   // +2 compensates for visual gap difference vs non-fixed shapes
-  override get groupTopPadding(): number { return this.theme.padXL + this.titleBarHeight + 2; }
+  override get groupTopPadding(): number { return this.theme.groupPad + this.titleBarHeight + 2; }
 
   /**
    * Render: composite state → group container; leaf → swimlane.
@@ -417,7 +419,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const labelHtml = labelMeas.html;
       const parentCellId = this.parentId || '1';
       const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
-      const titleBarH = Math.ceil(labelMeas.measure().height) + this.theme.padS;
+      const titleBarH = Math.ceil(labelMeas.measure().height) + this.theme.titlePadY;
       const style = stateGroupStyle(titleBarH, this.theme, this.nodeStyle, hasConcurrentRegions);
       const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
         + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`

@@ -133,8 +133,8 @@ export abstract class Renderer {
    * Subclasses override for shape-specific logic.
    */
   get groupTopPadding(): number {
-    const base = this.theme.padXL;
-    return base + (this.clusterLabel ? this.theme.sizeXS : 0);
+    const base = this.theme.groupPad;
+    return base + (this.clusterLabel ? this.theme.portSize : 0);
   }
 
   /**
@@ -154,7 +154,7 @@ export abstract class Renderer {
     if (this.isCluster) {
       node.label = this.clusterLabel;
       node.children = this.children.map(c => c.buildLayoutGraph());
-      node.padding = { top: this.groupTopPadding, right: this.theme.padXL, bottom: this.theme.padXL, left: this.theme.padXL };
+      node.padding = { top: this.groupTopPadding, right: this.theme.groupPad, bottom: this.theme.groupPad, left: this.theme.groupPad };
     }
     return node;
   }

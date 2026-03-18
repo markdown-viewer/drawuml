@@ -10,7 +10,7 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class StorageRenderer extends RichRenderer {
   protected buildStyle(): string {
-    return `rounded=1;arcSize=20;whiteSpace=wrap;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.padXXS)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    return `rounded=1;arcSize=20;whiteSpace=wrap;fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.spacingTop)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
 }
 

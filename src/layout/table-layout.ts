@@ -24,16 +24,16 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const theme = options?.theme ?? createTheme();
   const fontSize = theme.fontSize;
   const fontFamily = theme.fontFamily;
-  const titleMinWidth = theme.sizeXL;
-  const titlePadX = theme.padM;
-  const titlePadY = theme.padS;
-  const minGap = theme.padL;
+  const titleMinWidth = theme.titleMinW;
+  const titlePadX = theme.titlePadX;
+  const titlePadY = theme.titlePadY;
+  const minGap = theme.nodeGap;
   const marginX = model.mainframe ? minGap : 0;
   let marginTop = 0;
-  const tabHeight = theme.sizeS;
-  const unitGap = theme.padXL;
-  const smallPad = theme.padXS;
-  const extBoundaryGap = theme.padXL;
+  const tabHeight = theme.tabH;
+  const unitGap = theme.unitGap;
+  const smallPad = theme.edgeGap;
+  const extBoundaryGap = theme.unitGap;
 
   // Title: compute height and push participants down by title height + gap
   const renderers = new Map<string, Renderer>();
@@ -69,7 +69,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   pList.forEach((p, idx) => { pIndex[p.id] = idx; });
 
   // Use theme-scaled participant config for icon dimensions
-  const pConfig = getScaledParticipantConfig(theme.sizeM);
+  const pConfig = getScaledParticipantConfig(theme.iconSize);
 
   // Calculate dynamic participant sizes (width and height).
   // For icon types (actor, boundary, etc.) with external labels:
@@ -82,7 +82,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const pcfg = pConfig[p.type] || pConfig.participant;
     const iconW = pcfg.iconW;
     const label = p.label || p.id;
-    const displayLabel = buildParticipantLabel(p, { stereotypePosition: model.stereotypePosition, fontSize, spotSize: theme.sizeS, spotFontSize: theme.spotFontSize, spotMargin: theme.padXS });
+    const displayLabel = buildParticipantLabel(p, { stereotypePosition: model.stereotypePosition, fontSize, spotSize: theme.spotSize, spotFontSize: theme.spotFontSize, spotMargin: theme.edgeGap });
     const labelW = measureLabel(displayLabel);
     const baseH = pcfg.iconSize;
     if (iconW > 0) {
@@ -127,9 +127,9 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
   // Pre-compute max activation nesting depth per participant to account for
   // activation bar width extending past the participant center.
-  const actBarWidth = theme.sizeXS;
+  const actBarWidth = theme.portSize;
 
-  const selfRefLoopOffset = theme.sizeL;
+  const selfRefLoopOffset = theme.nodeMinW;
   const maxActDepthByParticipant: Record<string, number> = {};
   for (const a of (model.activations || [])) {
     const cur = maxActDepthByParticipant[a.participant] || 0;
@@ -232,7 +232,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Expand gaps for concurrent notes on the same row to prevent overlap.
   // For each row, collect notes and sort by participant position, then ensure
   // adjacent notes have enough spacing between their anchoring participants.
-  const noteOverlapMargin = theme.padS; // minimum pixel gap between concurrent notes
+  const noteOverlapMargin = theme.contentPad; // minimum pixel gap between concurrent notes
   const notesByRow: Record<number, { noteIdx: number; anchorLeft: number; anchorRight: number; extendLeft: number; extendRight: number }[]> = {};
   (model.notes || []).forEach((n, idx) => {
     if (n.across) return; // across notes span all participants, skip
@@ -340,7 +340,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Pre-scan external messages to check if left-boundary arrows need more space.
   // If a label is wider than the distance from leftBoundaryX(0) to its target,
   // we need extra left margin — shift all participants rightward.
-  const minShortArrowLen = theme.sizeXL;
+  const minShortArrowLen = theme.titleMinW;
   const extLabelPadding = smallPad * 2;
   let extraLeftMargin = 0;
   for (const msg of model.messages) {
@@ -459,19 +459,19 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // Ref fragments: compute body content height from label text
     if (f.type === 'ref' && f.label) {
       const labelH = TextBlock.inline(f.label, seqFont).height;
-      const refH = tabHeight + labelH + theme.padS; // tab + body text + bottom padding
+      const refH = tabHeight + labelH + theme.contentPad; // tab + body text + bottom padding
       refContentHeightByRow[f.startRow] = Math.max(refContentHeightByRow[f.startRow] || 0, refH);
     }
   }
 
-  const fragmentBottomPad = theme.padS;  // internal padding below last content to frame bottom line
+  const fragmentBottomPad = theme.contentPad;  // internal padding below last content to frame bottom line
 
   // Unified row layout: compute centerline Y and unit height for each row.
   // The arrow sits at the centerline. Each row's bounding box is computed from
   // actual content: label height above the arrow, note height expanding both
   // above and below. The gap between adjacent bounding boxes is fixed (unitGap),
   // so rows with less content take less space, keeping visual spacing uniform.
-  const arrowPad = theme.padXS;
+  const arrowPad = theme.edgeGap;
 
   // Compute per-row unit dimensions using above/below center approach
   const rowUnits = [];
@@ -553,7 +553,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Helper: map a row index to its centerline Y (where the arrow sits)
   const rowY = (row) => rowCenterYs[row] ?? rowTop;
   // Bottom edge of the last row's unit (or minimal lifeline if no rows)
-  const lifelineMinHeight = theme.sizeL;
+  const lifelineMinHeight = theme.nodeMinW;
   const lastRowBottom = totalRows > 0
     ? rowTopYs[totalRows - 1] + rowUnits[totalRows - 1].height
     : rowTop + lifelineMinHeight;
@@ -949,7 +949,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // endRow points to the deactivate/destroy row; the activation bar should
     // visually end at the last connected message row (endRow - 1).
     const bottomRow = Math.max(a.startRow, a.endRow - 1);
-    const height = Math.max(theme.sizeXS, rowY(bottomRow) - y);
+    const height = Math.max(theme.portSize, rowY(bottomRow) - y);
     return {
       id: `act${idx + 1}`,
       participant: a.participant,
@@ -1255,7 +1255,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const isGroupLike2 = f.type === 'group' || f.type === 'partition';
     const tabLabel2 = isGroupLike2 ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
     const tabTextW2 = TextBlock.inline(tabLabel2 || f.type, { ...seqFont, weight: 'bold' }).width;
-    const tabWidth2 = Math.max(Math.ceil(tabTextW2) + 2 * theme.cornerClip, theme.sizeL);
+    const tabWidth2 = Math.max(Math.ceil(tabTextW2) + 2 * theme.cornerClip, theme.nodeMinW);
     const condLabel2 = isGroupLike2
       ? ((f.label || '').match(/\[([^\]]*)\]/)?.[1] || '')
       : (f.label || '');
@@ -1288,7 +1288,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const endPlaceholderRow = (f.endRow ?? f.startRow + 2) - 1;
     const fragBottom = (rowTopYs[endPlaceholderRow] ?? rowTop);
     // Minimum height: for ref type, account for body text content lines
-    let minFragH = theme.sizeL;
+    let minFragH = theme.nodeMinW;
     if (f.type === 'ref' && f.label) {
       const labelLines = f.label.split('\n').length;
       const lineH = theme.titleFontSize;
@@ -1300,7 +1300,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const isGroupLike = f.type === 'group' || f.type === 'partition';
     const tabLabel = isGroupLike ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
     const tabTextW = TextBlock.inline(tabLabel || f.type, { ...seqFont, weight: 'bold' }).width;
-    const tabWidth = Math.max(Math.ceil(tabTextW) + 2 * theme.cornerClip, theme.sizeL);
+    const tabWidth = Math.max(Math.ceil(tabTextW) + 2 * theme.cornerClip, theme.nodeMinW);
 
     return {
       id: `frag${idx + 1}`,
@@ -1413,7 +1413,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     }
     const y1 = rowY(dc.startRow);
     const y2 = rowY(dc.endRow);
-    const labelW = measureHtmlWidth(dc.label || '') + theme.padS; // label width + padding
+    const labelW = measureHtmlWidth(dc.label || '') + theme.contentPad; // label width + padding
     return {
       id: `dc${idx + 1}`,
       label: dc.label,
@@ -1437,7 +1437,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     maxRight = Math.max(maxRight, dc.labelX + dc.labelWidth);
   }
   const finalWidth = Math.max(width, maxRight + marginX);
-  const height = totalRows > 0 ? lastRowBottom + unitGap + maxIconHeight + unitGap : rowTop + lifelineMinHeight + theme.padS;
+  const height = totalRows > 0 ? lastRowBottom + unitGap + maxIconHeight + unitGap : rowTop + lifelineMinHeight + theme.contentPad;
 
   // Center title over participant content area (left ~ right)
   if (titleLayout) {

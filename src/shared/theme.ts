@@ -41,7 +41,6 @@ export interface Theme {
   // ── Stroke & corner ───────────────────────────────────────────────────────
   readonly strokeWidth: number;
   readonly boldStrokeWidth: number;    // strokeWidth × 2, used for bold lines
-  readonly arcSize: number;
   readonly largeArcSize: number;
   readonly cornerClip: number;
 
@@ -62,6 +61,37 @@ export interface Theme {
   readonly padL: number;                //  20 — large spacing  (@base12: fontSize×20/12)
   readonly padXL: number;               //  30 — extra large    (@base12: fontSize×30/12)
   readonly padXXL: number;              //  40 — extra extra large (@base12: fontSize×40/12)
+
+  // ── Semantic aliases ─────────────────────────────────────────────────────
+
+  // Heights  (all = sizeS @12→20)
+  readonly rowH: number;        // map / class body row height
+  readonly titleBarH: number;   // swimlane startSize, card title, state title
+  readonly tabH: number;        // folder / frame / fragment tab height
+
+  // Element sizes
+  readonly arcSize: number;     // rounded corner arc size                  (= sizeXS, 10)
+  readonly iconSize: number;    // icon renderer scale basis                (= sizeM,  30)
+  readonly spotSize: number;    // spot circle diameter                     (= sizeS,  20)
+  readonly portSize: number;    // port square, cylinder cap                (= sizeXS, 10)
+
+  // Minimum widths
+  readonly tabMinW: number;     // tab strip min-width                      (= sizeM,  30)
+  readonly nodeMinW: number;    // DOT node min-width, lifeline min-height  (= sizeL,  40)
+  readonly titleMinW: number;   // class/sequence title min-width           (= sizeXL, 60)
+
+  // Interior padding  (inside a box / cell)
+  readonly contentPad: number;  // general content area padding   (= padS,   10)
+  readonly titlePadY: number;   // title bar vertical pad         (= padS,   10)
+  readonly titlePadX: number;   // title bar horizontal pad       (= padXL,  30)
+  readonly spacingTop: number;  // DrawIO spacingTop micro-gap    (= padXXS,  2)
+
+  // Layout gaps  (between elements)
+  readonly edgeGap: number;     // edge / label gap               (= padXS,   5)
+  readonly nodeGap: number;     // node-to-node gap               (= padL,   20)
+  readonly groupPad: number;    // cluster interior padding       (= padXL,  30)
+  readonly unitGap: number;     // sequence unit gap              (= padXL,  30)
+  readonly layerGap: number;    // layer-to-layer ranksep         (= padXXL, 40)
 }
 
 /** Round a number to at most 4 decimal places, stripping trailing zeros. */
@@ -72,6 +102,23 @@ export function createTheme(config?: ThemeConfig): Theme {
   const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
   const fontFamily = config?.fontFamily ?? DEFAULT_FONT_FAMILY;
   const strokeWidth = r4(fontSize / 12);
+
+  // ── Spec variables — computed once, referenced by semantic aliases ──
+  const sizeXXS = r4(fontSize * 5 / 12);
+  const sizeXS  = r4(fontSize * 10 / 12);
+  const sizeS   = r4(fontSize * 20 / 12);
+  const sizeM   = r4(fontSize * 30 / 12);
+  const sizeL   = r4(fontSize * 40 / 12);
+  const sizeXL  = r4(fontSize * 60 / 12);
+  const sizeMax = r4(fontSize * 720 / 12);
+
+  const padXXS = r4(fontSize * 2 / 12);
+  const padXS  = r4(fontSize * 5 / 12);
+  const padS   = r4(fontSize * 10 / 12);
+  const padM   = r4(fontSize * 15 / 12);
+  const padL   = r4(fontSize * 20 / 12);
+  const padXL  = r4(fontSize * 30 / 12);
+  const padXXL = r4(fontSize * 40 / 12);
 
   return {
     // ── Typography ──
@@ -94,27 +141,26 @@ export function createTheme(config?: ThemeConfig): Theme {
     // ── Stroke & corner ──
     strokeWidth: strokeWidth,
     boldStrokeWidth: r4(strokeWidth * 2),
-    arcSize: r4(fontSize / 2),
     largeArcSize: fontSize,
     cornerClip: r4(fontSize * 8 / 12),
 
     // ── Sizes — 7 standardized tiers ──
-    sizeXXS: r4(fontSize * 5 / 12),     //   5
-    sizeXS: r4(fontSize * 10 / 12),     //  10
-    sizeS: r4(fontSize * 20 / 12),      //  20
-    sizeM: r4(fontSize * 30 / 12),      //  30
-    sizeL: r4(fontSize * 40 / 12),      //  40
-    sizeXL: r4(fontSize * 60 / 12),     //  60
-    sizeMax: r4(fontSize * 720 / 12),   // 720
+    sizeXXS, sizeXS, sizeS, sizeM, sizeL, sizeXL, sizeMax,
 
-    // ── Spacing — 5 unified tiers ──
-    padXXS: r4(fontSize * 2 / 12),      //   2
-    padXS: r4(fontSize * 5 / 12),       //   5
-    padS: r4(fontSize * 10 / 12),       //  10
-    padM: r4(fontSize * 15 / 12),       //  15
-    padL: r4(fontSize * 20 / 12),       //  20
-    padXL: r4(fontSize * 30 / 12),      //  30
-    padXXL: r4(fontSize * 40 / 12),     //  40
+    // ── Spacing — 7 unified tiers ──
+    padXXS, padXS, padS, padM, padL, padXL, padXXL,
+
+    // ── Semantic aliases ──
+    // Heights
+    rowH: sizeS,       titleBarH: sizeS,     tabH: sizeS,
+    // Element sizes
+    arcSize: sizeXS,   iconSize: sizeM,   spotSize: sizeS,   portSize: sizeXS,
+    // Minimum widths
+    tabMinW: sizeM,    nodeMinW: sizeL,      titleMinW: sizeXL,
+    // Interior padding
+    contentPad: padS,  titlePadY: padS,      titlePadX: padXL,  spacingTop: padXXS,
+    // Layout gaps
+    edgeGap: padXS,    nodeGap: padL,        groupPad: padXL,   unitGap: padXL,    layerGap: padXXL,
   };
 }
 
