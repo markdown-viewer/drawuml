@@ -506,6 +506,10 @@ function mapNode(
   //
   // Each used port may have EAST and/or WEST variants (dual-port) so
   // edges can connect from either side, reducing routing congestion.
+  //
+  // When multiple edges target the same port on the same side, distribute
+  // variant ports evenly along the port height so ELK can spread the
+  // connection points instead of stacking them at a single pixel.
   if (gn.ports && gn.ports.length > 0) {
     const nodeWidth = gn.width ?? 0;
     const usedPorts = gn.ports.filter(p => portVariants.has(p.id));
@@ -513,18 +517,32 @@ function mapNode(
       const elkPorts: ElkPort[] = [];
       for (const p of usedPorts) {
         const variants = portVariants.get(p.id)!;
-        const portY = (p.y ?? 0) + (p.height ?? 0) / 2;
+        const portY = p.y ?? 0;
+        const portH = p.height ?? 1;
+
+        // Group variants by side for per-side distribution
+        const bySide = new Map<string, Array<{ variantId: string; side: string }>>();
         for (const v of variants) {
-          elkPorts.push({
-            id: v.variantId,
-            x: v.side === 'EAST' ? nodeWidth : 0,
-            y: portY,
-            width: 1,
-            height: 1,
-            layoutOptions: {
-              'elk.port.side': v.side,
-            },
-          });
+          if (!bySide.has(v.side)) bySide.set(v.side, []);
+          bySide.get(v.side)!.push(v);
+        }
+
+        for (const [side, sideVars] of bySide) {
+          const n = sideVars.length;
+          for (let i = 0; i < n; i++) {
+            // Spread variants evenly: center of each slot
+            const slotY = portY + (i + 0.5) * portH / n;
+            elkPorts.push({
+              id: sideVars[i].variantId,
+              x: side === 'EAST' ? nodeWidth : 0,
+              y: slotY,
+              width: 1,
+              height: 1,
+              layoutOptions: {
+                'elk.port.side': side,
+              },
+            });
+          }
         }
       }
       elk.ports = elkPorts;
