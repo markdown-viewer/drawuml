@@ -26,6 +26,7 @@ import { Renderer } from '../../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from '../renderer-tree.ts';
 import { createTheme, fontFamilyStyle, type Theme } from '../../shared/theme.ts';
 import { cellId, escapeXml, n4 } from '../../shared/xml-utils.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import { getElk, type ElkLayoutResult } from './elk-engine.ts';
 import { elkSpacing, collectEdges, type ElkEdge } from './elk-adapter.ts';
 import { routeOrthogonalFixed } from '../orthogonal-router.ts';
@@ -506,18 +507,26 @@ export async function elkSwimlaneLayout2(
   // (stripping ghost-node-induced left offset).  pad ensures uniform padding on
   // both sides regardless of where ELK placed own nodes internally.
   const pad = theme.padXL;
-  const laneWidths = laneResults.map(lr => {
+  // Measure lane title widths — title must fit within the lane
+  const titleFont = { family: theme.fontFamily, size: theme.smallFontSize };
+  const titleMinWidths = regions.map((_r, li) => {
+    const label = swimContainer.concurrentRegionLabels?.[li] || '';
+    if (!label) return 0;
+    return TextBlock.plain(label, titleFont).measure().width + 2 * theme.padXS;
+  });
+  const laneWidths = laneResults.map((lr, li) => {
     const minX = isFinite(lr.minOwnX) ? lr.minOwnX : 0;
-    return (lr.ownWidth - minX) + 2 * pad;
+    const contentW = (lr.ownWidth - minX) + 2 * pad;
+    return Math.max(contentW, titleMinWidths[li]);
   });
   const laneXStart: number[] = [0];
   for (let i = 1; i < numLanes; i++)
     laneXStart.push(laneXStart[i - 1] + laneWidths[i - 1]);
 
-  // Shift so content starts at pad from lane left edge.
+  // Shift so content is centered within lane width.
   for (const lr of laneResults) {
     const minX = isFinite(lr.minOwnX) ? lr.minOwnX : 0;
-    lr.globalX = laneXStart[lr.laneIdx] + pad - minX;
+    lr.globalX = laneXStart[lr.laneIdx] + (laneWidths[lr.laneIdx] - (lr.ownWidth - minX)) / 2 - minX;
   }
 
   const titleBarOffset = theme.sizeS;
