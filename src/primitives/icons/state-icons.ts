@@ -22,12 +22,11 @@ import { fontFamilyStyle } from '../../shared/theme.ts';
 // ---------------------------------------------------------------------------
 
 class StateStartRenderer extends IconRenderer {
-  constructor(desc: RenderDescriptor) { super(desc); }
+  constructor(desc: RenderDescriptor) { super(desc); desc.label = ''; }
 
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    // Icon at top — label area (if any) extends below
     const y = box.y;
     return [mxVertex({ id: this.id, value: '', style: `shape=startState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
@@ -38,12 +37,11 @@ class StateStartRenderer extends IconRenderer {
 // ---------------------------------------------------------------------------
 
 class StateEndRenderer extends IconRenderer {
-  constructor(desc: RenderDescriptor) { super(desc); }
+  constructor(desc: RenderDescriptor) { super(desc); desc.label = ''; }
 
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    // Icon at top — label area (if any) extends below
     const y = box.y;
     return [mxVertex({ id: this.id, value: '', style: `shape=endState;whiteSpace=wrap;html=1;aspect=fixed;fillColor=${this.theme.colorDark};strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
@@ -54,12 +52,11 @@ class StateEndRenderer extends IconRenderer {
 // ---------------------------------------------------------------------------
 
 class FlowFinalRenderer extends IconRenderer {
-  constructor(desc: RenderDescriptor) { super(desc); }
+  constructor(desc: RenderDescriptor) { super(desc); desc.label = ''; }
 
   render(box: ContentBox) {
     const d = this.iconWidth;
     const x = box.x + (box.width - d) / 2;
-    // Icon at top — label area (if any) extends below
     const y = box.y;
     return [mxVertex({ id: this.id, value: '', style: `shape=flowFinal;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};`, parent: this.parentId || '1', x, y, width: d, height: d })];
   }
@@ -75,13 +72,8 @@ class StateHistoryRenderer extends IconRenderer {
   constructor(desc: RenderDescriptor) {
     super(desc);
     this.historyLabel = desc.label || 'H';
+    desc.label = ''; // label is rendered inside the circle, not as external node label
   }
-
-  // Label is rendered inside the circle, not as an external label.
-  // Override measure to return icon-only dimensions.
-  get nodeLabel(): string { return ''; }
-  graphicSize() { return null; }
-  protected doMeasure() { return { width: this.iconWidth, height: this.iconHeight }; }
 
   render(box: ContentBox) {
     const d = this.iconWidth;
