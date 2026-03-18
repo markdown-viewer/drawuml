@@ -68,6 +68,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (!r.parentId) r.setLayoutRef(layout);
   }
 
+  // Pre-rendered background cells (e.g. swimlane lane rectangles)
+  if (layout.prefixCells) cells.push(...layout.prefixCells);
+
   // Render all root elements (nodes, groups, notes, global elements).
   // Each group renderer renders its own direct children via renderChildren().
   for (const [id, r] of renderers) {

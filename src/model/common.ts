@@ -111,6 +111,8 @@ export interface LayoutResult {
   nodes: Record<string, LayoutNode>;
   edges: LayoutEdge[];
   groups?: Record<string, LayoutGroup>;
+  /** Pre-rendered mxCell XML injected before node/edge rendering (e.g. swimlane backgrounds). */
+  prefixCells?: string[];
 }
 
 // ---------------------------------------------------------------------------

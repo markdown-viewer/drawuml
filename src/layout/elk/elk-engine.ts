@@ -15,6 +15,7 @@ import { snapPortNodes, alignFieldNotes, positionTitle, rearrangeSwimlanes, sepa
 import { layoutGraphToElk, layoutGraphToElkSimple } from './elk-adapter.ts';
 import { extractElkLayout } from './elk-extractor.ts';
 import { dotLayout } from '../dot-layout.ts';
+import { elkSwimlaneLayout2 } from './elk-swimlane2.ts';
 
 // ---------------------------------------------------------------------------
 // ELK instance management
@@ -22,7 +23,7 @@ import { dotLayout } from '../dot-layout.ts';
 
 let elkInstance: any = null;
 
-function getElk() {
+export function getElk() {
   if (!elkInstance) {
     elkInstance = new ELK();
   }
@@ -42,18 +43,22 @@ export interface ElkLayoutResult {
 import { createTheme, type Theme } from '../../shared/theme.ts';
 
 /**
- * Lay out a SemanticModel using the ELK layered algorithm.
- * Returns layout coordinates and pre-built renderers for generation.
+ * Core ELK layout pipeline (steps 1–8, no post-processing).
+ *
+ * Runs the full two-pass ELK layout including:
+ *  - renderer tree construction
+ *  - pass-1 (no-port) ELK call to get node positions
+ *  - pass-2 (port-aware) ELK call for final coordinates and edge routing
+ *  - label position extraction
+ *
+ * Returns the raw LayoutResult + pre-built renderers, without any of the
+ * swimlane / snap / alignFieldNotes / positionTitle / separateOverlappingEdges
+ * post-processing so callers can apply only what they need.
  */
-export async function elkLayout(model: SemanticModel, options?: { theme?: Theme }): Promise<ElkLayoutResult> {
-  // Swimlane diagrams: fallback to DOT layout with ortho edges + edge fix
-  const hasSwimlanes = (model.groups || []).some(
-    g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
-  );
-  if (hasSwimlanes) {
-    return dotLayout(model, { ortho: true, theme: options?.theme });
-  }
-
+export async function runElkPipeline(
+  model: SemanticModel,
+  options?: { theme?: Theme },
+): Promise<ElkLayoutResult> {
   const elk = getElk();
 
   // 1. Create renderers for each node
@@ -79,24 +84,38 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   // 6. Collect group IDs for edge group detection
   const groupIds = new Set<string>();
   if (model.groups) {
-    for (const g of model.groups) {
-      groupIds.add(g.id);
-    }
+    for (const g of model.groups) groupIds.add(g.id);
   }
 
-  // 7. Run ELK layout pass 2 (async — returns a Promise)
+  // 7. Run ELK layout pass 2
   const elkResult = await elk.layout(elkGraph);
 
-  // 8. Extract layout result
-  const theme = options?.theme ?? createTheme();
+  // 8. Extract layout result (includes label positions from ELK)
   const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
-  // 9. Swimlane column rearrangement (if activity swimlanes present)
-  rearrangeSwimlanes(layout, model, theme);
+  return { layout, renderers };
+}
 
-  // 10. Post-processing (shared with DOT engine)
-  // Build set of port node IDs that were laid out as ELK ports — these
-  // already have correct positions and should not be re-snapped.
+// ---------------------------------------------------------------------------
+// Public elkLayout — full pipeline including all post-processing
+// ---------------------------------------------------------------------------
+
+export async function elkLayout(model: SemanticModel, options?: { theme?: Theme }): Promise<ElkLayoutResult> {
+  // Swimlane diagrams: border-port alignment algorithm, then shared post-processing
+  const hasSwimlanes = (model.groups || []).some(
+    g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1,
+  );
+
+  const { layout, renderers } = hasSwimlanes
+    ? await elkSwimlaneLayout2(model, options)
+    : await runElkPipeline(model, options);
+
+  const theme = options?.theme ?? createTheme();
+
+  // Swimlane column rearrangement (non-swimlane path only; swimlane already handled internally)
+  if (!hasSwimlanes) rearrangeSwimlanes(layout, model, theme);
+
+  // Post-processing shared by both paths
   const elkPortIds = new Set<string>();
   for (const g of model.groups || []) {
     for (const childId of g.children) {
@@ -107,9 +126,6 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
   snapPortNodes(layout, model, renderers, theme, elkPortIds);
   alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
   positionTitle(layout, renderers);
-
-  // 11. Enforce minimum edge-edge spacing — must run AFTER snapPortNodes
-  //     which may replace edge.points via clipPathAtGroupBoundary.
   separateOverlappingEdges(layout, theme.padXS);
 
   return { layout, renderers };

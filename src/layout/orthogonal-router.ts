@@ -67,6 +67,25 @@ export function routeOrthogonal(layout: LayoutResult, model: SemanticModel, them
   routeAllEdges(layout, sp, isLR);
 }
 
+/**
+ * Route cross-lane edges in a swimlane diagram where node positions are fixed.
+ * Uses TB (top-to-bottom) axis — lanes are columns with different X, same-lane
+ * nodes share X-layers, cross-lane nodes are in different Y-layers.
+ * Skips alignNearbyNodes/adjustNodeSpacing since node positions are fixed by ELK.
+ *
+ * portHints: optional pre-computed port X positions from ELK (keyed by edgeId).
+ * When provided, these override the default even-distribution in assignPorts so that
+ * cross-lane edges use the same ports ELK computed for each node in the target lane.
+ */
+export function routeOrthogonalFixed(
+  layout: LayoutResult,
+  theme: Theme,
+  portHints?: Map<string, { fromX?: number; toX?: number }>,
+): void {
+  const sp = spacingFromTheme(theme);
+  routeAllEdges(layout, sp, false, true, portHints);
+}
+
 // ---------------------------------------------------------------------------
 // Unified routing for TB and LR
 // ---------------------------------------------------------------------------
@@ -107,9 +126,13 @@ interface GapSegmentResult {
   splitLinkPos?: number;
 }
 
-function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean): void {
+function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean, fixedNodes = false, portHints?: Map<string, { fromX?: number; toX?: number }>): void {
   const nodes = layout.nodes;
-  const edges = layout.edges;
+  // When nodes are fixed (swimlane mode), only route edges that have no pre-computed
+  // points — edges already routed by ELK must not be overwritten.
+  const edges = fixedNodes
+    ? (layout.edges ?? []).filter(e => !e.points || e.points.length < 2)
+    : layout.edges;
   if (!edges || edges.length === 0) return;
 
   const layers = buildLayers(nodes, isLR);
@@ -123,11 +146,13 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
     }
   }
 
-  // Preprocess: nudge nearly-aligned adjacent nodes to eliminate tiny bends
-  alignNearbyNodes(nodes, edges, nodeLayerIndex, isLR, sp.edgeNode);
+  if (!fixedNodes) {
+    // Preprocess: nudge nearly-aligned adjacent nodes to eliminate tiny bends
+    alignNearbyNodes(nodes, edges, nodeLayerIndex, isLR, sp.edgeNode);
 
-  // Preprocess: adjust node spacing for layers with pass-through long edges
-  adjustNodeSpacing(nodes, edges, layers, nodeLayerIndex, sp, isLR, layout.groups);
+    // Preprocess: adjust node spacing for layers with pass-through long edges
+    adjustNodeSpacing(nodes, edges, layers, nodeLayerIndex, sp, isLR, layout.groups);
+  }
 
   // Pre-compute pass-through positions for long edges (needed for port ordering)
   const edgePassThrough = new Map<string, number>();
@@ -155,6 +180,8 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
 
   // Compute port positions — distribute multiple edges evenly across each node side
   const portAssignments = assignPorts(nodes, edges, nodeLayerIndex, isLR, edgePassThrough);
+  // Override with ELK-pre-computed port positions where available
+  if (portHints) applyPortHints(portAssignments, portHints, edges, nodeLayerIndex);
 
   // Compute gap boundaries: for each gap i, the start position for routing slots
   const gapStartPos: number[] = [];
@@ -257,6 +284,8 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
     }
     if (ptChanged) {
       const finalPorts = assignPorts(nodes, edges, nodeLayerIndex, isLR, edgePassThrough);
+      // Re-apply port hints so ELK-computed positions survive the re-assignment
+      if (portHints) applyPortHints(finalPorts, portHints, edges, nodeLayerIndex);
       // Build an edge lookup for efficiency
       const edgeById = new Map<string, LayoutEdge>();
       for (const e of edges) edgeById.set(e.id, e);
@@ -465,24 +494,67 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean):
     edge.orthoRouted = true;
 
     // Reposition edge labels to match the new orthogonal route.
-    // CENTER label → below/beside the trunk (longest segment), matching ELK style.
+    // CENTER label → beside the trunk (longest segment), matching ELK style.
+    //   For vertical trunks (TB): try routing direction side first, then opposite.
+    //   For horizontal trunks (LR): try routing direction side first, then opposite.
+    //   Collision detection: if the label overlaps any node, try the other side.
+    //   If both collide, use the routing direction side.
     // TAIL (cardFrom) → midpoint of the first segment.
     // HEAD (cardTo) → midpoint of the last segment.
     if (cleaned.length >= 2) {
       if (edge.labelPos) {
-        const { idx } = longestSegment(cleaned);
+        const { idx } = longestFlowSegment(cleaned, isLR);
         const a = cleaned[idx], b = cleaned[idx + 1];
         const midX = (a.x + b.x) / 2;
         const midY = (a.y + b.y) / 2;
         if (edge.labelSize) {
-          // Place label beside the trunk segment with edgeLabelSpacing offset
           const isHoriz = Math.abs(b.y - a.y) < TOLERANCE;
-          if (isHoriz) {
-            // Horizontal trunk (TB layout) → label below
-            edge.labelPos = { x: midX, y: midY + sp.edgeLabelSpacing + edge.labelSize.height / 2 };
+          // Determine routing direction from the bend angle: the label goes
+          // into the corner between the flow segment and the adjacent routing
+          // segment (toward the routing source).
+          // For a vertical segment, check the adjacent horizontal point to
+          // determine which side the bend is on.
+          // For a horizontal segment, check the adjacent vertical point.
+          let routeDir = 1;
+          const adj = idx > 0 ? cleaned[idx - 1] : (idx + 2 < cleaned.length ? cleaned[idx + 2] : null);
+          if (adj) {
+            if (isHoriz) {
+              // Horizontal segment: adjacent is vertical → check y
+              routeDir = adj.y < midY ? -1 : 1;
+            } else {
+              // Vertical segment: adjacent is horizontal → check x
+              routeDir = adj.x < midX ? -1 : 1;
+            }
+          }
+
+          const placeLabelPos = (dir: number) => {
+            if (isHoriz) {
+              // Horizontal trunk → label above (dir=-1) or below (dir=+1)
+              return { x: midX, y: midY + dir * (sp.edgeLabelSpacing + edge.labelSize!.height / 2) };
+            } else {
+              // Vertical trunk → label left (dir=-1) or right (dir=+1)
+              return { x: midX + dir * (sp.edgeLabelSpacing + edge.labelSize!.width / 2), y: midY };
+            }
+          };
+
+          // Check if a label rect overlaps any node
+          const labelCollides = (pos: { x: number; y: number }) => {
+            const lw = edge.labelSize!.width, lh = edge.labelSize!.height;
+            const lx1 = pos.x - lw / 2, ly1 = pos.y - lh / 2;
+            const lx2 = pos.x + lw / 2, ly2 = pos.y + lh / 2;
+            for (const nid in nodes) {
+              const n = nodes[nid];
+              if (lx1 < n.x + n.width && lx2 > n.x && ly1 < n.y + n.height && ly2 > n.y) return true;
+            }
+            return false;
+          };
+
+          const preferred = placeLabelPos(routeDir);
+          if (!labelCollides(preferred)) {
+            edge.labelPos = preferred;
           } else {
-            // Vertical trunk (LR layout) → label to the right
-            edge.labelPos = { x: midX + sp.edgeLabelSpacing + edge.labelSize.width / 2, y: midY };
+            const opposite = placeLabelPos(-routeDir);
+            edge.labelPos = !labelCollides(opposite) ? opposite : preferred;
           }
         } else {
           edge.labelPos = { x: midX, y: midY };
@@ -510,6 +582,24 @@ function longestSegment(pts: { x: number; y: number }[]): { idx: number; len: nu
     if (len > bestLen) { bestLen = len; best = i; }
   }
   return { idx: best, len: bestLen };
+}
+
+/**
+ * Return the index of the longest segment along the primary flow direction.
+ * TB layout → longest vertical segment; LR layout → longest horizontal segment.
+ * Falls back to longestSegment if no segment matches the flow direction.
+ */
+function longestFlowSegment(pts: { x: number; y: number }[], isLR: boolean): { idx: number; len: number } {
+  let best = -1, bestLen = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const dx = Math.abs(pts[i + 1].x - pts[i].x);
+    const dy = Math.abs(pts[i + 1].y - pts[i].y);
+    // TB: want vertical (dy > dx); LR: want horizontal (dx > dy)
+    const isFlow = isLR ? dx > dy : dy > dx;
+    const len = dx + dy;
+    if (isFlow && len > bestLen) { bestLen = len; best = i; }
+  }
+  return best >= 0 ? { idx: best, len: bestLen } : longestSegment(pts);
 }
 
 /** Midpoint of segment at index `idx`. */
@@ -617,6 +707,38 @@ function assignPorts(
   }
 
   return portMap;
+}
+
+/**
+ * Apply pre-computed ELK port positions into a PortMap, overriding the
+ * evenly-distributed defaults from assignPorts.
+ *
+ * hints keys are semantic edge IDs; fromX is the port on edge.from, toX on edge.to.
+ * Because the router may reverse edges (when srcLayer > tgtLayer), we check the
+ * actual layer ordering to map semantic from/to → routing out/in.
+ */
+function applyPortHints(
+  portMap: PortMap,
+  hints: Map<string, { fromX?: number; toX?: number }>,
+  edges: LayoutEdge[],
+  nodeLayerIndex: Map<string, number>,
+): void {
+  const edgeById = new Map<string, LayoutEdge>(edges.map(e => [e.id, e]));
+  for (const [eid, hint] of Array.from(hints.entries())) {
+    const edge = edgeById.get(eid);
+    if (!edge) continue;
+    const sl = nodeLayerIndex.get(edge.from);
+    const tl = nodeLayerIndex.get(edge.to);
+    if (sl === undefined || tl === undefined) continue;
+    // In the router, the "out" port is always on the lower-layer-index node
+    const isForward = sl <= tl;
+    if (hint.fromX !== undefined) {
+      portMap.set(portKey(edge.from, eid, isForward ? 'out' : 'in'), hint.fromX);
+    }
+    if (hint.toX !== undefined) {
+      portMap.set(portKey(edge.to, eid, isForward ? 'in' : 'out'), hint.toX);
+    }
+  }
 }
 
 /** Look up a pre-assigned port position, falling back to node center. */

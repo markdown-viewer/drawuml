@@ -86,7 +86,7 @@ function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string
 // ELK spacing — helper to extract layout spacing strings from theme
 // ---------------------------------------------------------------------------
 
-function elkSpacing(theme: Theme = createTheme()) {
+export function elkSpacing(theme: Theme = createTheme()) {
   return {
     nodeNode: String(theme.padL),
     nodeNodeBetweenLayers: String(theme.padXXL),
@@ -798,7 +798,7 @@ function boostStartPathPriority(elkRoot: ElkNode, model: SemanticModel): void {
  * - Port-level edges (fromPort / toPort)
  * - Direction-inverted edges (left/up → swap source/target for layout)
  */
-function collectEdges(
+export function collectEdges(
   model: SemanticModel,
   renderers: Map<string, Renderer>,
   theme?: Theme,
