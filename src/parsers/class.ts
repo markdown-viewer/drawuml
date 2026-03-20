@@ -11,6 +11,7 @@ import {
   parseArchimateRelArgs,
   resolveArchimateLayerColor,
 } from './archimate-macros.ts';
+import { lookupAwslibMacro, isKnownAwslibSprite } from './awslib-macros.ts';
 
 // Legacy activity diagram logic is merged into parseClassDiagram via lazy detection.
 
@@ -929,6 +930,34 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           continue;
         }
 
+        // awslib stdlib macros: "EC2(alias, "Label", "tech")"
+        if (isKnownAwslibSprite(st.name)) {
+          const args = (st.args || '').split(',');
+          const alias = args[0] ? args[0].trim().replace(/^"|"$/g, '') : '';
+          const rawLabel = args[1] ? args[1].trim().replace(/^"|"$/g, '') : st.name;
+          const label = rawLabel || st.name;
+          const id = normalizeId(alias || st.name);
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            const awsInfo = lookupAwslibMacro(st.name);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: awsInfo ? awsInfo.shapeKey : 'mxgraph.aws4.resourceIcon.general',
+              stereotypeLabel: '',
+              bodyLines: [],
+              style: null,
+              resIcon:     awsInfo?.resIcon,
+              fillColor:   awsInfo?.fillColor,
+              strokeColor: awsInfo?.strokeColor,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+
         const relInfo = lookupArchimateRelMacro(st.name);
         if (relInfo) {
           const [fromArg, toArg, label] = parseArchimateRelArgs(st.args || '');
@@ -992,6 +1021,35 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           }
           continue;
         }
+        // awslib sprite mis-parsed as sequence_block
+        if (isKnownAwslibSprite(capitalized)) {
+          const rawText = String(st.text || '');
+          const argsStr = rawText.startsWith('(') ? rawText.slice(1, rawText.lastIndexOf(')')) : rawText;
+          const args = argsStr.split(',');
+          const alias = args[0] ? args[0].trim().replace(/^"|"$/g, '') : '';
+          const rawLabel = args[1] ? args[1].trim().replace(/^"|"$/g, '') : capitalized;
+          const label = rawLabel || capitalized;
+          const id = normalizeId(alias || capitalized);
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            const awsInfo = lookupAwslibMacro(capitalized);
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label,
+              stereotype: awsInfo ? awsInfo.shapeKey : 'mxgraph.aws4.resourceIcon.general',
+              stereotypeLabel: '',
+              bodyLines: [],
+              style: null,
+              resIcon:     awsInfo?.resIcon,
+              fillColor:   awsInfo?.fillColor,
+              strokeColor: awsInfo?.strokeColor,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
       }
 
       // ArchiMate macros that PEG mis-parses as block_statement|group
@@ -1017,6 +1075,33 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
                 stereotypeLabel: '',
                 bodyLines: [],
                 style: bg || null,
+              };
+              registerNodeInGroup(id);
+              lastDefinedClass = id;
+            }
+            continue;
+          }
+          // awslib sprite mis-parsed as block_statement|group
+          if (isKnownAwslibSprite(m[1])) {
+            const args = m[2].split(',');
+            const alias = args[0] ? args[0].trim().replace(/^"|"$/g, '') : '';
+            const rawLabel = args[1] ? args[1].trim().replace(/^"|"$/g, '') : m[1];
+            const label = rawLabel || m[1];
+            const id = normalizeId(alias || m[1]);
+            if (id) {
+              if (!nodesById[id]) nodeOrder.push(id);
+              const awsInfo = lookupAwslibMacro(m[1]);
+              nodesById[id] = {
+                id,
+                type: NodeType.Class,
+                label,
+                stereotype: awsInfo ? awsInfo.shapeKey : 'mxgraph.aws4.resourceIcon.general',
+                stereotypeLabel: '',
+                bodyLines: [],
+                style: null,
+                resIcon:     awsInfo?.resIcon,
+                fillColor:   awsInfo?.fillColor,
+                strokeColor: awsInfo?.strokeColor,
               };
               registerNodeInGroup(id);
               lastDefinedClass = id;

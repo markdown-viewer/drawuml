@@ -38,6 +38,12 @@ export interface SemanticNode {
   portType?: 'portin' | 'portout';
   /** When true, the archimate icon overlay is horizontally centered (used by 'archimate' keyword nodes). */
   centeredIcon?: boolean;
+  /** AWS4 composite icon overlay stencil key, e.g. 'mxgraph.aws4.api_gateway'. */
+  resIcon?: string;
+  /** AWS4 composite icon background fill color, e.g. '#E7157B'. */
+  fillColor?: string;
+  /** AWS4 composite icon background stroke color, e.g. '#ffffff'. */
+  strokeColor?: string;
 }
 
 export interface SemanticEdge {

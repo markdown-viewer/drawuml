@@ -71,6 +71,12 @@ export interface RenderDescriptor {
   centeredIcon?: boolean;
   /** Generic type parameter text, e.g. "? extends Element". */
   generic?: string;
+  /** AWS4 composite icon overlay stencil key, e.g. 'mxgraph.aws4.api_gateway'. */
+  resIcon?: string | null;
+  /** AWS4 composite icon background fill color, e.g. '#E7157B'. */
+  fillColor?: string | null;
+  /** AWS4 composite icon background stroke color, e.g. '#ffffff'. */
+  strokeColor?: string | null;
 
   // ── Theme ───────────────────────────────────────────────────────────
   /** Computed theme for this conversion pass. */

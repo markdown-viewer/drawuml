@@ -55,36 +55,64 @@ export class MxgraphIconRenderer extends IconRenderer {
     const iw = this.iconWidth;
     const ih = this.iconHeight;
 
-    // Extra style from icon-data (e.g. fillColor for AWS/archimate layer colors)
-    const dataStyle   = this.iconRecord?.style ?? '';
-    // User-specified inline color (#RRGGBB or #Name)
-    const inlineColor = this.desc.style;
+    let style: string;
 
-    // Only emit default fillColor when dataStyle doesn't already supply one
-    const defaultFill = dataStyle.includes('fillColor=') ? null : `fillColor=${this.theme.defaultFill}`;
+    if (this.desc.resIcon) {
+      // AWS4 composite resourceIcon: colored square background + white icon overlay
+      const fillColor  = this.desc.fillColor  ?? '#232F3E';
+      const strokeColor = this.desc.strokeColor ?? '#ffffff';
+      style = [
+        'shape=mxgraph.aws4.resourceIcon',
+        `resIcon=${this.desc.resIcon}`,
+        `fillColor=${fillColor}`,
+        `strokeColor=${strokeColor}`,
+        'gradientColor=none',
+        'outlineConnect=0',
+        'sketch=0',
+        'aspect=fixed',
+        'html=1',
+        'verticalLabelPosition=bottom',
+        'verticalAlign=top',
+        'align=center',
+        `fontSize=${this.theme.fontSize}`,
+        'fontColor=#232F3E',
+      ].join(';') + ';' + fontFamilyStyle(this.theme);
+      // Apply user inline overrides (e.g. #color or ##stroke)
+      const { style: styledStyle } = Renderer.applyInlineStyle(style, this.desc.style, this.theme.boldStrokeWidth);
+      style = styledStyle;
+    } else {
+      // Standard mxgraph icon style
+      // Extra style from icon-data (e.g. fillColor for AWS/archimate layer colors)
+      const dataStyle   = this.iconRecord?.style ?? '';
+      // User-specified inline color (#RRGGBB or #Name)
+      const inlineColor = this.desc.style;
 
-    // For variant icons (e.g. mxgraph.bpmn.event.start), the DrawIO shape key
-    // is the parent group (mxgraph.bpmn.event); variant params are in dataStyle.
-    const shapeRef = resolveShapeRef(this.shapeKey);
+      // Only emit default fillColor when dataStyle doesn't already supply one
+      const defaultFill = dataStyle.includes('fillColor=') ? null : `fillColor=${this.theme.defaultFill}`;
 
-    // Build base DrawIO style
-    let style = [
-      `shape=${shapeRef}`,
-      'html=1',
-      'verticalLabelPosition=bottom',
-      'verticalAlign=top',
-      'align=center',
-      `fontSize=${this.theme.fontSize}`,
-      defaultFill,
-      `strokeColor=${this.theme.colorDark}`,
-      `fontColor=${this.theme.colorDark}`,
-      `strokeWidth=${this.theme.strokeWidth}`,
-      dataStyle,
-    ].filter(Boolean).join(';') + ';' + fontFamilyStyle(this.theme);
+      // For variant icons (e.g. mxgraph.bpmn.event.start), the DrawIO shape key
+      // is the parent group (mxgraph.bpmn.event); variant params are in dataStyle.
+      const shapeRef = resolveShapeRef(this.shapeKey);
 
-    // Apply user inline style overrides (parseNodeStyle handles #fill ##stroke etc.)
-    const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor, this.theme.boldStrokeWidth);
-    style = styledStyle;
+      // Build base DrawIO style
+      style = [
+        `shape=${shapeRef}`,
+        'html=1',
+        'verticalLabelPosition=bottom',
+        'verticalAlign=top',
+        'align=center',
+        `fontSize=${this.theme.fontSize}`,
+        defaultFill,
+        `strokeColor=${this.theme.colorDark}`,
+        `fontColor=${this.theme.colorDark}`,
+        `strokeWidth=${this.theme.strokeWidth}`,
+        dataStyle,
+      ].filter(Boolean).join(';') + ';' + fontFamilyStyle(this.theme);
+
+      // Apply user inline style overrides (parseNodeStyle handles #fill ##stroke etc.)
+      const { style: styledStyle } = Renderer.applyInlineStyle(style, inlineColor, this.theme.boldStrokeWidth);
+      style = styledStyle;
+    }
 
     // Center icon horizontally within the DOT-allocated box
     const ix = box.x + (box.width - iw) / 2;
