@@ -1,5 +1,6 @@
 import { NodeType } from '../model/index.ts';
 import { parsePlantUml } from './puml.ts';
+import { lookupAwslibMacro, isKnownAwslibSprite } from './awslib-macros.ts';
 
 interface ParsedDocumentLike {
   statements?: any[];
@@ -471,6 +472,26 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     return { stereotypeLabel: displayLabel };
   }
 
+  /**
+   * Detect inline sprite reference <$SpriteName> in participant label.
+   * If found and it maps to an awslib shape, upgrade participant with shapeKey
+   * and strip the sprite tag from the label.
+   */
+  function applyInlineSprite(participant: any): void {
+    const label = participant.label || '';
+    const m = label.match(/<\$([A-Za-z0-9_]+)>/);
+    if (!m) return;
+    const spriteName = m[1];
+    const awsInfo = lookupAwslibMacro(spriteName);
+    if (!awsInfo) return;
+    // Strip sprite reference and leading/trailing whitespace/newlines
+    participant.label = label.replace(/<\$[A-Za-z0-9_]+>\s*/g, '').replace(/^\s*\\n|\\n\s*$/g, '').replace(/^\n+|\n+$/g, '').trim();
+    participant.shapeKey = awsInfo.shapeKey;
+    if (awsInfo.resIcon) participant.resIcon = awsInfo.resIcon;
+    if (awsInfo.fillColor) participant.fillColor = awsInfo.fillColor;
+    if (awsInfo.strokeColor) participant.strokeColor = awsInfo.strokeColor;
+  }
+
   function ensureParticipant(id, label, type) {
     if (!id) return;
     if (participantMap.has(id)) return;
@@ -875,6 +896,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       };
       if (stereo.stereotypeLabel) participant.stereotypeLabel = stereo.stereotypeLabel;
       if (stereo.spot) participant.spot = stereo.spot;
+      applyInlineSprite(participant);
       if (!participantMap.has(id)) {
         participantOrder.push(id);
         if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
@@ -913,6 +935,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         const participant: any = { id, type: PARTICIPANT_KEYWORDS[type], label, alias: st.alias || undefined, color, order: st.order };
         if (stereo.stereotypeLabel) participant.stereotypeLabel = stereo.stereotypeLabel;
         if (stereo.spot) participant.spot = stereo.spot;
+        applyInlineSprite(participant);
         if (!participantMap.has(id)) {
           participantOrder.push(id);
           if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
@@ -995,6 +1018,62 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         }
       }
 
+    }
+
+    // awslib stdlib macros as participants: "Lambda(alias, "Label")"
+    if (st.kind === 'generic_statement' && st.type === 'generic_call') {
+      if (isKnownAwslibSprite(st.name)) {
+        const args = (st.args || '').split(',');
+        const alias = args[0] ? args[0].trim().replace(/^"|"$/g, '') : '';
+        const rawLabel = args[1] ? args[1].trim().replace(/^"|"$/g, '') : st.name;
+        const label = rawLabel || st.name;
+        const id = normalizeId(alias || st.name);
+        const awsInfo = lookupAwslibMacro(st.name);
+        const participant: any = {
+          id,
+          type: NodeType.Participant,
+          label,
+          alias: alias || undefined,
+          shapeKey: awsInfo ? awsInfo.shapeKey : 'mxgraph.aws4.resourceIcon.general',
+          resIcon: awsInfo?.resIcon ?? undefined,
+          fillColor: awsInfo?.fillColor ?? undefined,
+          strokeColor: awsInfo?.strokeColor ?? undefined,
+        };
+        if (!participantMap.has(id)) {
+          participantOrder.push(id);
+          if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
+        }
+        participantMap.set(id, participant);
+        registerParticipantRefs(participant);
+        continue;
+      }
+    }
+
+    // mxgraph icon as participant: 'mxgraph.aws4.lambda "Label" as alias #color'
+    if (st.kind === 'generic_statement' && st.type === 'mxgraph_icon') {
+      const shapeKey = String(st.shapeKey || '').trim();
+      const rawLabel = String(st.label || '').trim();
+      const rawAlias = String(st.alias || '').trim();
+      const rawColor = String(st.color || '').trim() || undefined;
+      const id = normalizeId(rawAlias || rawLabel);
+      const label = rawLabel;
+      if (id && shapeKey) {
+        const participant: any = {
+          id,
+          type: NodeType.Participant,
+          label,
+          alias: rawAlias || undefined,
+          shapeKey,
+          color: rawColor,
+        };
+        if (!participantMap.has(id)) {
+          participantOrder.push(id);
+          if (currentBoxStack.length > 0) { currentBoxStack[currentBoxStack.length - 1].participants.push(id); }
+        }
+        participantMap.set(id, participant);
+        registerParticipantRefs(participant);
+      }
+      continue;
     }
 
     if (st.kind === 'declaration_statement' && st.type === 'mainframe') {

@@ -9,6 +9,8 @@ import { BlockLayout, richTextStyle } from '../shared/block-layout.ts';
 import { TextBlock, DEFAULT_FONT } from '../shared/text-block.ts';
 import { buildLabelHtml } from './label.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
+import { MxgraphIconRenderer } from './icons/mxgraph-icon.ts';
+import { buildEdgeCells } from '../shared/edge-builder.ts';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -275,6 +277,11 @@ export function renderParticipant(
     return cells;
   }
 
+  // Stencil icon participant: icon child cell + plain lifeline container
+  if ((p as any).shapeKey) {
+    return renderStencilParticipant(p as any, layout, { ...opts, theme });
+  }
+
   const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.spotSize, spotFontSize: theme.spotFontSize, spotMargin: theme.edgeGap });
   return [mxVertex({
     id: p.id, value: labelHtml,
@@ -337,6 +344,11 @@ export function renderFootbox(
     return cells;
   }
 
+  // Stencil icon footbox: icon child cell + plain participant box
+  if ((p as any).shapeKey) {
+    return renderStencilFootbox(p as any, layout, { ...opts, theme });
+  }
+
   const labelHtml = buildParticipantLabel(p, { ...opts, fontSize: theme.fontSize, spotSize: theme.spotSize, spotFontSize: theme.spotFontSize, spotMargin: theme.edgeGap });
   return [mxVertex({
     id: p.id + '_foot', value: labelHtml,
@@ -344,4 +356,91 @@ export function renderFootbox(
     parent: '1',
     x: footX, y: footY, width: footW, height: footH,
   })];
+}
+
+// ---------------------------------------------------------------------------
+// Stencil icon participant helpers (standard MxgraphIconRenderer pipeline)
+// ---------------------------------------------------------------------------
+
+/** Create a MxgraphIconRenderer for a stencil icon participant. */
+function createStencilRenderer(
+  id: string,
+  p: { label: string; shapeKey: string; resIcon?: string; fillColor?: string; strokeColor?: string },
+  theme: Theme,
+  labelPosition?: 'top' | 'bottom',
+): MxgraphIconRenderer {
+  return new MxgraphIconRenderer({
+    id,
+    label: p.label,
+    stereotype: p.shapeKey,
+    resIcon: p.resIcon,
+    fillColor: p.fillColor,
+    strokeColor: p.strokeColor,
+    labelPosition,
+    theme,
+  });
+}
+
+/** Render a stencil icon participant via standard MxgraphIconRenderer pipeline. */
+function renderStencilParticipant(
+  p: { id: string; label: string; type: string; color?: string; shapeKey: string; resIcon?: string; fillColor?: string; strokeColor?: string },
+  layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
+  opts: { theme: Theme },
+): string[] {
+  const theme = opts.theme;
+  const cellW = layout.width;
+  const cellX = layout.x;
+  const renderer = createStencilRenderer(p.id + '_icon', p, theme, 'top');
+  renderer.parentId = p.id;
+  const headerH = layout.iconHeight ?? renderer.measure().height;
+  const cells: string[] = [];
+
+  // Invisible umlLifeline container — provides geometry for message targeting
+  cells.push(mxVertex({
+    id: p.id,
+    value: '',
+    style: [
+      'shape=umlLifeline',
+      'perimeter=lifelinePerimeter',
+      'whiteSpace=wrap',
+      'container=1',
+      'collapsible=0',
+      'recursiveResize=0',
+      'outlineConnect=0',
+      'size=0.001',
+      'html=1',
+      'fillColor=none',
+      'strokeColor=none',
+    ].join(';') + ';',
+    parent: '1',
+    x: cellX, y: layout.y, width: cellW, height: layout.height,
+  }));
+
+  // Icon rendered via standard MxgraphIconRenderer pipeline (child of container)
+  cells.push(...renderer.render({ x: 0, y: 0, width: cellW, height: headerH }));
+
+  // Dashed lifeline edge (replaces the invisible umlLifeline dashed line)
+  cells.push(...buildEdgeCells({
+    id: p.id + '_dash',
+    style: `endArrow=none;startArrow=none;dashed=1;strokeColor=${theme.colorDark};strokeWidth=${theme.strokeWidth};`,
+    geometry: {
+      sourcePoint: { x: cellX + cellW / 2, y: layout.y + headerH },
+      targetPoint: { x: cellX + cellW / 2, y: layout.y + layout.height },
+    },
+  }));
+
+  return cells;
+}
+
+/** Render a stencil icon footbox via standard MxgraphIconRenderer pipeline. */
+function renderStencilFootbox(
+  p: { id: string; label: string; type: string; color?: string; shapeKey: string; resIcon?: string; fillColor?: string; strokeColor?: string },
+  layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
+  opts: { theme: Theme },
+): string[] {
+  const footY = layout.y + layout.height;
+  const footW = layout.width;
+  const footX = layout.x;
+  const renderer = createStencilRenderer(p.id + '_foot', p, opts.theme);
+  return renderer.render({ x: footX, y: footY, width: footW, height: renderer.measure().height });
 }

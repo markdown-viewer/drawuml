@@ -49,6 +49,8 @@ export abstract class IconRenderer extends Renderer {
   protected get paddingX(): number { return this.theme.nodeGap; }
   /** Minimum label height — single-line floor (px). */
   protected get minLabelHeight(): number { return this.theme.rowH; }
+  /** Whether label is below the icon (default true). */
+  protected get labelBelow(): boolean { return (this.desc.labelPosition ?? 'bottom') === 'bottom'; }
 
   // ── Label ──────────────────────────────────────────────────────────────────
 

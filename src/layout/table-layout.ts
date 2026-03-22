@@ -3,6 +3,7 @@ import { TextBlock, type FontSpec } from '../shared/text-block.ts';
 import { createRenderer } from '../primitives/index.ts';
 import { getScaledParticipantConfig, buildParticipantLabel, measureBracketBody } from '../primitives/participant.ts';
 import { Renderer } from '../primitives/renderer.ts';
+import { MxgraphIconRenderer } from '../primitives/icons/mxgraph-icon.ts';
 import type { LayoutNote } from '../model/common.ts';
 
 function getRowCount(model) {
@@ -88,6 +89,21 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     if (iconW > 0) {
       // Icon type: geometry is just the icon, visual extent includes label, fixed height
       return { geomWidth: iconW, visualWidth: Math.max(iconW, labelW), iconHeight: baseH };
+    }
+    // Stencil icon participant: use standard MxgraphIconRenderer for sizing
+    if ((p as any).shapeKey) {
+      const renderer = new MxgraphIconRenderer({
+        id: p.id, label: p.label,
+        stereotype: (p as any).shapeKey,
+        resIcon: (p as any).resIcon,
+        fillColor: (p as any).fillColor,
+        strokeColor: (p as any).strokeColor,
+        labelPosition: 'top',
+        theme,
+      });
+      const measured = renderer.measure();
+      const w = Math.max(titleMinWidth, Math.max(measured.width, labelW));
+      return { geomWidth: w, visualWidth: w, iconHeight: measured.height };
     }
     // Box type: geometry = visual, height adjusts for multiline text
     if (p.bracketLines && p.bracketLines.length > 0) {
@@ -1437,7 +1453,8 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     maxRight = Math.max(maxRight, dc.labelX + dc.labelWidth);
   }
   const finalWidth = Math.max(width, maxRight + marginX);
-  const height = totalRows > 0 ? lastRowBottom + unitGap + maxIconHeight + unitGap : rowTop + lifelineMinHeight + theme.contentPad;
+  const footboxSpace = model.hideFootbox ? 0 : maxIconHeight;
+  const height = totalRows > 0 ? lastRowBottom + unitGap + footboxSpace + unitGap : rowTop + lifelineMinHeight + theme.contentPad;
 
   // Center title over participant content area (left ~ right)
   if (titleLayout) {
@@ -1478,7 +1495,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const mfY = titleLayout ? titleLayout.height + smallPad : 0;
     // Compute tight content bounds for uniform padding
     const contentRight = right + minGap;
-    const contentBottom = lastRowBottom + unitGap + maxIconHeight + minGap; // footbox = participant header height
+    const contentBottom = lastRowBottom + unitGap + footboxSpace + minGap; // footbox = participant header height
     mainframeLayout = {
       x: 0,
       y: mfY,

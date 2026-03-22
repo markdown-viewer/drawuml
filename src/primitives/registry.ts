@@ -93,6 +93,8 @@ export interface RenderDescriptor {
   noteType?: string;
   /** Fixed height for frame tab, box label, etc. */
   fixedHeight?: number;
+  /** Label position relative to the icon: 'bottom' (default) or 'top'. */
+  labelPosition?: 'top' | 'bottom';
 }
 
 /**

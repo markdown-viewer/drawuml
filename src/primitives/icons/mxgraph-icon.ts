@@ -71,8 +71,8 @@ export class MxgraphIconRenderer extends IconRenderer {
         'sketch=0',
         'aspect=fixed',
         'html=1',
-        'verticalLabelPosition=bottom',
-        'verticalAlign=top',
+        `verticalLabelPosition=${this.labelBelow ? 'bottom' : 'top'}`,
+        `verticalAlign=${this.labelBelow ? 'top' : 'bottom'}`,
         'align=center',
         `fontSize=${this.theme.fontSize}`,
         'fontColor=#232F3E',
@@ -98,8 +98,8 @@ export class MxgraphIconRenderer extends IconRenderer {
       style = [
         `shape=${shapeRef}`,
         'html=1',
-        'verticalLabelPosition=bottom',
-        'verticalAlign=top',
+        `verticalLabelPosition=${this.labelBelow ? 'bottom' : 'top'}`,
+        `verticalAlign=${this.labelBelow ? 'top' : 'bottom'}`,
         'align=center',
         `fontSize=${this.theme.fontSize}`,
         defaultFill,
@@ -116,6 +116,8 @@ export class MxgraphIconRenderer extends IconRenderer {
 
     // Center icon horizontally within the DOT-allocated box
     const ix = box.x + (box.width - iw) / 2;
+    // When label is on top, shift icon down by label height + gap
+    const iy = this.labelBelow ? box.y : box.y + (box.height - ih);
 
     // Use TextBlock.inline to match measureLabel() pipeline (unescape + creole)
     const labelHtml = TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
@@ -125,7 +127,7 @@ export class MxgraphIconRenderer extends IconRenderer {
       style,
       parent: this.parentId ?? '1',
       x: ix,
-      y: box.y,
+      y: iy,
       width:  iw,
       height: ih,
     })];
