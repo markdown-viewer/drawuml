@@ -638,7 +638,11 @@ export function parsePlantUml(text) {
         inRefBlock = true;
       }
       if (st && st.kind === 'block_statement' && st.type === 'style_block_start') {
-        styleBlockDepth = 1;
+        // 'together { }' is a transparent grouping hint — pass through so
+        // content inside is parsed normally.
+        if (!/^together$/i.test(String(st.name || ''))) {
+          styleBlockDepth = 1;
+        }
       }
       if (st && st.kind === 'block_statement' && st.type === 'loose_block_start') {
         styleBlockDepth = 1;

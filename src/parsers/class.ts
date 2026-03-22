@@ -517,8 +517,13 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     {
 
       // <style> block start: "actor {", ".stereo {", "componentDiagram {}" etc.
+      // 'together { }' is a transparent grouping hint — not a CSS style block.
       // Strip leading '.' from CSS class selectors (e.g. '.stereo' -> 'stereo')
       if (st.kind === 'block_statement' && st.type === 'style_block_start') {
+        if (/^together$/i.test(String(st.name || ''))) {
+          blockPushCounts.push(0);
+          continue;
+        }
         styleBlockAccum = { name: String(st.name || '').toLowerCase().replace(/^\./, ''), props: {} };
         continue;
       }
@@ -1439,10 +1444,18 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         continue;
       }
 
+      // Transparent block: "together { }" — no group, just push 0 so
+      // the matching "}" does not pop the parent group.
+      if (st.kind === 'block_statement' && st.type === 'loose_block_start') {
+        blockPushCounts.push(0);
+        continue;
+      }
+
       // Block end: "}" — may close a package/namespace/state block.
       // Pop as many groups as the matching block-start pushed.
       if (st.kind === 'block_statement' && (st.type === 'style_block_end' || st.type === 'block_end' || st.type === 'state_block_end')) {
-        const popCount = blockPushCounts.pop() || 1;
+        const raw = blockPushCounts.pop();
+        const popCount = raw != null ? raw : 1;
         for (let j = 0; j < popCount && groupStack.length > 0; j++) {
           const g = groupStack.pop()!;
           // Compute concurrentRegions for state groups with "--"/"||" separators.
