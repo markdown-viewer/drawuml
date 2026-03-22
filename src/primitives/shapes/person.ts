@@ -24,13 +24,14 @@ class PersonRenderer extends RichRenderer {
     const cw = contentSize.width;
     const ch = contentSize.height;
     const R = 0.8 * 0.45; // 0.36 — stencil ratio
-    // Case 1: cellW <= cellH  →  padTop = R * cw - cp
-    const pt1 = R * cw - cp;
+    const gap = this.theme.edgeGap; // extra spacing below head circle
+    // Case 1: cellW <= cellH  →  padTop = R * cw - cp + gap
+    const pt1 = R * cw - cp + gap;
     if (pt1 >= 0 && cw <= ch + pt1) {
       return { top: pt1 };
     }
-    // Case 2: cellH < cellW  →  padTop = (R * ch - cp) / (1 - R)
-    const pt2 = (R * ch - cp) / (1 - R);
+    // Case 2: cellH < cellW  →  padTop = (R * ch - cp + gap) / (1 - R)
+    const pt2 = (R * ch - cp + gap) / (1 - R);
     return { top: Math.max(0, pt2) };
   }
   get isCluster(): boolean { return false; }

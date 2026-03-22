@@ -11,6 +11,14 @@ import {
   parseArchimateRelArgs,
   resolveArchimateLayerColor,
 } from './archimate-macros.ts';
+import {
+  lookupC4ElementMacro,
+  lookupC4BoundaryMacro,
+  lookupC4RelMacro,
+  parseC4ElementArgs,
+  parseC4BoundaryArgs,
+  parseC4RelArgs,
+} from './c4-macros.ts';
 import { lookupAwslibMacro, isKnownAwslibSprite } from './awslib-macros.ts';
 
 // Legacy activity diagram logic is merged into parseClassDiagram via lazy detection.
@@ -993,7 +1001,64 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           }
           continue;
         }
-        // Not an archimate macro — fall through to other handlers
+
+        // C4 stdlib element macros: "Person(alias, "Label", "description")"
+        const c4Elem = lookupC4ElementMacro(st.name);
+        if (c4Elem) {
+          const parsed = parseC4ElementArgs(st.args || '', c4Elem);
+          const id = normalizeId(parsed.alias);
+          if (id) {
+            if (!nodesById[id]) nodeOrder.push(id);
+            // Build Creole-formatted bodyLines for C4 styled label
+            const bodyLines: string[] = [];
+            bodyLines.push(`<size:12>//\u00AB${c4Elem.stereotypeTag}\u00BB//</size>`);
+            bodyLines.push(`<size:16>**${parsed.label}**</size>`);
+            if (parsed.technology) {
+              bodyLines.push(`<size:12>//[${parsed.technology}]//</size>`);
+            }
+            if (parsed.description) {
+              bodyLines.push('');
+              bodyLines.push(`<size:14>${parsed.description}</size>`);
+            }
+            nodesById[id] = {
+              id,
+              type: NodeType.Class,
+              label: parsed.label,
+              stereotype: c4Elem.renderer,
+              stereotypeLabel: '',
+              bodyLines,
+              style: `#${c4Elem.bgColor};text:${c4Elem.fontColor}`,
+            };
+            registerNodeInGroup(id);
+            lastDefinedClass = id;
+          }
+          continue;
+        }
+
+        // C4 stdlib relation macros: "Rel(from, to, "label")"
+        const c4Rel = lookupC4RelMacro(st.name);
+        if (c4Rel) {
+          const parsed = parseC4RelArgs(st.args || '');
+          const from = normalizeId(parsed.from);
+          const to = normalizeId(parsed.to);
+          if (from && to) {
+            const actualFrom = c4Rel.back ? to : from;
+            const actualTo = c4Rel.back ? from : to;
+            const arrowToken = c4Rel.biDirectional ? '<-->' : '-->';
+            edges.push({
+              id: `e${edges.length + 1}`,
+              type: EdgeType.Dependency,
+              from: actualFrom,
+              to: actualTo,
+              label: parsed.label || '',
+              arrow: arrowToken,
+              direction: c4Rel.direction || null,
+            });
+          }
+          continue;
+        }
+
+        // Not an archimate/C4 macro — fall through to other handlers
       }
 
       // ArchiMate macros that PEG mis-parses as sequence_block (e.g. "Group(...)").
@@ -1446,8 +1511,30 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
       // Transparent block: "together { }" — no group, just push 0 so
       // the matching "}" does not pop the parent group.
+      // C4 boundary macros: "System_Boundary(alias, label) {" — create a group.
       if (st.kind === 'block_statement' && st.type === 'loose_block_start') {
-        blockPushCounts.push(0);
+        const looseText = String(st.text || '');
+        const macroMatch = looseText.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*)\)\s*$/);
+        const c4Boundary = macroMatch ? lookupC4BoundaryMacro(macroMatch[1]) : null;
+        if (c4Boundary && macroMatch) {
+          const parsed = parseC4BoundaryArgs(macroMatch[2]);
+          const id = normalizeId(parsed.alias);
+          if (id) {
+            const startParent = groupStack.length > 0 ? groupStack[groupStack.length - 1] : undefined;
+            const chain = findOrCreateGroupChain([parsed.label || id], 'rectangle', startParent);
+            if (chain.length > 0) {
+              const leaf = chain[chain.length - 1];
+              leaf.alias = id;
+              leaf.style = `##[dashed]${c4Boundary.borderColor}`;
+            }
+            for (const g of chain) groupStack.push(g);
+            blockPushCounts.push(chain.length);
+          } else {
+            blockPushCounts.push(0);
+          }
+        } else {
+          blockPushCounts.push(0);
+        }
         continue;
       }
 

@@ -1,4 +1,5 @@
 import { parseClassDiagram } from './class.ts';
+import { lookupC4BoundaryMacro } from './c4-macros.ts';
 import { PeggySyntaxError, parse as parsePeggy } from './puml-peggy.ts';
 
 function safeMessage(error) {
@@ -645,7 +646,13 @@ export function parsePlantUml(text) {
         }
       }
       if (st && st.kind === 'block_statement' && st.type === 'loose_block_start') {
-        styleBlockDepth = 1;
+        // C4 boundary macros: "System_Boundary(id, label) {" — pass through
+        // so content inside is parsed normally (like 'together').
+        const looseText = String(st.text || '');
+        const macroMatch = looseText.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+        if (!(macroMatch && lookupC4BoundaryMacro(macroMatch[1]))) {
+          styleBlockDepth = 1;
+        }
       }
       // <style> tag triggers inStyleTag mode — all lines until </style>
       // are parsed with simple brace counting (bypassing PEG) so that

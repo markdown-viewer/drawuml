@@ -49,6 +49,8 @@ const NON_SEQUENCE_TYPES = new Set([
   // ArchiMate declarations
   'declaration_statement|archimate',
   'declaration_statement|junction',
+  // mxgraph icon declarations
+  'generic_statement|mxgraph_icon',
 
   // Class diagram structure
   'block_statement|loose_block_start',
