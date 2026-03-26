@@ -88,7 +88,11 @@ export class MxgraphIconRenderer extends IconRenderer {
       const inlineColor = this.desc.style;
 
       // Only emit default fillColor when dataStyle doesn't already supply one
-      const defaultFill = dataStyle.includes('fillColor=') ? null : `fillColor=${this.theme.defaultFill}`;
+      const iconColor = this.desc.strokeColor;
+      const defaultFill = dataStyle.includes('fillColor=') ? null
+        : iconColor ? `fillColor=${iconColor}` : `fillColor=${this.theme.defaultFill}`;
+      // When strokeColor is configured, override dataStyle's fillColor
+      const overrideFill = iconColor && dataStyle.includes('fillColor=') ? `fillColor=${iconColor}` : null;
 
       // For variant icons (e.g. mxgraph.bpmn.event.start), the DrawIO shape key
       // is the parent group (mxgraph.bpmn.event); variant params are in dataStyle.
@@ -103,10 +107,11 @@ export class MxgraphIconRenderer extends IconRenderer {
         'align=center',
         `fontSize=${this.theme.fontSize}`,
         defaultFill,
-        `strokeColor=${this.theme.colorDark}`,
-        `fontColor=${this.theme.colorDark}`,
+        `strokeColor=${this.desc.strokeColor ?? this.theme.colorDark}`,
+        `fontColor=${this.desc.strokeColor ?? this.theme.colorDark}`,
         `strokeWidth=${this.theme.strokeWidth}`,
         dataStyle,
+        overrideFill,
       ].filter(Boolean).join(';') + ';' + fontFamilyStyle(this.theme);
 
       // Apply user inline style overrides (parseNodeStyle handles #fill ##stroke etc.)
