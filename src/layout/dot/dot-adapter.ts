@@ -338,6 +338,10 @@ export function layoutGraphToDot(
     if (groupIds.has(edge.from)) groupsInEdges.add(edge.from);
     if (groupIds.has(edge.to)) groupsInEdges.add(edge.to);
   }
+  // Notes targeting groups also need proxy/representative nodes
+  for (const note of model.notes || []) {
+    if (note.target && groupIds.has(note.target)) groupsInEdges.add(note.target);
+  }
 
   // Port-connected nodes
   const portNodes = new Set<string>();
@@ -619,25 +623,27 @@ export function layoutGraphToDot(
       const group = notesByTargetPos.get(key);
       const groupIdx = group ? group.findIndex(g => g.id === note.id) : -1;
       const isFirst = groupIdx === 0;
+      // Use proxy/representative node when target is a group cluster
+      const dotTarget = groupRepNode.get(note.target) || `"${note.target}"`;
 
       if (pos === 'left' || pos === 'right') {
         if (isFirst) {
-          noteLines.push(`  { rank=same; "${note.id}"; "${note.target}" }`);
+          noteLines.push(`  { rank=same; "${note.id}"; ${dotTarget} }`);
           if (pos === 'left') {
-            noteLines.push(`  "${note.id}" -> "${note.target}" [style=invis]`);
+            noteLines.push(`  "${note.id}" -> ${dotTarget} [style=invis]`);
           } else {
-            noteLines.push(`  "${note.target}" -> "${note.id}" [style=invis]`);
+            noteLines.push(`  ${dotTarget} -> "${note.id}" [style=invis]`);
           }
         } else {
           const prev = group![groupIdx - 1];
           noteLines.push(`  "${prev.id}" -> "${note.id}" [style=invis]`);
         }
       } else if (pos === 'top') {
-        noteLines.push(`  "${note.id}" -> "${note.target}" [style=invis]`);
+        noteLines.push(`  "${note.id}" -> ${dotTarget} [style=invis]`);
       } else if (pos === 'bottom') {
-        noteLines.push(`  "${note.target}" -> "${note.id}" [style=invis]`);
+        noteLines.push(`  ${dotTarget} -> "${note.id}" [style=invis]`);
       } else {
-        noteLines.push(`  "${note.id}" -> "${note.target}" [style=invis]`);
+        noteLines.push(`  "${note.id}" -> ${dotTarget} [style=invis]`);
       }
     }
   }

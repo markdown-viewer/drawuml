@@ -633,10 +633,14 @@ function mapNode(
  */
 function addNoteTargetPorts(elkRoot: ElkNode, model: SemanticModel): void {
   const nodeMap = buildNodeMap(elkRoot);
+  const groupIdSet = new Set((model.groups || []).map(g => g.id));
   for (const note of model.notes || []) {
     if (!note.target || note.onLink) continue;
     // Notes with memberTarget use the field port directly — no __ntp_ needed.
     if (note.memberTarget) continue;
+    // Groups are containers — cannot add ports; edge routing handled by
+    // addCompoundEdgeProxies / distributeEdges like normal group edges.
+    if (groupIdSet.has(note.target)) continue;
     const side = noteTargetPortSide(note.position);
     if (!side) continue;
     const targetNode = nodeMap.get(note.target);
@@ -1014,7 +1018,10 @@ export function collectEdges(
       }
     } else {
       const ntps = noteTargetPortSide(note.position);
-      target = ntps ? `${note.target}::__ntp_${note.id}` : note.target;
+      // Groups are containers — no __ntp_ port; use plain id and let
+      // addCompoundEdgeProxies / distributeEdges handle routing.
+      const isGroup = (model.groups || []).some(g => g.id === note.target);
+      target = (ntps && !isGroup) ? `${note.target}::__ntp_${note.id}` : note.target;
     }
     const elkEdge: ElkEdge = {
       id: edgeId,

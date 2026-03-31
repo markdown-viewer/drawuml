@@ -381,7 +381,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   for (const note of model.notes || []) {
     if (!note.target || note.onLink) continue;
     const noteLayout = layout.nodes[note.id];
-    const targetLayout = layout.nodes[note.target];
+    const targetLayout = layout.nodes[note.target] || layout.groups?.[note.target];
     if (!noteLayout || !targetLayout) continue;
     const edgeId = `__note_edge_${note.id}`;
     const noteLinkColor = theme.noteLinkColor;
@@ -446,29 +446,32 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         const exitY = clamp01((sp.y - noteLayout.y) / noteLayout.height);
         style += `exitX=${n4(exitX)};exitY=${n4(exitY)};exitDx=0;exitDy=0;`;
       }
-      // For entry: use computePortEdgeSides result (field-level precision),
-      // then position-based for non-field targets, then raw ELK coordinate.
-      if (sides.entryX != null) {
-        style += `entryX=${n4(sides.entryX)};entryY=${n4(sides.entryY)};entryDx=0;entryDy=0;`;
-      } else if (!toPort && pos === 'left') {
-        style += 'entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
-      } else if (!toPort && pos === 'right') {
-        style += 'entryX=1;entryY=0.5;entryDx=0;entryDy=0;';
-      } else if (!toPort && pos === 'top') {
-        style += 'entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
-      } else if (!toPort && pos === 'bottom') {
-        style += 'entryX=0.5;entryY=1;entryDx=0;entryDy=0;';
-      } else {
-        const ep = pts[pts.length - 1];
-        const entryX = clamp01((ep.x - targetLayout.x) / targetLayout.width);
-        const entryY = clamp01((ep.y - targetLayout.y) / targetLayout.height);
-        style += `entryX=${n4(entryX)};entryY=${n4(entryY)};entryDx=0;entryDy=0;`;
+      // For group targets, skip entry constraints and omit target cell binding
+      // (same as regular node→group edges: use targetPoint instead).
+      const targetIsGroup = groupIdSet.has(note.target);
+      if (!targetIsGroup) {
+        // For entry: use computePortEdgeSides result (field-level precision),
+        // then position-based for non-field targets, then raw ELK coordinate.
+        if (sides.entryX != null) {
+          style += `entryX=${n4(sides.entryX)};entryY=${n4(sides.entryY)};entryDx=0;entryDy=0;`;
+        } else if (!toPort && pos === 'left') {
+          style += 'entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
+        } else if (!toPort && pos === 'right') {
+          style += 'entryX=1;entryY=0.5;entryDx=0;entryDy=0;';
+        } else if (!toPort && pos === 'top') {
+          style += 'entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
+        } else if (!toPort && pos === 'bottom') {
+          style += 'entryX=0.5;entryY=1;entryDx=0;entryDy=0;';
+        } else {
+          const ep = pts[pts.length - 1];
+          const entryX = clamp01((ep.x - targetLayout.x) / targetLayout.width);
+          const entryY = clamp01((ep.y - targetLayout.y) / targetLayout.height);
+          style += `entryX=${n4(entryX)};entryY=${n4(entryY)};entryDx=0;entryDy=0;`;
+        }
       }
 
-      // Strip constrained endpoints; keep interior waypoints
-      const startIdx = sides.exitX != null ? 1 : 1;
-      const endIdx = sides.entryX != null ? pts.length - 1 : pts.length - 1;
-      pts = pts.slice(startIdx, endIdx);
+      // Strip source endpoint; for groups keep target endpoint as targetPoint
+      pts = pts.slice(1, targetIsGroup ? pts.length : pts.length - 1);
       // Remove collinear intermediate points
       if (pts.length > 1) {
         const simplified = [pts[0]];
@@ -483,13 +486,21 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         simplified.push(pts[pts.length - 1]);
         pts = simplified;
       }
-      const geometry = pts.length > 0 ? { waypoints: pts } : undefined;
+      // For group targets: last point → targetPoint, no target cell binding
+      let geometry: { targetPoint?: { x: number; y: number }; waypoints?: { x: number; y: number }[] } | undefined;
+      if (targetIsGroup && pts.length > 0) {
+        const tp = pts[pts.length - 1];
+        const wp = pts.slice(0, -1);
+        geometry = { targetPoint: tp, waypoints: wp.length > 0 ? wp : undefined };
+      } else {
+        geometry = pts.length > 0 ? { waypoints: pts } : undefined;
+      }
 
       cells.push(...buildEdgeCells({
         id: edgeId,
         style,
         source: note.id,
-        target: edgeTarget,
+        target: targetIsGroup ? undefined : edgeTarget,
         geometry,
         fontSize: theme.fontSize,
         fontFamily: theme.fontFamily,

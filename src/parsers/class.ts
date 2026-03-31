@@ -550,7 +550,22 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         }
         // Parse "skinparam <key> <value>" directives
         if (kw === 'skinparam') {
-          if (st.key) {
+          if (st.block === true) {
+            // Block form: skinparam node { BackgroundColor #dae8fc }
+            const prefix = String(st.text || '').trim();
+            for (let j = i + 1; j < statements.length; j++) {
+              const child = statements[j];
+              if (!child) continue;
+              if (child.kind === 'block_statement' && child.type === 'style_block_end') break;
+              if (child.kind === 'style_text_line') {
+                const line = String(child.text || '').trim();
+                const m = line.match(/^(\w+)\s+(.+)$/);
+                if (m) {
+                  skinparams[(prefix ? prefix + m[1] : m[1])] = m[2].trim();
+                }
+              }
+            }
+          } else if (st.key) {
             skinparams[st.key] = String(st.value || st.text || '').trim();
           } else if (st.text) {
             // PEG may emit text="key value" without separate key/value fields
@@ -2629,6 +2644,43 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     for (const g of groups) {
       if (!g.stereotype) g.stereotype = packageStyle;
     }
+  }
+
+  // Apply skinparam type-specific colors to groups (e.g. skinparam node { BackgroundColor ... })
+  for (const g of groups) {
+    const gtype = String(g.type || '').toLowerCase();
+    const bg = skinparams[gtype + 'BackgroundColor'];
+    const border = skinparams[gtype + 'BorderColor'];
+    if (!g.color && bg) g.color = bg;
+    if (border && !g.style) {
+      g.style = `#line:${border}`;
+    }
+  }
+
+  // Apply skinparam type-specific colors to leaf nodes (e.g. skinparam artifact { ... })
+  for (const id of nodeOrder) {
+    const node = nodesById[id];
+    if (!node || node.style) continue;
+    const ntype = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
+    if (!ntype) continue;
+    const bg = skinparams[ntype + 'BackgroundColor'];
+    const border = skinparams[ntype + 'BorderColor'];
+    if (bg || border) {
+      const parts: string[] = [];
+      if (bg) parts.push(`back:${bg}`);
+      if (border) parts.push(`line:${border}`);
+      node.style = '#' + parts.join(';');
+    }
+  }
+
+  // Resolve note targets that match group aliases to actual group ids
+  for (const n of notes) {
+    if (!n.target) continue;
+    const targetGroup = groups.find(g =>
+      (g.alias && normalizeId(g.alias) === n.target) ||
+      normalizeId(g.label) === n.target
+    );
+    if (targetGroup) n.target = targetGroup.id;
   }
 
   return {
