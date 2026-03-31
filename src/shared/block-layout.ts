@@ -405,7 +405,6 @@ export class BlockLayout {
       ];
       if (fs) parts.push(`fontSize=${fs}`);
       if (ff) parts.push(`fontFamily=${ff}`);
-      if (co.childStroke) parts.push(`strokeColor=${co.childStroke}`);
       if (co.childLineStyle === 'dashed') parts.push('dashed=1');
       else if (co.childLineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
       else if (co.childLineStyle === 'bold') parts.push(`strokeWidth=${this._theme.boldStrokeWidth}`);

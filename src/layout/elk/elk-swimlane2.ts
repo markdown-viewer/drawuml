@@ -26,6 +26,7 @@ import { Renderer } from '../../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from '../renderer-tree.ts';
 import { createTheme, fontFamilyStyle, type Theme } from '../../shared/theme.ts';
 import { cellId, escapeXml, n4 } from '../../shared/xml-utils.ts';
+import { normalizeColor } from '../../shared/color-utils.ts';
 import { TextBlock } from '../../shared/text-block.ts';
 import { getElk, type ElkLayoutResult } from './elk-engine.ts';
 import { elkSpacing, collectEdges, type ElkEdge } from './elk-adapter.ts';
@@ -651,7 +652,7 @@ export async function elkSwimlaneLayout2(
     const label = swimContainer.concurrentRegionLabels?.[li] || '';
     const color = swimContainer.concurrentRegionColors?.[li] || '';
     const startSize = label ? theme.titleBarH : 0;
-    const fill = color || theme.groupFill;
+    const fill = normalizeColor(color) || theme.groupFill;
     const style = `swimlane;html=1;startSize=${startSize};`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=${theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${theme.colorDark};`

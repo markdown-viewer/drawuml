@@ -14,7 +14,7 @@ import { escapeXml, mxVertex, cellId, n4 } from '../shared/xml-utils.ts';
 import { Renderer, SwimlaneRenderer } from './renderer.ts';
 import { RichRenderer } from './shapes/rich-renderer.ts';
 
-import { parseNodeStyle, darkenColor } from '../shared/color-utils.ts';
+import { parseNodeStyle, darkenColor, normalizeColor } from '../shared/color-utils.ts';
 import type { Theme } from '../shared/theme.ts';
 import { fontFamilyStyle } from '../shared/theme.ts';
 import { registerRenderer } from './registry.ts';
@@ -295,7 +295,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     // LR mode: horizontal=0 puts the label on the left side (double header).
     const headerH = this.titleBarHeight;
     const startSize = this.regionLabel ? (this._isHorizontalLane ? headerH * 2 : headerH) : 0;
-    const fill = this.regionColor || this.theme.groupFill;
+    const fill = normalizeColor(this.regionColor) || this.theme.groupFill;
     const horizontalAttr = this._isHorizontalLane ? 'horizontal=0;' : '';
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
