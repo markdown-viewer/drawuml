@@ -82,6 +82,41 @@ function getPortSide(portKind: 'portin' | 'portout' | null, elkDirection: string
   return portKind === 'portout' ? (isRight ? 'EAST' : 'WEST') : (isRight ? 'WEST' : 'EAST');
 }
 
+/**
+ * Map note position to the ELK port side for the note node.
+ * The port is placed on the side FACING the target:
+ *   - "left"  → note is left of target → edge exits note's EAST side
+ *   - "right" → note is right of target → edge exits note's WEST side
+ *   - "top"   → note is above target → edge exits note's SOUTH side
+ *   - "bottom"→ note is below target → edge exits note's NORTH side
+ */
+function notePortSide(position?: string): string | undefined {
+  switch ((position || '').toLowerCase()) {
+    case 'left': return 'EAST';
+    case 'right': return 'WEST';
+    case 'top': return 'SOUTH';
+    case 'bottom': return 'NORTH';
+    default: return undefined;
+  }
+}
+
+/**
+ * Map note position to the ELK port side for the TARGET node.
+ * Opposite of notePortSide — the target receives the edge on the
+ * side facing the note:
+ *   - "left"  → note is left → target entry from WEST
+ *   - "right" → note is right → target entry from EAST
+ */
+function noteTargetPortSide(position?: string): string | undefined {
+  switch ((position || '').toLowerCase()) {
+    case 'left': return 'WEST';
+    case 'right': return 'EAST';
+    case 'top': return 'NORTH';
+    case 'bottom': return 'SOUTH';
+    default: return undefined;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // ELK spacing — helper to extract layout spacing strings from theme
 // ---------------------------------------------------------------------------
@@ -146,7 +181,15 @@ export function layoutGraphToElkSimple(
     const r = renderers.get(note.id);
     if (!r) continue;
     const sz = r.measure();
-    children.push({ id: note.id, width: sz.width, height: sz.height });
+    const noteElk: ElkNode = { id: note.id, width: sz.width, height: sz.height };
+    // Add port with side constraint for directional notes so ELK
+    // routes the note edge from the correct side (left/right/top/bottom).
+    const nps = notePortSide(note.position);
+    if (note.target && !note.onLink && nps) {
+      noteElk.ports = [{ id: `${note.id}::__np`, width: 1, height: 1, layoutOptions: { 'elk.port.side': nps } }];
+      noteElk.layoutOptions = { 'elk.portConstraints': 'FIXED_SIDE' };
+    }
+    children.push(noteElk);
   }
   if (model.legend) {
     const legendR = renderers.get('__legend__');
@@ -198,6 +241,7 @@ export function layoutGraphToElkSimple(
     edges: [],
   };
 
+  addNoteTargetPorts(elkRoot, model);
   addCompoundEdgeProxies(elkRoot, simpleEdges, model);
   distributeEdges(elkRoot, simpleEdges);
   boostStartPathPriority(elkRoot, model);
@@ -262,7 +306,14 @@ export function layoutGraphToElk(
     const r = renderers.get(note.id);
     if (!r) continue;
     const sz = r.measure();
-    children.push({ id: note.id, width: sz.width, height: sz.height });
+    const noteElk: ElkNode = { id: note.id, width: sz.width, height: sz.height };
+    // Add port with side constraint for directional notes
+    const nps = notePortSide(note.position);
+    if (note.target && !note.onLink && nps) {
+      noteElk.ports = [{ id: `${note.id}::__np`, width: 1, height: 1, layoutOptions: { 'elk.port.side': nps } }];
+      noteElk.layoutOptions = { 'elk.portConstraints': 'FIXED_SIDE' };
+    }
+    children.push(noteElk);
   }
 
   // Add legend node
@@ -329,6 +380,10 @@ export function layoutGraphToElk(
     children,
     edges: [],
   };
+
+  // Inject note-target ports on main nodes so ELK routes note edges
+  // to the correct side of the target (matching note position).
+  addNoteTargetPorts(elkRoot, model);
 
   // Handle compound edges between ancestor-descendant groups.
   // Must be called before distributeEdges so proxy nodes exist in the tree.
@@ -565,6 +620,42 @@ function mapNode(
   }
 
   return elk;
+}
+
+// ---------------------------------------------------------------------------
+// Note target ports — inject ports on target nodes for directional notes
+// ---------------------------------------------------------------------------
+
+/**
+ * For each note with a directional position (left/right/top/bottom),
+ * add a port on the target node at the appropriate side so ELK routes
+ * the note edge through that side rather than the default layer direction.
+ */
+function addNoteTargetPorts(elkRoot: ElkNode, model: SemanticModel): void {
+  const nodeMap = buildNodeMap(elkRoot);
+  for (const note of model.notes || []) {
+    if (!note.target || note.onLink) continue;
+    // Notes with memberTarget use the field port directly — no __ntp_ needed.
+    if (note.memberTarget) continue;
+    const side = noteTargetPortSide(note.position);
+    if (!side) continue;
+    const targetNode = nodeMap.get(note.target);
+    if (!targetNode) continue;
+    const portId = `${note.target}::__ntp_${note.id}`;
+    if (!targetNode.ports) targetNode.ports = [];
+    targetNode.ports.push({
+      id: portId,
+      width: 1,
+      height: 1,
+      layoutOptions: { 'elk.port.side': side },
+    });
+    if (!targetNode.layoutOptions) targetNode.layoutOptions = {};
+    // Use FIXED_SIDE so ELK honours the port side but auto-positions
+    // along the edge.  Upgrade only — do not downgrade FIXED_POS.
+    if (targetNode.layoutOptions['elk.portConstraints'] !== 'FIXED_POS') {
+      targetNode.layoutOptions['elk.portConstraints'] = 'FIXED_SIDE';
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -877,6 +968,66 @@ export function collectEdges(
     elkEdges.push(elkEdge);
   }
 
+  // Add note-to-target constraint edges so ELK positions notes near their
+  // targets and routes connection paths.  These edges carry no labels and
+  // use low priority to avoid disturbing the main graph layout.
+  for (const note of model.notes || []) {
+    if (!note.target || note.onLink) continue;
+    const noteR = renderers.get(note.id);
+    const targetR = renderers.get(note.target);
+    if (!noteR || !targetR) continue;
+
+    const edgeId = `__note_edge_${note.id}`;
+    // Use port-qualified source when note has a directional position
+    // so ELK routes the edge from the correct side of the note.
+    const nps = notePortSide(note.position);
+    const source = nps ? `${note.id}::__np` : note.id;
+
+    // Resolve target: if note targets a specific field (memberTarget),
+    // use the field port so ELK routes to the correct row in the class.
+    // Otherwise use a __ntp_ port for directional class-level targeting.
+    let target: string;
+    if (note.memberTarget) {
+      const sep = note.memberTarget.indexOf('::');
+      if (sep >= 0) {
+        const classId = note.memberTarget.slice(0, sep);
+        const memberName = note.memberTarget.slice(sep + 2);
+        const targetNode = model.nodes.find(n => n.id === classId);
+        let fieldPortId: string | null = null;
+        if (targetNode?.bodyLines) {
+          for (const bl of targetNode.bodyLines) {
+            const text = typeof bl === 'string' ? bl : bl.text;
+            const stripped = text.replace(/^[+\-#~*]\s*/, '').trim();
+            if (stripped === memberName || stripped.includes(memberName)) {
+              const colonIdx = stripped.indexOf(':');
+              const fieldName = colonIdx >= 0 ? stripped.slice(0, colonIdx).trim() : stripped;
+              if (fieldName) {
+                fieldPortId = `${classId}::${fieldName}`;
+                break;
+              }
+            }
+          }
+        }
+        target = fieldPortId ?? note.target;
+      } else {
+        target = note.target;
+      }
+    } else {
+      const ntps = noteTargetPortSide(note.position);
+      target = ntps ? `${note.target}::__ntp_${note.id}` : note.target;
+    }
+    const elkEdge: ElkEdge = {
+      id: edgeId,
+      sources: [source],
+      targets: [target],
+      layoutOptions: {
+        // Low priority so note edges don't override main graph layering
+        'elk.layered.priority.direction': '0',
+      },
+    };
+    elkEdges.push(elkEdge);
+  }
+
   return elkEdges;
 }
 
@@ -1013,6 +1164,13 @@ function buildPositionAwarePortAssignment(
       continue;
     }
 
+    // Skip note-only edges (both __np source and __ntp_ target) whose
+    // ports are pre-configured with FIXED_SIDE, not field-level variants.
+    if (srcFull.includes('::__np') && tgtFull.includes('::__ntp_')) {
+      edgePortMap.set(edge.id, { sources: [srcFull], targets: [tgtFull] });
+      continue;
+    }
+
     const srcNode = srcIsPort ? srcFull.split('::')[0] : srcFull;
     const tgtNode = tgtIsPort ? tgtFull.split('::')[0] : tgtFull;
 
@@ -1029,7 +1187,9 @@ function buildPositionAwarePortAssignment(
     }
 
     // Create per-edge port variant for source
-    if (srcIsPort) {
+    // Create per-edge port variant for source
+    // Note __np ports are pre-configured with FIXED_SIDE — keep as-is.
+    if (srcIsPort && !srcFull.includes('::__np')) {
       const suffix = srcSide === 'EAST' ? 'E' : 'W';
       const variantId = `${srcFull}__${suffix}_${edge.id}`;
       sources.push(variantId);

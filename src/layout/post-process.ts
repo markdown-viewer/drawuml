@@ -7,9 +7,8 @@
  */
 
 import type { LayoutResult, LayoutNode, LayoutGroup, LayoutEdge } from '../model/index.ts';
-import type { SemanticModel, SemanticNode } from '../model/index.ts';
+import type { SemanticModel } from '../model/index.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
-import { computeTitleH } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 
 // ---------------------------------------------------------------------------
@@ -441,79 +440,6 @@ export function snapPortNodes(
           }
         }
       }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Note field-level alignment
-// ---------------------------------------------------------------------------
-
-/**
- * Align notes that target specific class fields (memberTarget) so their
- * vertical center matches the corresponding field row within the class.
- */
-export function alignFieldNotes(
-  nodes: Record<string, LayoutNode>,
-  notes: Array<{ id: string; position?: string; target?: string; memberTarget?: string }>,
-  modelNodes: SemanticNode[],
-  theme: Theme = createTheme(),
-): void {
-  for (const note of notes) {
-    if (!note.memberTarget || !note.target) continue;
-    const noteLayout = nodes[note.id];
-    const targetLayout = nodes[note.target];
-    if (!noteLayout || !targetLayout) continue;
-
-    const sep = note.memberTarget.indexOf('::');
-    if (sep < 0) continue;
-    const classId = note.memberTarget.slice(0, sep);
-    const memberName = note.memberTarget.slice(sep + 2);
-
-    const targetNode = modelNodes.find(n => n.id === classId);
-    if (!targetNode?.bodyLines) continue;
-
-    // Find the field index in bodyLines
-    let fieldIndex = -1;
-    for (let i = 0; i < targetNode.bodyLines.length; i++) {
-      const bl = targetNode.bodyLines[i];
-      const text = typeof bl === 'string' ? bl : bl.text;
-      const stripped = text.replace(/^[+\-#~*]\s*/, '').trim();
-      if (stripped === memberName || stripped.includes(memberName)) {
-        fieldIndex = i;
-        break;
-      }
-    }
-    if (fieldIndex < 0) continue;
-
-    // Calculate field center Y using proportional distribution
-    const titleH = computeTitleH(targetNode);
-    const bodyH = targetLayout.height - titleH;
-    const numRows = targetNode.bodyLines.length;
-    if (numRows === 0) continue;
-    const rowSpacing = bodyH / numRows;
-    const fieldCenterY = titleH + rowSpacing * (fieldIndex + 0.5);
-
-    noteLayout.y = targetLayout.y + fieldCenterY - noteLayout.height / 2;
-  }
-
-  // Resolve overlaps: same-side notes targeting same class
-  const groups = new Map<string, typeof notes>();
-  for (const note of notes) {
-    if (!note.memberTarget || !note.position || !note.target) continue;
-    const key = `${note.target}::${note.position.toLowerCase()}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(note);
-  }
-  for (const group of Array.from(groups.values())) {
-    if (group.length <= 1) continue;
-    group.sort((a, b) => (nodes[a.id]?.y ?? 0) - (nodes[b.id]?.y ?? 0));
-    for (let i = 1; i < group.length; i++) {
-      const prev = nodes[group[i - 1].id];
-      const cur = nodes[group[i].id];
-      if (!prev || !cur) continue;
-      const minY = prev.y + prev.height + theme.contentPad; // note overlap gap
-      if (cur.y < minY) cur.y = minY;
     }
   }
 }

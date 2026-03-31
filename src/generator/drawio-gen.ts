@@ -385,7 +385,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     if (!noteLayout || !targetLayout) continue;
     const edgeId = `__note_edge_${note.id}`;
     const noteLinkColor = theme.noteLinkColor;
-    const style = `endArrow=none;dashed=1;strokeColor=${noteLinkColor};strokeWidth=${defaultStrokeWidth};`;
+    let style = `endArrow=none;dashed=1;strokeColor=${noteLinkColor};strokeWidth=${defaultStrokeWidth};`;
     // Resolve member-level target: match "A::counter" to field cell id "A::int counter"
     let edgeTarget = note.target;
     if (note.memberTarget) {
@@ -412,28 +412,110 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         }
       }
     }
-    // Add exit/entry constraints based on note position so the edge
-    // connects at the correct border instead of routing through the class.
-    let entryExit = '';
-    const pos = (note.position || '').toLowerCase();
-    if (pos === 'left') {
-      entryExit = 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
-    } else if (pos === 'right') {
-      entryExit = 'exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;';
-    } else if (pos === 'top') {
-      entryExit = 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
-    } else if (pos === 'bottom') {
-      entryExit = 'exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;';
+
+    // In ELK mode, use ELK-routed edge waypoints for note connections
+    const layoutEdge = layout.edges?.find((le) => le.id === edgeId);
+    if (engine === 'elk' && layoutEdge?.points && layoutEdge.points.length >= 2) {
+      let pts = layoutEdge.points;
+
+      // Resolve toPort from edgeTarget (e.g. "A::int counter" → port "int counter")
+      const toPort = edgeTarget !== note.target && edgeTarget.includes('::')
+        ? edgeTarget.slice(edgeTarget.indexOf('::') + 2) : undefined;
+
+      // Reuse computePortEdgeSides for field-level entry constraints
+      const sides = computePortEdgeSides(pts,
+        { from: note.id, to: note.target, fromPort: undefined, toPort },
+        layout, renderers, theme.contentPad);
+
+      // For exit: use computePortEdgeSides result, then position-based,
+      // then raw ELK coordinate as last resort.
+      const pos = (note.position || '').toLowerCase();
+      if (sides.exitX != null) {
+        style += `exitX=${n4(sides.exitX)};exitY=${n4(sides.exitY)};exitDx=0;exitDy=0;`;
+      } else if (pos === 'left') {
+        style += 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;';
+      } else if (pos === 'right') {
+        style += 'exitX=0;exitY=0.5;exitDx=0;exitDy=0;';
+      } else if (pos === 'top') {
+        style += 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;';
+      } else if (pos === 'bottom') {
+        style += 'exitX=0.5;exitY=0;exitDx=0;exitDy=0;';
+      } else {
+        const sp = pts[0];
+        const exitX = clamp01((sp.x - noteLayout.x) / noteLayout.width);
+        const exitY = clamp01((sp.y - noteLayout.y) / noteLayout.height);
+        style += `exitX=${n4(exitX)};exitY=${n4(exitY)};exitDx=0;exitDy=0;`;
+      }
+      // For entry: use computePortEdgeSides result (field-level precision),
+      // then position-based for non-field targets, then raw ELK coordinate.
+      if (sides.entryX != null) {
+        style += `entryX=${n4(sides.entryX)};entryY=${n4(sides.entryY)};entryDx=0;entryDy=0;`;
+      } else if (!toPort && pos === 'left') {
+        style += 'entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
+      } else if (!toPort && pos === 'right') {
+        style += 'entryX=1;entryY=0.5;entryDx=0;entryDy=0;';
+      } else if (!toPort && pos === 'top') {
+        style += 'entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
+      } else if (!toPort && pos === 'bottom') {
+        style += 'entryX=0.5;entryY=1;entryDx=0;entryDy=0;';
+      } else {
+        const ep = pts[pts.length - 1];
+        const entryX = clamp01((ep.x - targetLayout.x) / targetLayout.width);
+        const entryY = clamp01((ep.y - targetLayout.y) / targetLayout.height);
+        style += `entryX=${n4(entryX)};entryY=${n4(entryY)};entryDx=0;entryDy=0;`;
+      }
+
+      // Strip constrained endpoints; keep interior waypoints
+      const startIdx = sides.exitX != null ? 1 : 1;
+      const endIdx = sides.entryX != null ? pts.length - 1 : pts.length - 1;
+      pts = pts.slice(startIdx, endIdx);
+      // Remove collinear intermediate points
+      if (pts.length > 1) {
+        const simplified = [pts[0]];
+        for (let i = 1; i < pts.length - 1; i++) {
+          const prev = simplified[simplified.length - 1];
+          const curr = pts[i];
+          const next = pts[i + 1];
+          const sameX = Math.abs(curr.x - prev.x) < 0.5 && Math.abs(next.x - curr.x) < 0.5;
+          const sameY = Math.abs(curr.y - prev.y) < 0.5 && Math.abs(next.y - curr.y) < 0.5;
+          if (!sameX && !sameY) simplified.push(curr);
+        }
+        simplified.push(pts[pts.length - 1]);
+        pts = simplified;
+      }
+      const geometry = pts.length > 0 ? { waypoints: pts } : undefined;
+
+      cells.push(...buildEdgeCells({
+        id: edgeId,
+        style,
+        source: note.id,
+        target: edgeTarget,
+        geometry,
+        fontSize: theme.fontSize,
+        fontFamily: theme.fontFamily,
+      }));
+    } else {
+      // DOT mode or no ELK layout: use position-based exit/entry constraints
+      let entryExit = '';
+      const pos = (note.position || '').toLowerCase();
+      if (pos === 'left') {
+        entryExit = 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
+      } else if (pos === 'right') {
+        entryExit = 'exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;';
+      } else if (pos === 'top') {
+        entryExit = 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
+      } else if (pos === 'bottom') {
+        entryExit = 'exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;';
+      }
+      cells.push(...buildEdgeCells({
+        id: edgeId,
+        style: style + entryExit,
+        source: note.id,
+        target: edgeTarget,
+        fontSize: theme.fontSize,
+        fontFamily: theme.fontFamily,
+      }));
     }
-    const fullStyle = style + entryExit;
-    cells.push(...buildEdgeCells({
-      id: edgeId,
-      style: fullStyle,
-      source: note.id,
-      target: edgeTarget,
-      fontSize: theme.fontSize,
-      fontFamily: theme.fontFamily,
-    }));
   }
 
   return wrapMxfile(cells, { diagramId, diagramName });

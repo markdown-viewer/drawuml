@@ -8,10 +8,10 @@
 
 import ELK from 'elkjs';
 import type { LayoutResult } from '../../model/index.ts';
-import type { SemanticModel } from '../../model/index.ts';
+import type { SemanticModel, SemanticEdge } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from '../renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, rearrangeSwimlanes, separateOverlappingEdges } from '../post-process.ts';
+import { snapPortNodes, positionTitle, rearrangeSwimlanes, separateOverlappingEdges } from '../post-process.ts';
 import { layoutGraphToElk, layoutGraphToElkSimple } from './elk-adapter.ts';
 import { extractElkLayout } from './elk-extractor.ts';
 import { dotLayout } from '../dot-layout.ts';
@@ -52,7 +52,7 @@ import { createTheme, type Theme } from '../../shared/theme.ts';
  *  - label position extraction
  *
  * Returns the raw LayoutResult + pre-built renderers, without any of the
- * swimlane / snap / alignFieldNotes / positionTitle / separateOverlappingEdges
+ * swimlane / snap / positionTitle / separateOverlappingEdges
  * post-processing so callers can apply only what they need.
  */
 export async function runElkPipeline(
@@ -91,7 +91,20 @@ export async function runElkPipeline(
   const elkResult = await elk.layout(elkGraph);
 
   // 8. Extract layout result (includes label positions from ELK)
-  const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
+  // Include pseudo-edges for note-target connections so the extractor
+  // can retrieve their ELK-routed waypoints.
+  const noteEdges: SemanticEdge[] = [];
+  for (const note of model.notes || []) {
+    if (note.target && !note.onLink) {
+      noteEdges.push({
+        id: `__note_edge_${note.id}`,
+        from: note.id,
+        to: note.target,
+      } as SemanticEdge);
+    }
+  }
+  const allEdges = noteEdges.length > 0 ? [...model.edges, ...noteEdges] : model.edges;
+  const layout = extractElkLayout(elkResult, allEdges, renderers, groupIds);
 
   return { layout, renderers };
 }
@@ -124,7 +137,6 @@ export async function elkLayout(model: SemanticModel, options?: { theme?: Theme 
     }
   }
   snapPortNodes(layout, model, renderers, theme, elkPortIds);
-  alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
   positionTitle(layout, renderers);
   separateOverlappingEdges(layout, theme.edgeGap);
 

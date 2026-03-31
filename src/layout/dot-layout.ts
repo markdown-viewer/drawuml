@@ -12,7 +12,7 @@ import type { SemanticModel, SemanticEdge, SemanticGroup, SemanticNode } from '.
 import { createNodeRenderer } from '../primitives/index.ts';
 import { Renderer } from '../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from './renderer-tree.ts';
-import { snapPortNodes, alignFieldNotes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges, simplifyBacktrackEdges, compressLayers } from './post-process.ts';
+import { snapPortNodes, positionTitle, clipPathAtGroupBoundary, rearrangeSwimlanes, fixNodeSpacing, fixOrthoEdges, avoidNodeCollisions, separateOverlappingEdges, simplifyBacktrackEdges, compressLayers } from './post-process.ts';
 import { routeOrthogonal } from './orthogonal-router.ts';
 import { layoutGraphToDot } from './dot/dot-adapter.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
@@ -430,10 +430,7 @@ export async function dotLayout(model: SemanticModel, options?: { ortho?: boolea
   // 5b. Snap port nodes to their parent group boundary
   snapPortNodes(layout, model, renderers, theme);
 
-  // 6. Fine-tune field-targeting notes (memberTarget) Y alignment
-  alignFieldNotes(layout.nodes, model.notes || [], model.nodes, theme);
-
-  // 7. Position title above diagram with negative Y (not via DOT)
+  // 6. Position title above diagram with negative Y (not via DOT)
   positionTitle(layout, renderers);
 
   return { layout, renderers };
