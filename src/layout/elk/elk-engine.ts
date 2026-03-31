@@ -8,13 +8,12 @@
 
 import ELK from 'elkjs';
 import type { LayoutResult } from '../../model/index.ts';
-import type { SemanticModel, SemanticEdge } from '../../model/index.ts';
+import type { SemanticModel, SemanticEdge, SemanticNode } from '../../model/index.ts';
 import { Renderer } from '../../primitives/renderer.ts';
 import { createRenderers, buildRendererTree } from '../renderer-tree.ts';
 import { snapPortNodes, positionTitle, rearrangeSwimlanes, separateOverlappingEdges } from '../post-process.ts';
 import { layoutGraphToElk, layoutGraphToElkSimple } from './elk-adapter.ts';
 import { extractElkLayout } from './elk-extractor.ts';
-import { dotLayout } from '../dot-layout.ts';
 import { elkSwimlaneLayout2 } from './elk-swimlane2.ts';
 
 // ---------------------------------------------------------------------------
@@ -91,22 +90,91 @@ export async function runElkPipeline(
   const elkResult = await elk.layout(elkGraph);
 
   // 8. Extract layout result (includes label positions from ELK)
-  // Include pseudo-edges for note-target connections so the extractor
-  // can retrieve their ELK-routed waypoints.
-  const noteEdges: SemanticEdge[] = [];
-  for (const note of model.notes || []) {
-    if (note.target && !note.onLink) {
-      noteEdges.push({
-        id: `__note_edge_${note.id}`,
-        from: note.id,
-        to: note.target,
-      } as SemanticEdge);
-    }
-  }
-  const allEdges = noteEdges.length > 0 ? [...model.edges, ...noteEdges] : model.edges;
-  const layout = extractElkLayout(elkResult, allEdges, renderers, groupIds);
+  const layout = extractElkLayout(elkResult, model.edges, renderers, groupIds);
 
   return { layout, renderers };
+}
+
+// ---------------------------------------------------------------------------
+// Note rewrite — convert notes to regular nodes + edges for ELK
+// ---------------------------------------------------------------------------
+
+/**
+ * Rewrite model.notes into model.nodes + model.edges so that ELK treats
+ * notes as ordinary nodes.  This eliminates all note-specific code paths
+ * in the ELK adapter and DrawIO generator (ELK branch).
+ *
+ * - Each note becomes a SemanticNode with stereotype 'note'.
+ * - Each note-to-target connection becomes a dashed no-arrow SemanticEdge.
+ * - Notes inherit group membership from their target node.
+ * - onLink notes (edge labels) are also converted to standalone nodes.
+ */
+function rewriteNotesForElk(model: SemanticModel, theme?: Theme): void {
+  if (!model.notes?.length) return;
+
+  const th = theme ?? createTheme();
+
+  // Build node→group map
+  const nodeToGroup = new Map<string, string>();
+  const groupIdSet = new Set<string>();
+  for (const g of model.groups || []) {
+    groupIdSet.add(g.id);
+    for (const childId of g.children) nodeToGroup.set(childId, g.id);
+  }
+
+  for (const note of model.notes) {
+    // Convert note to SemanticNode
+    model.nodes.push({
+      id: note.id,
+      type: 'class',
+      label: '',
+      stereotype: 'note',
+      // Extra fields for NoteNodeRenderer (spread into RenderDescriptor)
+      lines: note.text.split('\n'),
+      color: note.color,
+    } as SemanticNode & { lines: string[]; color?: string });
+
+    if (note.target && !note.onLink) {
+      // Add note to same group as its target (when target is a regular node)
+      if (!groupIdSet.has(note.target)) {
+        const groupId = nodeToGroup.get(note.target);
+        if (groupId) {
+          const group = (model.groups || []).find(g => g.id === groupId);
+          if (group) group.children.push(note.id);
+        }
+      }
+
+      // Note: memberTarget resolution to field ports is intentionally skipped.
+      // The note edge connects to the node as a whole; directional placement
+      // is handled by FIXED_SIDE ports in the ELK adapter.
+      const toPort: string | undefined = undefined;
+
+      // Create dashed no-arrow edge
+      const noteEdge = {
+        id: `__note_edge_${note.id}`,
+        type: 'association',
+        from: note.id,
+        to: note.target,
+        arrow: '..',
+        arrowMeta: {
+          token: '..',
+          startHead: '',
+          endHead: '',
+          startHeadToken: '',
+          endHeadToken: '',
+          lineStyle: 'dashed',
+          structured: true,
+        },
+        toPort,
+        style: `#line:${th.noteLinkColor}`,
+      } as SemanticEdge;
+      // Store note position for ELK port constraint creation
+      if (note.position) (noteEdge as any)._notePosition = note.position.toLowerCase();
+      model.edges.push(noteEdge);
+    }
+  }
+
+  model.notes = [];
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +182,9 @@ export async function runElkPipeline(
 // ---------------------------------------------------------------------------
 
 export async function elkLayout(model: SemanticModel, options?: { theme?: Theme }): Promise<ElkLayoutResult> {
+  // Rewrite notes as regular nodes + edges so ELK treats them uniformly
+  rewriteNotesForElk(model, options?.theme);
+
   // Swimlane diagrams: border-port alignment algorithm, then shared post-processing
   const hasSwimlanes = (model.groups || []).some(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1,
