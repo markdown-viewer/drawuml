@@ -117,7 +117,13 @@ export function parseActivityDiagram(
       stereotype: rendererStereotype,
       bodyLines: [],
     };
-    if (color) node.style = `#back:${color}`;
+    // Apply inline color, or fall back to skinparam activityBackgroundColor/BorderColor
+    const fill = color || skinparams.activityBackgroundColor || null;
+    const stroke = skinparams.activityBorderColor || null;
+    const styleParts: string[] = [];
+    if (fill) styleParts.push(`back:${fill}`);
+    if (!color && stroke) styleParts.push(`line:${stroke}`);
+    if (styleParts.length) node.style = '#' + styleParts.join(';');
     addNode(node);
     return id;
   }
@@ -173,13 +179,20 @@ export function parseActivityDiagram(
 
   function createDiamond(label: string): string {
     const id = nextId('diamond');
-    addNode({
+    const fill = skinparams.activityDiamondBackgroundColor || null;
+    const stroke = skinparams.activityDiamondBorderColor || null;
+    const styleParts: string[] = [];
+    if (fill) styleParts.push(`back:${fill}`);
+    if (stroke) styleParts.push(`line:${stroke}`);
+    const node: SemanticNode = {
       id,
       type: NodeType.StateChoice as any,
       label,
       stereotype: null,
       bodyLines: [],
-    });
+    };
+    if (styleParts.length) node.style = '#' + styleParts.join(';');
+    addNode(node);
     return id;
   }
 
@@ -363,6 +376,20 @@ export function parseActivityDiagram(
     // ── Skinparam ──
     if (kind === 'directive_statement' && String(st.keyword || '').toLowerCase() === 'skinparam') {
       if (st.key && st.value) skinparams[st.key] = st.value;
+      if (st.block === true) {
+        // Block form: `skinparam activity { ... }` — collect child style_text_lines
+        const prefix = String(st.text || '').trim();
+        for (let j = i + 1; j < statements.length; j++) {
+          const child = statements[j];
+          if (!child) continue;
+          if (child.kind === 'block_statement' && child.type === 'style_block_end') { i = j; break; }
+          if (child.kind === 'style_text_line') {
+            const line = String(child.text || '').trim();
+            const m = line.match(/^(\w+)\s+(.+)$/);
+            if (m) skinparams[(prefix ? prefix + m[1] : m[1])] = m[2].trim();
+          }
+        }
+      }
       continue;
     }
 
