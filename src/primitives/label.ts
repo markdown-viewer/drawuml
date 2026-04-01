@@ -60,6 +60,14 @@ export function buildLabelHtml(opts: {
     + `margin-right:${spotMar}px;">${spot!.char}</span>`;
 
   if (!hasStereotype) {
+    // When label is multi-line, wrap in alignment span so the spot circle
+    // is vertically centered with the entire title block (not just the first line).
+    if (styledLabel.includes('<br')) {
+      return circleHtml
+        + '<span style="display:inline-block;vertical-align:middle;text-align:center;">'
+        + styledLabel
+        + '</span>';
+    }
     return circleHtml + styledLabel;
   }
 
