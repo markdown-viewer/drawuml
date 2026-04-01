@@ -395,7 +395,7 @@ function renderStencilParticipant(
   const headerH = layout.iconHeight ?? renderer.measure().height;
   const cells: string[] = [];
 
-  // Invisible umlLifeline container — provides geometry for message targeting
+  // umlLifeline container — invisible, provides geometry for message targeting
   cells.push(mxVertex({
     id: p.id,
     value: '',
@@ -407,7 +407,7 @@ function renderStencilParticipant(
       'collapsible=0',
       'recursiveResize=0',
       'outlineConnect=0',
-      'size=0.001',
+      `size=${n4(headerH)}`,
       'html=1',
       'fillColor=none',
       'strokeColor=none',
@@ -419,13 +419,14 @@ function renderStencilParticipant(
   // Icon rendered via standard MxgraphIconRenderer pipeline (child of container)
   cells.push(...renderer.render({ x: 0, y: 0, width: cellW, height: headerH }));
 
-  // Dashed lifeline edge (replaces the invisible umlLifeline dashed line)
+  // Dashed lifeline as child edge — renders before activation bars in SVG
   cells.push(...buildEdgeCells({
     id: p.id + '_dash',
+    parent: p.id,
     style: `endArrow=none;startArrow=none;dashed=1;strokeColor=${theme.colorDark};strokeWidth=${theme.strokeWidth};`,
     geometry: {
-      sourcePoint: { x: cellX + cellW / 2, y: layout.y + headerH },
-      targetPoint: { x: cellX + cellW / 2, y: layout.y + layout.height },
+      sourcePoint: { x: cellW / 2, y: headerH },
+      targetPoint: { x: cellW / 2, y: layout.height },
     },
   }));
 
