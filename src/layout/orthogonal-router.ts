@@ -83,7 +83,10 @@ export function routeOrthogonalFixed(
   portHints?: Map<string, { fromX?: number; toX?: number }>,
 ): void {
   const sp = spacingFromTheme(theme);
-  routeAllEdges(layout, sp, false, true, portHints);
+  // Swimlane nodes at the same logical level can have very different heights
+  // (e.g. fork bars ~7px vs activity nodes ~46px), so use a larger tolerance
+  // to avoid splitting them into separate layers.
+  routeAllEdges(layout, sp, false, true, portHints, 15);
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +129,7 @@ interface GapSegmentResult {
   splitLinkPos?: number;
 }
 
-function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean, fixedNodes = false, portHints?: Map<string, { fromX?: number; toX?: number }>): void {
+function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean, fixedNodes = false, portHints?: Map<string, { fromX?: number; toX?: number }>, layerTolerance?: number): void {
   const nodes = layout.nodes;
   // When nodes are fixed (swimlane mode), only route edges that have no pre-computed
   // points — edges already routed by ELK must not be overwritten.
@@ -135,7 +138,7 @@ function routeAllEdges(layout: LayoutResult, sp: RoutingSpacing, isLR: boolean, 
     : layout.edges;
   if (!edges || edges.length === 0) return;
 
-  const layers = buildLayers(nodes, isLR);
+  const layers = buildLayers(nodes, isLR, layerTolerance);
   if (layers.length < 2) return;
 
   // nodeId -> layerIndex
@@ -767,7 +770,7 @@ function getPort(
  * For LR layout, layers are columns (grouped by X center).
  * Returns layers sorted by ascending coordinate.
  */
-function buildLayers(nodes: Record<string, LayoutNode>, useX: boolean): string[][] {
+function buildLayers(nodes: Record<string, LayoutNode>, useX: boolean, tolerance?: number): string[][] {
   // Collect center coordinates
   const coords: { id: string; center: number }[] = [];
   for (const [id, node] of Object.entries(nodes)) {
@@ -777,7 +780,7 @@ function buildLayers(nodes: Record<string, LayoutNode>, useX: boolean): string[]
   coords.sort((a, b) => a.center - b.center);
 
   // Cluster nodes with centers close together (within tolerance) into the same layer
-  const LAYER_TOLERANCE = 5; // nodes within 5px of the cluster representative are same layer
+  const LAYER_TOLERANCE = tolerance ?? 5;
   const layers: { center: number; nodes: string[] }[] = [];
 
   for (const { id, center } of coords) {

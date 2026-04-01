@@ -685,6 +685,12 @@ export async function elkSwimlaneLayout2(
 
   const layout: LayoutResult = { nodes, edges: layoutEdges, groups, prefixCells };
 
+  // Pre-expand vertical gaps so cross-lane edge routing has enough room.
+  // adjustNodeSpacing inside the orthogonal router is skipped when fixedNodes=true,
+  // so we replicate the logic here before routing, also shifting intra-lane
+  // edge points and group/prefixCell heights accordingly.
+  adjustCrossLaneSpacing(layout, crossEdges, nodeLaneIdx, theme);
+
   // Route cross-lane edges: node positions are fixed, intra-lane edges already
   // have points (same X-layer → skipped). Cross-lane edges span lane columns
   // (different X-layers) → routed through the inter-lane gap.
@@ -693,4 +699,181 @@ export async function elkSwimlaneLayout2(
   routeOrthogonalFixed(layout, theme, portHints.size > 0 ? portHints : undefined);
 
   return { layout, renderers };
+}
+
+// ---------------------------------------------------------------------------
+// Pre-routing: expand vertical gaps for cross-lane edge trunks
+// ---------------------------------------------------------------------------
+
+// Larger than orthogonal-router's 5 because swimlane nodes at the same logical
+// level can have different heights (e.g. thin fork bars ~7px vs activity nodes
+// ~46px), causing center offsets up to ~20px.  15 safely merges same-level
+// nodes while staying well below the typical inter-layer gap (50px+).
+const LAYER_TOLERANCE = 15;
+
+/**
+ * Compute Y-layers from node positions (same logic as orthogonal-router's
+ * buildLayers, but inlined to avoid exporting internal helpers).
+ */
+function buildYLayers(nodes: Record<string, LayoutNode>): string[][] {
+  const coords: { id: string; center: number }[] = [];
+  for (const [id, node] of Object.entries(nodes)) {
+    coords.push({ id, center: node.y + node.height / 2 });
+  }
+  coords.sort((a, b) => a.center - b.center);
+
+  const layers: { center: number; nodes: string[] }[] = [];
+  for (const { id, center } of coords) {
+    let found = false;
+    for (const layer of layers) {
+      if (Math.abs(center - layer.center) <= LAYER_TOLERANCE) {
+        layer.nodes.push(id);
+        found = true;
+        break;
+      }
+    }
+    if (!found) layers.push({ center, nodes: [id] });
+  }
+  return layers.map(l => l.nodes);
+}
+
+/**
+ * Ensure there is enough vertical space between node layers for cross-lane
+ * edge trunks. When the gap is too small, shift all nodes/edges/groups in
+ * lower layers downward and update totalH / prefixCells.
+ */
+function adjustCrossLaneSpacing(
+  layout: LayoutResult,
+  crossEdges: SemanticEdge[],
+  nodeLaneIdx: Map<string, number>,
+  theme: Theme,
+): void {
+  const nodes = layout.nodes;
+  const edges = layout.edges;
+  if (!edges || edges.length === 0) return;
+
+  const edgeEdge = theme.edgeGap;
+  const edgeNode = theme.nodeGap;
+
+  const layers = buildYLayers(nodes);
+  if (layers.length < 2) return;
+
+  // nodeId → layerIndex
+  const nodeLayerIndex = new Map<string, number>();
+  for (let li = 0; li < layers.length; li++) {
+    for (const nid of layers[li]) nodeLayerIndex.set(nid, li);
+  }
+
+  const numGaps = layers.length - 1;
+
+  // Count cross-lane edges that need a horizontal trunk in each gap.
+  // An edge has a trunk endpoint in gap gi if gi === srcLayer or gi+1 === tgtLayer.
+  const gapTrunkCount = new Array(numGaps).fill(0) as number[];
+  const gapHasTrunk = new Array(numGaps).fill(false) as boolean[];
+
+  for (const ce of crossEdges) {
+    let srcLayer = nodeLayerIndex.get(ce.from);
+    let tgtLayer = nodeLayerIndex.get(ce.to);
+    if (srcLayer === undefined || tgtLayer === undefined) continue;
+    if (srcLayer > tgtLayer) { const tmp = srcLayer; srcLayer = tgtLayer; tgtLayer = tmp; }
+    if (srcLayer === tgtLayer) continue;
+
+    for (let gi = srcLayer; gi < tgtLayer; gi++) {
+      if (gi === srcLayer || gi + 1 === tgtLayer) {
+        gapTrunkCount[gi]++;
+        gapHasTrunk[gi] = true;
+      }
+    }
+  }
+
+  // Compute layer extents (bottom of layer i, top of layer i+1)
+  const layerBottom: number[] = [];
+  const layerTop: number[] = [];
+  for (let li = 0; li < layers.length; li++) {
+    let maxB = -Infinity, minT = Infinity;
+    for (const nid of layers[li]) {
+      const n = nodes[nid];
+      if (!n) continue;
+      minT = Math.min(minT, n.y);
+      maxB = Math.max(maxB, n.y + n.height);
+    }
+    layerBottom.push(maxB);
+    layerTop.push(minT);
+  }
+
+  // Compute per-gap delta
+  const gapDelta: number[] = [];
+  let anyPositive = false;
+  for (let gi = 0; gi < numGaps; gi++) {
+    if (!gapHasTrunk[gi]) { gapDelta.push(0); continue; }
+    const actual = layerTop[gi + 1] - layerBottom[gi];
+    const desired = edgeNode + gapTrunkCount[gi] * edgeEdge + edgeNode;
+    const delta = Math.max(0, desired - actual);
+    gapDelta.push(delta);
+    if (delta > 0) anyPositive = true;
+  }
+
+  if (!anyPositive) return;
+
+  // Build cumulative shift per layer (layer 0 stays)
+  const cumShift: number[] = [0];
+  let cum = 0;
+  for (let li = 1; li < layers.length; li++) {
+    cum += gapDelta[li - 1];
+    cumShift.push(cum);
+  }
+
+  // Shift nodes
+  for (let li = 1; li < layers.length; li++) {
+    const shift = cumShift[li];
+    if (shift === 0) continue;
+    for (const nid of layers[li]) {
+      const n = nodes[nid];
+      if (n) n.y += shift;
+    }
+  }
+
+  // Shift intra-lane edge points (those that already have routing from ELK).
+  // Each point's Y gets the cumulative shift of the layer it falls into.
+  // We locate the layer by checking which layer gap the point sits in.
+  for (const edge of edges) {
+    if (!edge.points || edge.points.length < 2) continue;
+    for (const pt of edge.points) {
+      // Find the layer whose bottom is just above (or at) this point
+      let bestLi = 0;
+      for (let li = 0; li < layers.length; li++) {
+        if (layerTop[li] <= pt.y + LAYER_TOLERANCE) bestLi = li;
+      }
+      pt.y += cumShift[bestLi];
+    }
+    // Shift label positions too
+    if (edge.labelPos) {
+      let bestLi = 0;
+      for (let li = 0; li < layers.length; li++) {
+        if (layerTop[li] <= edge.labelPos.y + LAYER_TOLERANCE) bestLi = li;
+      }
+      edge.labelPos.y += cumShift[bestLi];
+    }
+  }
+
+  const totalShift = cum;
+  if (totalShift === 0) return;
+
+  // Adjust groups
+  if (layout.groups) {
+    for (const g of Object.values(layout.groups)) {
+      // Groups span the full height — just extend height
+      g.height += totalShift;
+    }
+  }
+
+  // Adjust prefixCells — update height values in the XML strings
+  if (layout.prefixCells) {
+    for (let i = 0; i < layout.prefixCells.length; i++) {
+      layout.prefixCells[i] = layout.prefixCells[i].replace(
+        /height="([^"]+)"/,
+        (_match, oldH) => `height="${n4(parseFloat(oldH) + totalShift)}"`,
+      );
+    }
+  }
 }
