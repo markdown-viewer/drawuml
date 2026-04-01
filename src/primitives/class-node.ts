@@ -269,7 +269,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     const generic = this.node.generic;
     if (!generic) return null;
     const fs = this.theme.smallFontSize;
-    const tb = TextBlock.plain(generic, { size: fs, family: this.theme.fontFamily, style: 'italic' });
+    const tb = TextBlock.literal(generic, { size: fs, family: this.theme.fontFamily, style: 'italic' });
     const pad = this.theme.strokeWidth * 3;
     return { width: tb.width + pad * 2, height: tb.height + pad * 2 };
   }

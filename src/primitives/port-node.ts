@@ -86,7 +86,7 @@ export class PortNodeRenderer extends Renderer {
     // Label cell — positioned above (portin) or below (portout) the square
     if (this._label) {
       const labelPad = this.theme.edgeGap || LABEL_PAD_DEFAULT;
-      const plainBlock = TextBlock.plain(this._label, { size: this.theme.fontSize, family: this.theme.fontFamily });
+      const plainBlock = TextBlock.literal(this._label, { size: this.theme.fontSize, family: this.theme.fontFamily });
       const textW = plainBlock.width;
       const labelWidth = Math.max(Math.ceil(textW) + this.theme.contentPad, portSize + this.theme.rowH);
       const labelX = box.x + portHalf - labelWidth / 2;

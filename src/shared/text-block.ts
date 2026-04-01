@@ -5,7 +5,7 @@
  * Guarantees that measure() and .html always refer to the same internal string.
  *
  * Public surface:
- *   - Factory: TextBlock.inline(), TextBlock.block(), TextBlock.plain()
+ *   - Factory: TextBlock.inline(), TextBlock.block(), TextBlock.literal()
  *   - Output:  .html (readonly)
  *   - Size:    .measure(), .width, .height
  *
@@ -40,12 +40,21 @@ export const DEFAULT_FONT: FontSpec = { size: DEFAULT_FONT_SIZE, family: DEFAULT
 
 export class TextBlock {
   private readonly _html: string;
+  private readonly _measureInput: string;
   private readonly _font: FontSpec;
+  private readonly _measureAsHtml: boolean;
   private _size: TextSize | null = null;
 
-  private constructor(html: string, font: FontSpec) {
+  private constructor(
+    html: string,
+    font: FontSpec,
+    measureAsHtml: boolean,
+    measureInput?: string,
+  ) {
     this._html = html;
     this._font = font;
+    this._measureAsHtml = measureAsHtml;
+    this._measureInput = measureInput ?? html;
   }
 
   // ── Factory methods ──────────────────────────────────────────────────────
@@ -56,7 +65,7 @@ export class TextBlock {
    */
   static inline(raw: string, font: FontSpec): TextBlock {
     const html = finalizeHtml(creoleInline(unescapePlantUml(raw)));
-    return new TextBlock(html, font);
+    return new TextBlock(html, font, true);
   }
 
   /**
@@ -68,15 +77,17 @@ export class TextBlock {
     const lines = unescaped.split('\n');
     const blocks = parseCreoleBlocks(lines);
     const html = finalizeHtml(renderCreoleToHtml(blocks, font.size));
-    return new TextBlock(html, font);
+    return new TextBlock(html, font, true);
   }
 
   /**
-   * Plain text (no Creole processing).
-   * For labels that are already plain text (map entries, port labels, etc.).
+   * Literal text (no Creole processing).
+   * For labels that must keep literal semantics (map entries, port labels, etc.).
    */
-  static plain(text: string, font: FontSpec): TextBlock {
-    return new TextBlock(text, font);
+  static literal(text: string, font: FontSpec): TextBlock {
+    // Keep output text unchanged for downstream XML escaping, but measure as
+    // HTML-safe literal to avoid branch heuristics and entity-width skew.
+    return new TextBlock(text, font, true, escapeHtmlText(text));
   }
 
   /**
@@ -84,7 +95,7 @@ export class TextBlock {
    * For HTML strings already produced by buildTitleHtml / buildLabelHtml etc.
    */
   static fromHtml(html: string, font: FontSpec): TextBlock {
-    return new TextBlock(html, font);
+    return new TextBlock(html, font, true);
   }
 
   /**
@@ -94,7 +105,7 @@ export class TextBlock {
    */
   static inlineCreole(text: string, font: FontSpec): TextBlock {
     const html = finalizeHtml(creoleInline(text));
-    return new TextBlock(html, font);
+    return new TextBlock(html, font, true);
   }
 
   /**
@@ -105,7 +116,7 @@ export class TextBlock {
   static blockFromLines(lines: string[], font: FontSpec): TextBlock {
     const blocks = parseCreoleBlocks(lines);
     const html = finalizeHtml(renderCreoleToHtml(blocks, font.size));
-    return new TextBlock(html, font);
+    return new TextBlock(html, font, true);
   }
 
   // ── Static utilities ──────────────────────────────────────────────────────
@@ -126,14 +137,13 @@ export class TextBlock {
   /** Measured size (lazy, cached, frozen). */
   measure(): TextSize {
     if (!this._size) {
-      const isHtml = this._html.includes('<');
       this._size = Object.freeze(measureText(
-        this._html,
+        this._measureInput,
         this._font.size,
         this._font.family,
         this._font.weight || 'normal',
         this._font.style || 'normal',
-        isHtml,
+        this._measureAsHtml,
       ));
     }
     return this._size;
@@ -316,6 +326,11 @@ function creoleInline(text: string): string {
     const cp = OPENICONIC_MAP[name.toLowerCase()];
     return cp ? String.fromCodePoint(cp) : match;
   });
+
+  // Inline stereotype: <<Foo>> → «Foo»
+  // Keep this in the Creole pipeline so all inline text contexts share
+  // the same normalization behavior.
+  s = s.replace(/<<\s*([^<>]+?)\s*>>/g, '«$1»');
 
   // --- Restore escaped sections (reverse order) ---
 

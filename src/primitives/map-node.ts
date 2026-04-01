@@ -76,8 +76,8 @@ class MapNodeRenderer extends Renderer {
     let maxValW = 0;
     const plainFont = { size: this.theme.fontSize, family: this.theme.fontFamily };
     for (const entry of this.entries) {
-      const km = TextBlock.plain(entry.key, plainFont).measure();
-      const vm = TextBlock.plain(entry.value || '', plainFont).measure();
+      const km = TextBlock.literal(entry.key, plainFont).measure();
+      const vm = TextBlock.literal(entry.value || '', plainFont).measure();
       maxKeyW = Math.max(maxKeyW, Math.ceil(km.width));
       maxValW = Math.max(maxValW, Math.ceil(vm.width));
     }
@@ -150,7 +150,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.plain(entry.key, plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.literal(entry.key, plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${n4(y)}" width="${n4(box.width)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -174,7 +174,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.plain(entry.value || '', plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.literal(entry.value || '', plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${n4(y)}" width="${n4(box.width)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -199,7 +199,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(TextBlock.plain(entry.key, plainFont).html)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
+          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(TextBlock.literal(entry.key, plainFont).html)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
           + `<mxGeometry width="${n4(keyColW)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );

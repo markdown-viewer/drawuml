@@ -1,3 +1,6 @@
+import type { NormalizedText, NormalizedTextSourceHint } from './normalized-text.ts';
+import { normalizedHtml } from './normalized-text.ts';
+
 /**
  * PlantUML preprocessor directive isolation.
  *
@@ -16,6 +19,27 @@ export interface PreprocessResult {
   source: string;
   /** Extracted `!pragma` key→value map (e.g. { useIntermediatePackages: 'false' }). */
   pragmas: Record<string, string>;
+}
+
+/**
+ * Normalize a semantic text value into the canonical HTML carrier.
+ *
+ * Note: this helper is intentionally side-car in Stage-1 and does not mutate
+ * parser input/output. It is introduced for incremental migration only.
+ */
+export function normalizeSemanticText(
+  text: string,
+  sourceHint: NormalizedTextSourceHint = 'literal',
+): NormalizedText {
+  return normalizedHtml(escapeHtmlText(text), sourceHint);
+}
+
+/** Batch helper for fields that can be normalized independently. */
+export function normalizeSemanticTexts(
+  texts: readonly string[],
+  sourceHint: NormalizedTextSourceHint = 'literal',
+): NormalizedText[] {
+  return texts.map((text) => normalizeSemanticText(text, sourceHint));
 }
 
 export function preprocess(source: string): PreprocessResult {
@@ -38,4 +62,11 @@ export function preprocess(source: string): PreprocessResult {
   }
 
   return { source: kept.join('\n'), pragmas };
+}
+
+function escapeHtmlText(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

@@ -513,7 +513,7 @@ export async function elkSwimlaneLayout2(
   const titleMinWidths = regions.map((_r, li) => {
     const label = swimContainer.concurrentRegionLabels?.[li] || '';
     if (!label) return 0;
-    return TextBlock.plain(label, titleFont).measure().width + 2 * theme.edgeGap;
+    return TextBlock.literal(label, titleFont).measure().width + 2 * theme.edgeGap;
   });
   const laneWidths = laneResults.map((lr, li) => {
     const minX = isFinite(lr.minOwnX) ? lr.minOwnX : 0;
