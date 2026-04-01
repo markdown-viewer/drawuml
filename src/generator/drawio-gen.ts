@@ -5,6 +5,7 @@ import { parseBracketEdgeStyle, parseEdgeInlineStyle } from '../shared/color-uti
 import { buildEdgeCells } from '../shared/edge-builder.ts';
 import { LabelRenderer } from '../primitives/shapes/label.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
+import { resolveGroupShape } from '../primitives/group.ts';
 
 export interface DrawioGenOptions {
   /** Layout engine used. Affects edge style (curved vs orthogonal). */
@@ -26,8 +27,16 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
   // Build groupId set for compound edge detection
   const groups = model.groups || [];
   const groupIdSet = new Set<string>();
+  // Groups whose resolved shape has a custom perimeter (e.g. folder) keep
+  // the cell reference so drawio2svg can snap edges to the actual outline.
+  const perimeterGroupIds = new Set<string>();
+  const globalPackageStyle = model.skinparams?.packageStyle;
   for (const g of groups) {
     groupIdSet.add(g.id);
+    const shape = resolveGroupShape(g.type, g.stereotype, globalPackageStyle, g.id);
+    if (shape === 'folder' || shape === 'package') {
+      perimeterGroupIds.add(g.id);
+    }
   }
 
   // Count edges per normalised (A, B) pair to detect parallel multi-edges.
@@ -154,13 +163,18 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // the group border).  Omitting the cell reference lets drawio2svg use our
     // exact B-spline endpoint coordinates instead.
     //
-    // Exception: group self-loops (from === to && both are groups).  Graphviz's
+    // Exception 1: group self-loops (from === to && both are groups).  Graphviz's
     // compound self-loop routes through the representative node interior, not
     // around the cluster boundary.  We keep source/target so DrawIO draws its
     // own self-loop around the group cell.
+    //
+    // Exception 2: groups with custom perimeter (e.g. folder).  Their visual
+    // outline differs from the rectangular bounding box, so we keep the cell
+    // reference to let drawio2svg's perimeter function snap the endpoint to
+    // the actual shape boundary.
     const isGroupSelfLoop = edge.from === edge.to && groupIdSet.has(edge.from);
-    let omitSource = !isGroupSelfLoop && groupIdSet.has(edge.from);
-    let omitTarget = !isGroupSelfLoop && groupIdSet.has(edge.to);
+    let omitSource = !isGroupSelfLoop && groupIdSet.has(edge.from) && !perimeterGroupIds.has(edge.from);
+    let omitTarget = !isGroupSelfLoop && groupIdSet.has(edge.to) && !perimeterGroupIds.has(edge.to);
 
     const layoutEdge = layout.edges?.find((le) => le.id === edge.id);
     let points = layoutEdge?.points || null;
@@ -448,8 +462,10 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       }
       // For group targets, skip entry constraints and omit target cell binding
       // (same as regular node→group edges: use targetPoint instead).
+      // Exception: groups with custom perimeter keep the cell reference.
       const targetIsGroup = groupIdSet.has(note.target);
-      if (!targetIsGroup) {
+      const targetIsPerimeterGroup = perimeterGroupIds.has(note.target);
+      if (!targetIsGroup || targetIsPerimeterGroup) {
         // For entry: use computePortEdgeSides result (field-level precision),
         // then position-based for non-field targets, then raw ELK coordinate.
         if (sides.entryX != null) {
@@ -470,8 +486,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         }
       }
 
-      // Strip source endpoint; for groups keep target endpoint as targetPoint
-      pts = pts.slice(1, targetIsGroup ? pts.length : pts.length - 1);
+      // Strip source endpoint; for non-perimeter groups keep target endpoint as targetPoint
+      const omitNoteTarget = targetIsGroup && !targetIsPerimeterGroup;
+      pts = pts.slice(1, omitNoteTarget ? pts.length : pts.length - 1);
       // Remove collinear intermediate points
       if (pts.length > 1) {
         const simplified = [pts[0]];
@@ -486,9 +503,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         simplified.push(pts[pts.length - 1]);
         pts = simplified;
       }
-      // For group targets: last point → targetPoint, no target cell binding
+      // For group targets without custom perimeter: last point → targetPoint, no target cell binding
       let geometry: { targetPoint?: { x: number; y: number }; waypoints?: { x: number; y: number }[] } | undefined;
-      if (targetIsGroup && pts.length > 0) {
+      if (omitNoteTarget && pts.length > 0) {
         const tp = pts[pts.length - 1];
         const wp = pts.slice(0, -1);
         geometry = { targetPoint: tp, waypoints: wp.length > 0 ? wp : undefined };
@@ -500,7 +517,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
         id: edgeId,
         style,
         source: note.id,
-        target: targetIsGroup ? undefined : edgeTarget,
+        target: omitNoteTarget ? undefined : edgeTarget,
         geometry,
         fontSize: theme.fontSize,
         fontFamily: theme.fontFamily,
