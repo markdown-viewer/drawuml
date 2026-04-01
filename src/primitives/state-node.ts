@@ -236,11 +236,13 @@ export class SwimlaneContainerRenderer extends Renderer {
 }
 
 // ---------------------------------------------------------------------------
-// Concurrent region renderer — child swimlane lane within a composite state
+// Concurrent region renderer — shared lane/group renderer
 // ---------------------------------------------------------------------------
 
 /**
  * Renders a concurrent region as a DrawIO swimlane lane.
+ * This is primarily used by activity swimlane rendering; state composite
+ * rendering uses region nodes as layout groups and draws split lines itself.
  * - With label: shows a secondary title header (startSize=20)
  * - Without label: just a bordered region (startSize=0, no title bar)
  */
@@ -418,17 +420,16 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const labelMeas = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily });
       const labelHtml = labelMeas.html;
       const parentCellId = this.parentId || '1';
-      const hasConcurrentRegions = this.children.some(c => c instanceof ConcurrentRegionRenderer);
       const titleBarH = Math.ceil(labelMeas.measure().height) + this.theme.titlePadY;
-      const style = stateGroupStyle(titleBarH, this.theme, this.nodeStyle, hasConcurrentRegions);
+      const style = stateGroupStyle(titleBarH, this.theme, this.nodeStyle);
       const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
         + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
         + `</mxCell>`];
 
-      // If has concurrent regions, render them as tiled lanes filling the
-      // parent content area, with boundaries at midpoints between regions.
+      // If concurrent regions exist, always use split-line mode so state
+      // diagrams do not fall back to legacy lane-container rendering.
       const regionChildren = this.children.filter(c => c instanceof ConcurrentRegionRenderer);
-      if (regionChildren.length > 1) {
+      if (regionChildren.length > 0) {
         cells.push(...this.renderConcurrentLanes(box, regionChildren));
       } else {
         cells.push(...this.renderChildren());
@@ -439,9 +440,8 @@ class StateNodeRenderer extends SwimlaneRenderer {
   }
 
   /**
-   * Render concurrent region children as tiled swimlane lanes that fill
-   * the parent container's content area with no gaps. Lane boundaries
-   * are computed at midpoints between ELK-positioned regions.
+   * Render concurrent-region children directly under the parent state
+   * and draw only split separators between regions.
    */
   private renderConcurrentLanes(box: ContentBox, regions: Renderer[]): string[] {
     const layout = this._layoutRef;
@@ -462,8 +462,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
     const laneY = this.titleBarHeight;
     const laneH = box.height - laneY;
 
-    // Proportional-width lanes filling the container:
-    // distribute space based on ELK region widths
+    // Compute split boundaries from proportional region widths.
     const n = regionInfos.length;
     const totalElkW = regionInfos.reduce((s, r) => s + r.elkBox.width, 0);
     const laneWidths = regionInfos.map(r => r.elkBox.width / totalElkW * box.width);
@@ -473,9 +472,42 @@ class StateNodeRenderer extends SwimlaneRenderer {
     for (let i = 0; i < n; i++) {
       const laneX = cumulX;
       cumulX += laneWidths[i];
-      const actualW = cumulX - laneX;
-      const laneBox: ContentBox = { x: laneX, y: laneY, width: actualW, height: laneH };
-      cells.push(...regionInfos[i].renderer.render(laneBox));
+
+      // Draw split line at lane boundary (except first lane).
+      if (i > 0) {
+        const splitX = laneX;
+        const parsed = this.nodeStyle ? parseNodeStyle(this.nodeStyle) : null;
+        const splitStroke = parsed?.strokeColor
+          || (parsed?.fillColor ? darkenColor(parsed.fillColor) : this.theme.colorDark);
+        const splitId = `${this.id}__split__${i}`;
+        cells.push(
+          `<mxCell id="${escapeXml(cellId(splitId))}" value="" `
+          + `style="endArrow=none;startArrow=none;dashed=1;dashPattern=4 4;strokeWidth=${n4(this.theme.strokeWidth)};strokeColor=${splitStroke};rounded=0;edgeStyle=orthogonalEdgeStyle;" `
+          + `edge="1" parent="${escapeXml(cellId(this.id))}">`
+          + `<mxGeometry relative="1" as="geometry">`
+          + `<mxPoint x="${n4(splitX)}" y="${n4(laneY)}" as="sourcePoint"/>`
+          + `<mxPoint x="${n4(splitX)}" y="${n4(laneY + laneH)}" as="targetPoint"/>`
+          + `</mxGeometry>`
+          + `</mxCell>`
+        );
+      }
+
+      // Render region children directly under the parent state container.
+      const region = regionInfos[i].renderer;
+      for (const child of region.children) {
+        if (child.isPort) continue;
+        const cl = layout.nodes[child.id] || (layout.groups && layout.groups[child.id]);
+        if (!cl) continue;
+        const prevParent = child.parentId;
+        child.parentId = this.id;
+        cells.push(...child.render({
+          x: cl.x - myAbs.x,
+          y: cl.y - myAbs.y,
+          width: cl.width,
+          height: cl.height,
+        }));
+        child.parentId = prevParent;
+      }
     }
 
     // Also render any non-region children normally
@@ -500,17 +532,10 @@ class StateNodeRenderer extends SwimlaneRenderer {
 // ---------------------------------------------------------------------------
 
 /** DrawIO style for a composite state container with optional color. */
-function stateGroupStyle(startSize: number, theme: Theme, style?: string | null, noRounding?: boolean): string {
+function stateGroupStyle(startSize: number, theme: Theme, style?: string | null): string {
   const parsed = parseNodeStyle(style);
   const titleBarHeight = startSize;
-  const base = noRounding ? [
-    'swimlane', 'html=1', 'rounded=0',
-    'align=center', 'verticalAlign=middle',
-    `startSize=${titleBarHeight}`,
-    'collapsible=0', 'marginBottom=0',
-    `strokeWidth=${theme.strokeWidth}`,
-    'fontStyle=0',
-  ] : [
+  const base = [
     'swimlane', 'html=1', 'rounded=1', 'absoluteArcSize=1', `arcSize=${theme.largeArcSize}`,
     'align=center', 'verticalAlign=middle',
     `startSize=${titleBarHeight}`,

@@ -2661,7 +2661,10 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   for (const id of nodeOrder) {
     const node = nodesById[id];
     if (!node || node.style) continue;
-    const ntype = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
+    let ntype = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
+    // Plain state nodes often have no stereotype; map by semantic type so
+    // skinparam state { BackgroundColor/BorderColor } still applies.
+    if (!ntype && node.type === NodeType.State) ntype = 'state';
     if (!ntype) continue;
     const bg = skinparams[ntype + 'BackgroundColor'];
     const border = skinparams[ntype + 'BorderColor'];

@@ -28,6 +28,11 @@ function pxToInch(px: number): string {
   return String(px / PX_PER_INCH);
 }
 
+function normalizePx(px: number, fallback: number): number {
+  if (!Number.isFinite(px) || px <= 0) return fallback;
+  return px;
+}
+
 /**
  * Build DOT node attribute string from a LayoutGraphNode.
  *
@@ -36,8 +41,10 @@ function pxToInch(px: number): string {
  * Otherwise emit a plain fixed-size rect.
  */
 function buildNodeAttrs(gn: LayoutGraphNode, hasPortEdges: boolean): string {
-  const wInch = pxToInch(gn.width);
-  const hInch = pxToInch(gn.height);
+  const safeWidth = normalizePx(gn.width, 80);
+  const safeHeight = normalizePx(gn.height, 40);
+  const wInch = pxToInch(safeWidth);
+  const hInch = pxToInch(safeHeight);
 
   // Port label (field-level edge routing)
   if (hasPortEdges && gn.ports && gn.ports.length > 0) {
@@ -68,13 +75,13 @@ function buildPortHtmlLabel(gn: LayoutGraphNode): string | null {
   if (!gn.ports || gn.ports.length === 0) return null;
 
   // DOT HTML labels require integer pixel values
-  const W = Math.round(gn.width);
-  const H = Math.round(gn.height);
+  const W = Math.round(normalizePx(gn.width, 80));
+  const H = Math.round(normalizePx(gn.height, 40));
   const rows: string[] = [];
   let prevBottom = 0;
 
   for (const port of gn.ports) {
-    const portY = Math.round(port.y ?? prevBottom);
+    const portY = Math.round(normalizePx(port.y ?? prevBottom, prevBottom));
     // Fill gap between previous port bottom and current port top
     const gap = portY - prevBottom;
     if (gap > 0) {
@@ -87,7 +94,7 @@ function buildPortHtmlLabel(gn: LayoutGraphNode): string | null {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
-    const pH = Math.round(port.height);
+    const pH = Math.round(normalizePx(port.height, 1));
     rows.push(`<TR><TD FIXEDSIZE="TRUE" HEIGHT="${pH}" WIDTH="${W}" PORT="${safePort}"> </TD></TR>`);
     prevBottom = portY + pH;
   }
@@ -323,6 +330,19 @@ export function layoutGraphToDot(
   const nodesepInch = pxToInch(nodesepPx);
   const ranksepInch = pxToInch(ranksepPx);
 
+  // Containers that have concurrent-region layout children.
+  // These are represented in LayoutGraphNode (not always in SemanticGroup).
+  const concurrentContainerIds = new Set<string>();
+  const scanConcurrentContainers = (nodes: LayoutGraphNode[]) => {
+    for (const n of nodes) {
+      if (n.children && n.children.some(c => c.id.includes('__conc_region__'))) {
+        concurrentContainerIds.add(n.id);
+      }
+      if (n.children && n.children.length > 0) scanConcurrentContainers(n.children);
+    }
+  };
+  scanConcurrentContainers(rootNodes);
+
   // --- Compound edge analysis ---
 
   // Detect which groups produce DOT clusters
@@ -341,6 +361,14 @@ export function layoutGraphToDot(
   // Notes targeting groups also need proxy/representative nodes
   for (const note of model.notes || []) {
     if (note.target && groupIds.has(note.target)) groupsInEdges.add(note.target);
+  }
+
+  // Groups that are note targets. For concurrent-region containers, notes
+  // should attach to a proxy point instead of an internal representative node,
+  // otherwise Graphviz can emit NaN edge points.
+  const groupsWithNotes = new Set<string>();
+  for (const note of model.notes || []) {
+    if (note.target && groupIds.has(note.target)) groupsWithNotes.add(note.target);
   }
 
   // Port-connected nodes
@@ -392,6 +420,11 @@ export function layoutGraphToDot(
   // groupId → DOT node name for edge endpoints
   const groupRepNode = new Map<string, string>();
   groupsInEdges.forEach(gId => {
+    if (groupsWithNotes.has(gId) && concurrentContainerIds.has(gId)) {
+      groupsNeedingProxy.add(gId);
+      groupRepNode.set(gId, `"__proxy_${gId}"`);
+      return;
+    }
     if (groupsNeedingProxy.has(gId)) {
       groupRepNode.set(gId, `"__proxy_${gId}"`);
     } else {

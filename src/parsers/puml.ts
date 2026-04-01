@@ -727,6 +727,26 @@ export function parsePlantUml(text) {
         statements.push(st);
       }
     } catch (error) {
+      // Recovery for single-line empty blocks, e.g.:
+      //   package "User" as ent_user {}
+      // Some legal forms are rejected by strict StatementLine parsing.
+      // Rewrite to an open block + synthetic closing block so downstream
+      // parsers keep parent/child group structure intact.
+      if (/\{\s*\}\s*$/.test(trimmed)) {
+        const openOnly = rawLine.replace(/\{\s*\}\s*$/, '{');
+        try {
+          const openSt = parseStatementLine(openOnly);
+          if (openSt && typeof openSt === 'object' && openSt.block === true) {
+            openSt.line = lineNumber;
+            openSt.raw = openOnly;
+            statements.push(openSt);
+            statements.push({ kind: 'block_statement', line: lineNumber, raw: '}', type: 'style_block_end' });
+            continue;
+          }
+        } catch {
+          // fall through to normal error recording below
+        }
+      }
       const code = error instanceof PeggySyntaxError ? 'PEGGY_SYNTAX_ERROR' : 'STRICT_PARSE_ERROR';
       errors.push({
         line: lineNumber,
