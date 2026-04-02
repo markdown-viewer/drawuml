@@ -39,8 +39,7 @@ export interface UmlFrameStyleOpts {
 export function buildUmlFrameStyle(opts: UmlFrameStyleOpts): string {
   const parts = [
     'shape=umlFrame', 'whiteSpace=wrap', 'html=1', 'fontStyle=1',
-    'align=left', 'verticalAlign=middle',
-    `spacingLeft=${opts.spacingLeft ?? opts.cornerClip}`,
+    'align=center', 'verticalAlign=middle',
     `corner=${opts.cornerClip}`,
     `width=${opts.tabWidth}`,
     `height=${opts.tabHeight}`,
@@ -67,10 +66,12 @@ class FrameShapeRenderer extends RichRenderer {
 
   protected buildStyle(): string {
     // Measure tab text with bold font (Creole markup stripped by TextBlock.inline)
-    const tabBlock = TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' });
+    const font = { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' as const };
+    const lines = this.label.split('\n');
+    const maxLineWidth = Math.max(...lines.map(l => Math.ceil(TextBlock.inline(l, font).width)));
     // tabWidth must accommodate spacingLeft (cornerClip) + text + right bevel (cornerClip)
-    const tabW = Math.max(Math.ceil(tabBlock.width) + 2 * this.theme.cornerClip, this.theme.tabMinW);
-    const tabH = this.theme.tabH;
+    const tabW = Math.max(maxLineWidth + 2 * this.theme.cornerClip, this.theme.tabMinW);
+    const tabH = this.computeLabelHeight();
     if (this.isMainframe) {
       return buildUmlFrameStyle({
         tabWidth: tabW, tabHeight: this.desc.fixedHeight ?? tabH,
@@ -88,9 +89,12 @@ class FrameShapeRenderer extends RichRenderer {
     });
   }
 
-  // Frame has a fixed titlebar (pentagon tab area)
+  // Frame has a titlebar (pentagon tab area) — height adapts for multi-line labels.
   protected shapePadding(): ShapePadding { return {}; }
   protected override get hasTitlebar(): boolean { return true; }
+  protected override get titleAreaHeight(): number {
+    return this.computeLabelHeight();
+  }
 
   protected doMeasure() {
     if (this.isMainframe) return { width: 0, height: 0 };

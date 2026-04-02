@@ -226,9 +226,11 @@ function buildNodeDotLines(
   lines.push(`${indent}  margin="${outerMargin}"`);
 
   const inner = indent + '  ';
-  const label = gn.label ?? '';
+  const hasLabel = !!(gn.label);
   lines.push(`${inner}subgraph "cluster_${gn.id}" {`);
-  lines.push(`${inner}  label="${label}"`);
+  // Use single-char placeholder label — actual title height is controlled
+  // solely via fontsize derived from groupTopPadding.
+  lines.push(`${inner}  label="${hasLabel ? 'x' : ''}"`);
   // Per-cluster fontsize: derive from renderer's groupTopPadding so titlebar
   // shapes get a larger label area than non-titlebar shapes.
   const renderer = ctx.renderers.get(gn.id);

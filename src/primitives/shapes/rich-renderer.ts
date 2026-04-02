@@ -93,6 +93,17 @@ export abstract class RichRenderer extends Renderer {
   protected get hasTitlebar(): boolean { return false; }
 
   /**
+   * Compute tab/title-area height that adapts for multi-line labels.
+   * Returns theme.tabH for single-line, scaled height for multi-line.
+   */
+  protected computeLabelHeight(): number {
+    const lines = this.label.split('\n');
+    if (lines.length <= 1) return this.theme.tabH;
+    const lineHeight = this.theme.fontSize * 1.2;
+    return Math.ceil(lines.length * lineHeight + this.theme.padXS * 2);
+  }
+
+  /**
    * Height of the title/header area.
    * Only hasTitlebar shapes (folder, database, card, frame) have a title area;
    * non-titlebar shapes render label in the content area.
@@ -126,14 +137,33 @@ export abstract class RichRenderer extends Renderer {
     return shapeTop + this.titleAreaHeight;
   }
 
-  // Unified group top padding from shapePadding declaration.
-  // Clusters with label need title space even if hasTitlebar is false.
+  /**
+   * The spacingTop value used in the DrawIO style — where the label starts
+   * relative to the shape top. Subclasses with different spacingTop override this.
+   */
+  protected get labelSpacingTop(): number { return this.theme.spacingTop; }
+
+  // Three container categories:
+  //   Cat 1 — hasTitlebar (folder/frame/card): title container bottom + groupPad
+  //   Cat 2 — hasIconTitleArea (archimate/artifact/component): override in subclass
+  //   Cat 3 — none (cloud/rectangle/file/node/...):
+  //           with label: labelSpacingTop + labelTextHeight + groupPad
+  //           without label: groupPad only
   override get groupTopPadding(): number {
     const pad = this.shapePadding(this.computeContentRect());
     const shapeTop = pad.top ?? 0;
-    const titleH = this.hasTitlebar ? this.theme.titleBarH
-      : this.label ? this.theme.portSize : 0;
-    return this.theme.groupPad + titleH + shapeTop;
+    if (this.hasTitlebar) {
+      // Cat 1: title container bottom is the calculation start
+      return this.theme.groupPad + this.titleAreaHeight + shapeTop;
+    }
+    // Cat 3: label bottom is the calculation start
+    const lines = this.label ? this.label.split('\n').length : 0;
+    if (lines > 0) {
+      const labelH = lines * this.theme.fontSize * 1.2;
+      return this.theme.groupPad + this.labelSpacingTop + labelH;
+    }
+    // No label: no title space
+    return this.theme.groupPad;
   }
 
   // ── Content construction ──────────────────────────────────────────────────

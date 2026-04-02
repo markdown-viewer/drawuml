@@ -20,14 +20,18 @@ class FolderRenderer extends RichRenderer {
     this.isPackage = isPackage;
   }
 
-  /** Tab width: text width + 2 × cornerClip padding (left spacingLeft + right bevel). */
-  private computeTabWidth(): number {
-    return Math.max(Math.ceil(TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' }).width) + 2 * this.theme.cornerClip, this.theme.tabMinW);
+  /** Measure tab dimensions accounting for multi-line labels. */
+  private computeTabSize(): { width: number; height: number } {
+    const font = { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' as const };
+    const lines = this.label.split('\n');
+    const maxLineWidth = Math.max(...lines.map(l => Math.ceil(TextBlock.inline(l, font).width)));
+    const tabWidth = Math.max(maxLineWidth + 2 * this.theme.cornerClip, this.theme.tabMinW);
+    return { width: tabWidth, height: this.computeLabelHeight() };
   }
 
   protected buildStyle(): string {
-    const tabWidth = this.computeTabWidth();
-    return `shape=folder;html=1;whiteSpace=wrap;fontStyle=1;tabWidth=${tabWidth};tabHeight=${this.theme.tabH};tabPosition=left;tabFill=1;labelInHeader=1;boundedLbl=1;fontSize=${this.theme.fontSize};align=left;spacingLeft=${this.theme.cornerClip};verticalAlign=middle;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
+    const tab = this.computeTabSize();
+    return `shape=folder;html=1;whiteSpace=wrap;fontStyle=1;tabWidth=${tab.width};tabHeight=${tab.height};tabPosition=left;tabFill=1;labelInHeader=1;boundedLbl=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;swimlaneHead=0;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};swimlaneBody=1;collapsible=0;container=1;`;
   }
 
   protected override doMeasure() {
@@ -35,17 +39,20 @@ class FolderRenderer extends RichRenderer {
     if (this.isCluster) return base;
     // Ensure element width > tabWidth so drawio2svg arc clipping
     // does not eat into the tab's right padding.
-    const tabWidth = this.computeTabWidth();
-    const minWidth = tabWidth + this.theme.cornerClip;
+    const tab = this.computeTabSize();
+    const minWidth = tab.width + this.theme.cornerClip;
     return {
       width: Math.max(base.width, minWidth),
       height: base.height,
     };
   }
 
-  // Folder has a fixed titlebar (tab area)
+  // Folder has a titlebar (tab area) — height adapts for multi-line labels.
   protected shapePadding(): ShapePadding { return {}; }
   protected override get hasTitlebar(): boolean { return true; }
+  protected override get titleAreaHeight(): number {
+    return this.computeTabSize().height;
+  }
 
   // Package: label always in folder tab (frame value)
   protected getFrameValue(): string {

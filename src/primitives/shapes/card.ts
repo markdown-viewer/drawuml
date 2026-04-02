@@ -17,6 +17,9 @@ class CardRenderer extends RichRenderer {
   protected override get hasTitlebar(): boolean {
     return this.isCluster;
   }
+  protected override get titleAreaHeight(): number {
+    return this.computeLabelHeight();
+  }
 
   protected buildStyle(): string {
     if (!this.isCluster) {
@@ -24,7 +27,8 @@ class CardRenderer extends RichRenderer {
       return `shape=mxgraph.basic.rect;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
     }
     // Swimlane with title bar header for cluster card (has children)
-    return `swimlane;startSize=${this.theme.titleBarH};swimlaneLine=1;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    const startSize = this.computeLabelHeight();
+    return `swimlane;html=1;whiteSpace=wrap;startSize=${startSize};swimlaneLine=1;rounded=1;absoluteArcSize=1;arcSize=${this.theme.arcSize};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=middle;fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
   }
 
   // Apply fillColor to both header and body area of the swimlane

@@ -12,8 +12,11 @@ import { n4 } from '../../shared/xml-utils.ts';
 
 class DatabaseRenderer extends RichRenderer {
   private get capHeight(): number {
-    return this.isCluster ? this.theme.portSize * 4 / 3 :
+    const baseCap = this.isCluster ? this.theme.portSize * 4 / 3 :
       this.theme.portSize * 2 / 3;
+    // Expand cap for multi-line labels so text stays inside the ellipse area
+    const extraLines = Math.max(0, this.label.split('\n').length - 1);
+    return baseCap + extraLines * this.theme.fontSize * 0.6;
   }
   protected buildStyle(): string {
     return `shape=cylinder3;whiteSpace=wrap;size=${n4(this.capHeight)};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.spacingTop)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
@@ -23,6 +26,10 @@ class DatabaseRenderer extends RichRenderer {
     return {
       top: this.capHeight
     };
+  }
+  // capHeight already includes multi-line expansion; skip the generic titleH addition.
+  override get groupTopPadding(): number {
+    return this.theme.groupPad + this.theme.portSize + this.capHeight;
   }
 }
 

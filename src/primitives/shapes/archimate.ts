@@ -316,8 +316,21 @@ class ArchimateRenderer extends RichRenderer {
   // Top-right icon area acts as a titlebar
   protected shapePadding(): ShapePadding { return {}; }
   protected override get hasTitlebar(): boolean { return true; }
+  protected override get titleAreaHeight(): number {
+    const extraLines = Math.max(0, this.label.split('\n').length - 1);
+    return this.theme.portSize + extraLines * this.theme.fontSize * 1.2;
+  }
 
-  // No fixed title area — use RichRenderer default (label-based detection)
+  // Cat 2: has title area (icon) but no title container border.
+  // With label: label bottom + groupPad.  Without label: reserve minimum height.
+  override get groupTopPadding(): number {
+    const lines = this.label ? this.label.split('\n').length : 0;
+    if (lines > 0) {
+      const labelH = lines * this.theme.fontSize * 1.2;
+      return this.theme.groupPad + this.labelSpacingTop + labelH;
+    }
+    return this.theme.groupPad + this.theme.titleBarH;
+  }
 
   render(box: ContentBox): string[] {
     const cells = super.render(box);
@@ -362,7 +375,12 @@ class FolderArchimateRenderer extends ArchimateRenderer {
 
   constructor(desc: RenderDescriptor, folderFill: string, extraStyle = '') {
     // Pass extraStyle as part of shapeStyle so buildStyle() picks it up.
-    super(desc, `shape=folder;tabWidth=${desc.theme.tabMinW};tabHeight=${desc.theme.tabH};tabPosition=left;${extraStyle}`, null, '');
+    // Compute dynamic tab height for multi-line labels
+    const lines = (desc.label ?? '').split('\n');
+    const tabH = lines.length > 1
+      ? Math.ceil(lines.length * desc.theme.fontSize * 1.2 + desc.theme.padXS * 2)
+      : desc.theme.tabH;
+    super(desc, `shape=folder;tabWidth=${desc.theme.tabMinW};tabHeight=${tabH};tabPosition=left;${extraStyle}`, null, '');
     this.folderFill = folderFill;
   }
 

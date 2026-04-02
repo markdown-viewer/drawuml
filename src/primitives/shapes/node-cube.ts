@@ -15,6 +15,8 @@ class NodeCubeRenderer extends RichRenderer {
   }
   // 3D cube: top face + left face overlap (left offset for label)
   protected shapePadding(): ShapePadding { return { top: this.theme.cornerClip, left: this.theme.cornerClip }; }
+  // Label starts below the 3D top face
+  protected override get labelSpacingTop(): number { return this.theme.cornerClip; }
 }
 
 export function registerNodeCubeShape(): void {
