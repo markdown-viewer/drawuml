@@ -2595,7 +2595,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
     for (const id of nodeOrder) {
       const node = nodesById[id];
-      if (!node || node.style) continue; // skip nodes with explicit inline style
+      if (!node) continue;
       const stereo = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
       // In PlantUML, 'circle' is an alias for 'interface' — use interface CSS rule
       // 'choice' renders as a diamond shape — use diamond CSS rule
@@ -2611,6 +2611,16 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         || (lookupStereo ? null : cssStyleRules[String(node.type || '').toLowerCase()]);
       const rule = specificRule || globalRule;
       if (!rule) continue;
+
+      if (node.style) {
+        // Merge missing CSS properties into existing inline style
+        const existing = node.style;
+        const tc = rule['fontcolor'];
+        if (tc && !existing.includes('text:')) {
+          node.style = existing + ';text:' + tc;
+        }
+        continue;
+      }
       // For label shapes, only apply BackGroundColor→text from a label-specific rule,
       // not from global diagram rules (label is text-only, no fill).
       const skipBg = stereo === 'label' && !specificRule;
@@ -2670,18 +2680,27 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   // Apply skinparam type-specific colors to leaf nodes (e.g. skinparam artifact { ... })
   for (const id of nodeOrder) {
     const node = nodesById[id];
-    if (!node || node.style) continue;
+    if (!node) continue;
     let ntype = String(node.stereotype || '').toLowerCase().replace(/\/$/, '');
     // Plain state nodes often have no stereotype; map by semantic type so
     // skinparam state { BackgroundColor/BorderColor } still applies.
     if (!ntype && node.type === NodeType.State) ntype = 'state';
     if (!ntype) continue;
+    const fc = skinparams[ntype + 'FontColor'];
+    if (node.style) {
+      // Node already has inline style — merge FontColor if missing
+      if (fc && !node.style.includes('text:')) {
+        node.style = node.style + ';text:' + fc;
+      }
+      continue;
+    }
     const bg = skinparams[ntype + 'BackgroundColor'];
     const border = skinparams[ntype + 'BorderColor'];
-    if (bg || border) {
+    if (bg || border || fc) {
       const parts: string[] = [];
       if (bg) parts.push(`back:${bg}`);
       if (border) parts.push(`line:${border}`);
+      if (fc) parts.push(`text:${fc}`);
       node.style = '#' + parts.join(';');
     }
   }
