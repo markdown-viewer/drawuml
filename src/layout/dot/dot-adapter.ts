@@ -705,6 +705,17 @@ export function layoutGraphToDot(
     g => g.type === 'swimlane_container' && g.concurrentRegions && g.concurrentRegions.length > 1
   );
 
+  // Detect graph-level rank=same referencing cluster-internal nodes.
+  // Graphviz default behaviour pulls such nodes out of their cluster;
+  // newrank=true preserves cluster membership while honouring rank=same.
+  const hasNoteRankSameInCluster = (model.notes || []).some(note => {
+    if (note.onLink || !note.target) return false;
+    const pos = (note.position || '').toLowerCase();
+    return (pos === 'left' || pos === 'right') && parentIdMap.has(note.target);
+  });
+
+  const needNewrank = hasSwimlanes || hasNoteRankSameInCluster;
+
   // --- Spine root fan-out for swimlane diagrams ---
   const spineLines: string[] = [];
   if (hasSwimlanes) {
@@ -730,7 +741,7 @@ export function layoutGraphToDot(
   nodesep=${nodesepInch}
   ranksep=${ranksepInch}
   remincross=true
-  searchsize=500${hasSwimlanes ? '\n  newrank=true' : ''}
+  searchsize=500${needNewrank ? '\n  newrank=true' : ''}
   edge [fontsize=${layoutFontSize},labelfontsize=${layoutFontSize}]
   node [fontsize=${layoutFontSize},height=${dotMinH},width=${dotMinW}]
 ${nodeGroupLines.join('\n')}
