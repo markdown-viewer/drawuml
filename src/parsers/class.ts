@@ -1313,10 +1313,14 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         continue;
       }
 
-      // Bracket component shorthand: [Name] → component node (non-sequence context)
+      // Bracket component shorthand: [Name] or [Name] as alias → component node (non-sequence context)
       if (st.kind === 'generic_statement' && st.type === 'bracketed_event') {
         const rawName = String(st.head || '').trim();
-        const id = normalizeId(rawName);
+        const tailText = String(st.text || '').trim();
+        // Parse "as <alias>" from tail text
+        const aliasMatch = tailText.match(/^as\s+(\S+)/i);
+        const alias = aliasMatch ? aliasMatch[1].replace(/^"|"$/g, '') : '';
+        const id = normalizeId(alias || rawName);
         if (id) {
           if (!nodesById[id]) nodeOrder.push(id);
           nodesById[id] = {
@@ -1975,6 +1979,9 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       if (isRelationToken) {
         const rawFrom = String(st.from || '');
         const rawTo = String(st.to || '');
+        // Skip bogus relations from misinterpreted skinparam lines
+        // e.g. "skinparam ArrowThickness 1.5" → from="skinparam ArrowThickness 1", arrow=".", to="5"
+        if (/^skinparam\s/i.test(rawFrom)) continue;
         // Port fields are pre-extracted by peggy PortedEndpoint rules
         const fromPort = st.fromPort ? String(st.fromPort) : undefined;
         const toPort = st.toPort ? String(st.toPort) : undefined;
@@ -2639,10 +2646,13 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
 
   // Apply global skinparam packageStyle as default stereotype for groups
   // that don't have an explicit stereotype, so renderers don't need global context.
+  // Only applies to 'package' and 'namespace' groups — explicit types like
+  // 'folder', 'frame', 'cloud' etc. keep their own shape.
   const packageStyle = skinparams['packageStyle'] || '';
   if (packageStyle) {
+    const PACKAGE_STYLE_TYPES = new Set(['package', 'namespace', '']);
     for (const g of groups) {
-      if (!g.stereotype) g.stereotype = packageStyle;
+      if (!g.stereotype && PACKAGE_STYLE_TYPES.has(g.type)) g.stereotype = packageStyle;
     }
   }
 

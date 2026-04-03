@@ -14,7 +14,8 @@ class DatabaseRenderer extends RichRenderer {
   private get capHeight(): number {
     const baseCap = this.isCluster ? this.theme.portSize * 4 / 3 :
       this.theme.portSize * 2 / 3;
-    // Expand cap for multi-line labels so text stays inside the ellipse area
+    if (!this.isCluster) return baseCap;
+    // Expand cap for multi-line group titles so text stays inside the ellipse area
     const extraLines = Math.max(0, this.label.split('\n').length - 1);
     return baseCap + extraLines * this.theme.fontSize * 0.6;
   }
