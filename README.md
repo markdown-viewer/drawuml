@@ -1,6 +1,6 @@
 # @markdown-viewer/draw-uml
 
-Convert [PlantUML](https://plantuml.com/) text diagrams into DrawIO XML, then render to SVG with `@markdown-viewer/drawio2svg`.
+Convert [PlantUML](https://plantuml.com/) text diagrams into [DrawIO](https://www.drawio.com/) XML, then render to SVG with [`@markdown-viewer/drawio2svg`](https://github.com/markdown-viewer/drawio2svg).
 
 Supported diagram types: **Class**, **Sequence**, **Activity**, **State**, **Use-case**, **Deployment**, **Object / Map**.
 
@@ -29,8 +29,8 @@ class Dog {
 Dog --|> Animal
 @enduml`;
 
-const xml = await textToDrawioXml(puml);
-const svg = convert(xml);
+const xml = await textToDrawioXml(puml);   // PlantUML → DrawIO XML
+const svg = convert(xml);                   // DrawIO XML → SVG
 ```
 
 ### Options
@@ -43,6 +43,55 @@ const xml = await textToDrawioXml(dsl, {
 ```
 
 The engine can also be set per-diagram via `!pragma layout elk` or `!pragma layout vizjs`.
+
+## Architecture
+
+```
+PlantUML text
+     │
+     ▼
+ ┌─────────┐     PEG parser (peggy)
+ │ parsers/ │───▶ SemanticModel { nodes, edges, groups }
+ └─────────┘
+     │
+     ▼
+ ┌─────────┐     ELK (elkjs) or DOT (viz.js/WASM)
+ │ layout/  │───▶ LayoutResult { positioned boxes & edges }
+ └─────────┘
+     │
+     ▼
+ ┌───────────┐
+ │ generator/ │──▶ DrawIO XML string
+ └───────────┘
+     │
+     ▼
+ drawio2svg ──▶ SVG
+```
+
+### Pipeline
+
+```
+dispatch(dsl)           → { diagramType, body, parsed }
+preprocess(body)        → { source, pragmas }
+parseClassDiagram(...)  → SemanticModel
+dotLayout / elkLayout   → { layout, renderers }
+semanticToDrawioXml(..) → DrawIO XML string
+convert(xml)            → SVG (via @markdown-viewer/drawio2svg)
+```
+
+## Project Structure
+
+| Path | Purpose |
+|------|---------|
+| `src/index.ts` | Main entry point — `textToDrawioXml()` |
+| `src/dispatcher.ts` | Diagram type detection (Sequence / Activity / Class / …) |
+| `src/detect-context.ts` | Fine-grained diagram context detection |
+| `src/parsers/` | PEG grammar parser (`puml-peggy.ts`) + per-type semantic builders |
+| `src/model/` | Semantic model types (`SemanticModel`, `SemanticNode`, `SemanticEdge`, `SemanticGroup`) |
+| `src/primitives/` | Renderer classes — measure, build DOT block, render mxCell XML |
+| `src/layout/` | Layout engines (ELK, DOT/viz.js, orthogonal router, table layout) |
+| `src/generator/` | DrawIO XML generators (`drawio-gen.ts`, `sequence-gen.ts`) |
+| `src/shared/` | Utilities — Creole markup, color, XML, edge builder, theme, icons |
 
 ## Diagram Examples
 
@@ -196,17 +245,81 @@ mxgraph.aws4.lambda_function "Lambda" as fn #pink;line:red;line.bold;text:blue  
 
 Some families support **sub-variants** via dot-notation (e.g. `mxgraph.bpmn.event.start`, `mxgraph.bpmn.gateway2.exclusive`).
 
-The full list of icon keys is in `docs/shape-defaults.json`.
-
 ## API Reference
+
+### Main
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `textToDrawioXml` | `(dsl: string, options?: ConvertOptions) => Promise<string>` | Convert PlantUML text to DrawIO XML |
+| `parsePumlToJson` | `(dsl: string) => ParsedPlantUML` | Parse PlantUML to raw JSON AST |
+| `dispatch` | `(dsl: string) => DispatchResult` | Detect diagram type and pre-parse |
+
+### Theme
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `createTheme` | `(config?: ThemeConfig) => Theme` | Create a theme with computed sizing |
+
+### Render Warnings
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `getRenderWarnings` | `() => RenderWarning[]` | Get warnings from the last render pass |
+| `clearRenderWarnings` | `() => void` | Clear accumulated warnings |
+
+### Parsers
 
 | Export | Description |
 |--------|-------------|
-| `textToDrawioXml(dsl, options?)` | Convert PlantUML text to DrawIO XML string |
-| `createTheme(config?)` | Create a theme with computed sizing from `fontSize` |
-| `getRenderWarnings()` | Get warnings from the last render |
-| `clearRenderWarnings()` | Clear accumulated warnings |
+| `parsePlantUml` | Low-level PEG parser |
+| `parseSequenceDiagram` | Build semantic model for sequence diagrams |
+| `parseActivityDiagram` | Build semantic model for activity diagrams |
+
+### Types
+
+```typescript
+type LayoutEngine = 'dot' | 'elk';
+
+interface ConvertOptions {
+  engine?: LayoutEngine;     // default: 'elk'
+  theme?: ThemeConfig;
+}
+
+interface ThemeConfig {
+  fontSize?: number;         // default: 12
+  fontFamily?: string;
+}
+```
+
+### Model Exports
+
+`DiagramType`, `NodeType`, `EdgeType`, `SemanticModel`, `SemanticNode`, `SemanticEdge`, `SemanticGroup` — see `src/model/` for full definitions.
+
+## Renderer Pattern
+
+Each renderer in `src/primitives/` implements a unified interface:
+
+1. **`measure()`** — returns `{ width, height }` for DOT/ELK node sizing
+2. **`buildDotBlock(ctx, indent)`** — generates DOT `node` / `subgraph cluster` block
+3. **`render(box)`** — receives layout coordinates, outputs DrawIO mxCell XML strings
+
+## Development
+
+```bash
+# Type check
+fibjs --check -p ../tsconfig.json
+
+# Regenerate PEG parser (from repo root)
+npm run gen:puml-parser
+
+# Render all fixtures (from repo root)
+fibjs scripts/render-fixtures.mjs --all
+
+# Run tests (from repo root)
+fibjs test/all.test.js
+```
 
 ## License
 
-See the repository root for license information.
+LGPL-3.0-only
