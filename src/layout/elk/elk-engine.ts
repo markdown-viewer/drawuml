@@ -140,7 +140,20 @@ function rewriteNotesForElk(model: SemanticModel, theme?: Theme): void {
         const groupId = nodeToGroup.get(note.target);
         if (groupId) {
           const group = (model.groups || []).find(g => g.id === groupId);
-          if (group) group.children.push(note.id);
+          if (group) {
+            group.children.push(note.id);
+            // For swimlane containers, concurrentRegions is a snapshot of lane
+            // children taken at parse time.  Push the note into the same region
+            // as its target so ELK can resolve the note_edge reference.
+            if (group.type === 'swimlane_container' && group.concurrentRegions) {
+              for (const region of group.concurrentRegions) {
+                if (region.includes(note.target)) {
+                  region.push(note.id);
+                  break;
+                }
+              }
+            }
+          }
         }
       }
 

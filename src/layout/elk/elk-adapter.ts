@@ -112,7 +112,7 @@ function noteTargetPortSide(pos: string): string | undefined {
  * Add FIXED_SIDE ports on note and target nodes for directional notes.
  * Called after the ELK tree is built so we can inject ports on ElkNodes.
  */
-function addNoteEdgePorts(elkRoot: ElkNode, edges: SemanticEdge[]): void {
+export function addNoteEdgePorts(elkRoot: ElkNode, edges: SemanticEdge[]): void {
   const nodeMap = buildNodeMap(elkRoot);
   for (const edge of edges) {
     if (!edge.id.startsWith('__note_edge_')) continue;

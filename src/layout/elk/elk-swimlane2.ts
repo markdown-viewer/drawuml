@@ -29,7 +29,7 @@ import { cellId, escapeXml, n4 } from '../../shared/xml-utils.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
 import { TextBlock } from '../../shared/text-block.ts';
 import { getElk, type ElkLayoutResult } from './elk-engine.ts';
-import { elkSpacing, collectEdges, type ElkEdge } from './elk-adapter.ts';
+import { elkSpacing, collectEdges, addNoteEdgePorts, type ElkEdge } from './elk-adapter.ts';
 import { routeOrthogonalFixed } from '../orthogonal-router.ts';
 
 // ---------------------------------------------------------------------------
@@ -214,6 +214,8 @@ export async function elkSwimlaneLayout2(
 
   for (let li = 0; li < numLanes; li++) {
     const graph  = buildLaneGraph(li, regions, nodeLaneIdx, allEdges, elkEdgeById, renderers, theme, es);
+    // Add FIXED_SIDE ports for directional note edges so ELK can resolve them.
+    addNoteEdgePorts(graph, allEdges);
     const root   = await elk.layout(graph) as any;
     // Lane container is the only child of the thin wrapper root
     const gc     = (root.children || [])[0] as any ?? {};
