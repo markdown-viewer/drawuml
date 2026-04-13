@@ -2,15 +2,21 @@ import { dispatch } from './dispatcher.ts';
 import { parseClassDiagram } from './parsers/class.ts';
 import { parseActivityDiagram } from './parsers/activity.ts';
 import { parseSequenceDiagram } from './parsers/sequence.ts';
+import { parseMindmapDiagram } from './parsers/mindmap.ts';
+import type { MindmapNode } from './parsers/mindmap.ts';
 import { parsePlantUml } from './parsers/puml.ts';
 import { preprocess } from './shared/preprocessor.ts';
 import { dotLayout } from './layout/dot-layout.ts';
 import { elkLayout } from './layout/elk/elk-engine.ts';
 import { sequenceTableLayout } from './layout/table-layout.ts';
+import { mindmapLayout } from './layout/mindmap-layout.ts';
 import { semanticToDrawioXml } from './generator/drawio-gen.ts';
 import { sequenceToDrawioXml } from './generator/sequence-gen.ts';
+import { mindmapToDrawioXml } from './generator/mindmap-gen.ts';
 import { DiagramType } from './model/index.ts';
 import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
+import { createRenderer } from './primitives/registry.ts';
+import type { Renderer } from './primitives/renderer.ts';
 import type { ThemeConfig, Theme } from './shared/theme.ts';
 import { createTheme } from './shared/theme.ts';
 
@@ -42,6 +48,26 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
     const model = parseSequenceDiagram(source, { strict: true });
     const { renderers, ...layout } = sequenceTableLayout(model, { theme });
     return sequenceToDrawioXml(model, layout, renderers, theme);
+  }
+
+  // Mindmap diagrams use custom tree layout
+  if (diagramType === DiagramType.Mindmap) {
+    const model = parseMindmapDiagram(parsed.statements, { pragmas });
+
+    // Create a renderer for each mindmap node
+    const renderers = new Map<string, Renderer>();
+    function createNodeRenderers(node: MindmapNode) {
+      const lines = node.label ? node.label.split('\n') : [];
+      renderers.set(node.id, createRenderer(
+        node.boxless ? 'mindmap-boxless' : 'mindmap-node',
+        { id: node.id, label: node.label, lines, color: node.color, theme },
+      ));
+      for (const c of node.children) createNodeRenderers(c);
+    }
+    for (const root of model.roots) createNodeRenderers(root);
+
+    const layout = mindmapLayout(model, { theme, renderers });
+    return mindmapToDrawioXml(model, layout, renderers, theme);
   }
 
   // Determine layout engine:
@@ -87,3 +113,4 @@ export * from './model/index.ts';
 export { parsePlantUml } from './parsers/puml.ts';
 export { parseSequenceDiagram } from './parsers/sequence.ts';
 export { parseActivityDiagram } from './parsers/activity.ts';
+export { parseMindmapDiagram } from './parsers/mindmap.ts';

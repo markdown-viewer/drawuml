@@ -48,8 +48,16 @@ export function dispatch(dsl) {
   const parsed = parsePlantUml(text);
   const body = stripStartEnd(text);
   const diagramContext = detectDiagramContext(parsed);
-  const diagramType = diagramContext === 'sequence'
-    ? DiagramType.Sequence
-    : DiagramType.UML;
+
+  // Detect diagram type from start directive or context
+  let diagramType;
+  if (parsed.startDirective && parsed.startDirective.toLowerCase() === '@startmindmap') {
+    diagramType = DiagramType.Mindmap;
+  } else if (diagramContext === 'sequence') {
+    diagramType = DiagramType.Sequence;
+  } else {
+    diagramType = DiagramType.UML;
+  }
+
   return { diagramType, body, parsed, diagramContext };
 }

@@ -146,6 +146,12 @@ export function parsePlantUml(text) {
   let quoteBlockLines: string[] = [];
   let quoteBlockStartLine = 0;
 
+  // Mindmap multi-line node and style block state
+  let mindmapMultiLine: any = null;
+  let mindmapMultiLines: string[] = [];
+  let mindmapStyleBlock = false;
+  let mindmapStyleLines: string[] = [];
+
   // Multi-line note block merge buffer: collect text lines and attach to the
   // start statement so downstream parsers see a single statement with `text`.
   let noteBlockStartSt: any = null;
@@ -174,12 +180,106 @@ export function parsePlantUml(text) {
     }
 
     if (parseMode === 'mindmap') {
-      const m = trimmed.match(/^(\*+)(:?)(.*)$/);
+      // Multi-line node continuation: collect lines until ';'
+      if (mindmapMultiLine) {
+        if (trimmed.endsWith(';')) {
+          mindmapMultiLines.push(rawLine.replace(/;\s*$/, ''));
+          mindmapMultiLine.text = mindmapMultiLines.join('\n');
+          statements.push(mindmapMultiLine);
+          mindmapMultiLine = null;
+          mindmapMultiLines = [];
+        } else {
+          mindmapMultiLines.push(rawLine);
+        }
+        continue;
+      }
+
+      // <style>...</style> block
+      if (mindmapStyleBlock) {
+        if (trimmed === '</style>') {
+          mindmapStyleBlock = false;
+          statements.push({ kind: 'mindmap_style_block', line: lineNumber, raw: rawLine, text: mindmapStyleLines.join('\n') });
+        } else {
+          mindmapStyleLines.push(rawLine);
+        }
+        continue;
+      }
+      if (trimmed === '<style>') {
+        mindmapStyleBlock = true;
+        mindmapStyleLines = [];
+        continue;
+      }
+
+      // Directives: left side, direction, title, caption, header/footer, legend
+      const trimLower = trimmed.toLowerCase();
+      if (trimLower === 'left side' || trimLower === 'right side') {
+        statements.push({ kind: 'mindmap_side', line: lineNumber, raw: rawLine, side: trimLower === 'left side' ? 'left' : 'right' });
+        continue;
+      }
+      if (trimLower === 'top to bottom direction' || trimLower === 'left to right direction' || trimLower === 'right to left direction') {
+        statements.push({ kind: 'mindmap_direction', line: lineNumber, raw: rawLine, direction: trimLower });
+        continue;
+      }
+      if (/^title\s+/i.test(trimmed)) {
+        statements.push({ kind: 'mindmap_title', line: lineNumber, raw: rawLine, text: trimmed.replace(/^title\s+/i, '') });
+        continue;
+      }
+      if (/^caption\s+/i.test(trimmed)) {
+        statements.push({ kind: 'mindmap_caption', line: lineNumber, raw: rawLine, text: trimmed.replace(/^caption\s+/i, '') });
+        continue;
+      }
+
+      // Skip header/footer/legend blocks
+      if (/^(header|footer|legend)\b/i.test(trimLower) || /^end(header|footer|legend)/i.test(trimLower)
+        || /^center\s+footer\b/i.test(trimLower)) {
+        statements.push({ kind: 'mindmap_text_line', line: lineNumber, raw: rawLine, text: rawLine });
+        continue;
+      }
+
+      // Node line: markers are *, +, -, # followed by optional _ (boxless), [#color], <<stereotype>>
+      // Match against raw line to preserve leading indentation info
+      const m = rawLine.match(/^(\s*)([*+\-#]+)(_?)\s*(?:\[([^\]]*)\])?\s*(:?)(.*)$/);
       if (m) {
-        const stars = m[1] || '';
-        const hasColon = Boolean(m[2]);
-        const text = String(m[3] || '').trim();
-        statements.push({ kind: 'mindmap_node_line', line: lineNumber, raw: rawLine, level: stars.length, colon: hasColon, text });
+        const indent = m[1].length;
+        const markers = m[2];
+        const boxless = m[3] === '_';
+        const color = m[4] || null;
+        const hasColon = Boolean(m[5]);
+        let text = String(m[6] || '').trim();
+
+        // Determine side from marker character
+        const marker = markers[0];
+        let side = null as string | null;
+        if (marker === '-') side = 'left';
+        else if (marker === '+') side = 'right';
+        // * and # follow current side context
+
+        // Extract <<stereotype>> from text end
+        let stereotype = null as string | null;
+        const stMatch = text.match(/\s*<<([^>]*)>>\s*$/);
+        if (stMatch) {
+          stereotype = stMatch[1];
+          text = text.slice(0, -stMatch[0].length);
+        }
+
+        const st: any = {
+          kind: 'mindmap_node_line', line: lineNumber, raw: rawLine,
+          level: markers.length, indent, marker, side, boxless, color,
+          colon: hasColon, text, stereotype,
+        };
+
+        if (hasColon) {
+          // Multi-line node: collect until ';'
+          if (text.endsWith(';')) {
+            st.text = text.slice(0, -1);
+            statements.push(st);
+          } else {
+            mindmapMultiLine = st;
+            mindmapMultiLines = [text];
+          }
+        } else {
+          statements.push(st);
+        }
       } else {
         statements.push({ kind: 'mindmap_text_line', line: lineNumber, raw: rawLine, text: rawLine });
       }

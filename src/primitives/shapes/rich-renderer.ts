@@ -457,6 +457,7 @@ export abstract class RichRenderer extends Renderer {
     cells.push(...this.content.renderChildren(this.id, childWidth, {
       fillColor,
       strokeColor,
+      spacingX: this.contentPad,
       separatorBounds: this.separatorBounds(box.width, box.height),
     }, childStartY, padLeft));
     return cells;
