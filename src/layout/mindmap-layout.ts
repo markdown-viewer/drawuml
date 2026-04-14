@@ -94,7 +94,7 @@ export function mindmapLayout(model: MindmapModel, options?: MindmapLayoutOption
 
   // Spacing from theme
   const hGap = theme.padXXL;        // horizontal gap between parent and children (40 @12)
-  const nodePad = Math.round(theme.contentPad * 1.5);  // sibling pad for normal nodes (15 @12)
+  const nodePad = theme.padL;                          // sibling pad for normal nodes (20 @12)
   const boxlessPad = 0;                                // sibling pad for boxless nodes
   const padX = theme.contentPad;    // horizontal padding inside node box (10 @12)
   const padY = theme.edgeGap;       // vertical padding inside node box (5 @12)

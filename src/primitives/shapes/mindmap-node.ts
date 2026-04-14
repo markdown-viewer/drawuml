@@ -7,6 +7,7 @@
  */
 
 import { RichRenderer } from './rich-renderer.ts';
+import type { ShapePadding } from './rich-renderer.ts';
 import { registerRenderer } from '../registry.ts';
 import type { RenderDescriptor } from '../registry.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
@@ -15,6 +16,11 @@ class MindmapNodeRenderer extends RichRenderer {
   // Always use rich body mode (desc.lines as content)
   protected detectRichBody(): boolean { return true; }
   protected getRichBodyLines(): string[] { return this.desc.lines || []; }
+
+  protected shapePadding(): ShapePadding {
+    const p = this.theme.edgeGap;
+    return { left: p, right: p, top: p, bottom: p };
+  }
 
   // Apply user color via normalizeColor, or default fill
   protected applyColorOverride(style: string): string {
