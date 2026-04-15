@@ -318,7 +318,7 @@ class ArchimateRenderer extends RichRenderer {
   protected override get hasTitlebar(): boolean { return true; }
   protected override get titleAreaHeight(): number {
     const extraLines = Math.max(0, this.label.split('\n').length - 1);
-    return this.theme.portSize + extraLines * this.theme.fontSize * 1.2;
+    return this.theme.portSize + this.theme.padXS + extraLines * this.theme.fontSize * 1.2;
   }
 
   // Cat 2: has title area (icon) but no title container border.
