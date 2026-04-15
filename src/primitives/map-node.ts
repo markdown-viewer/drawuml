@@ -30,6 +30,15 @@ function cellPadX(theme: Theme): number {
   return theme.cornerClip;
 }
 
+/**
+ * Extra slack to keep measured text from wrapping after foreignObject layout.
+ * Browser layout can wrap CJK content when the usable width matches the
+ * measured width too tightly, so reserve a small safety margin.
+ */
+function cellWrapSlack(theme: Theme): number {
+  return Math.max(4, Math.ceil(theme.fontSize * 0.25));
+}
+
 // ---------------------------------------------------------------------------
 // Map entry type
 // ---------------------------------------------------------------------------
@@ -62,6 +71,7 @@ class MapNodeRenderer extends Renderer {
   protected doMeasure() {
     const rowH = mapRowHeight(this.theme);
     const padX = cellPadX(this.theme);
+    const wrapSlack = cellWrapSlack(this.theme);
     const titleMinExtra = this.theme.titlePadX;           // minimum extra width added to title text
     const titlePadY = this.theme.contentPad;                      // title vertical padding
 
@@ -82,8 +92,8 @@ class MapNodeRenderer extends Renderer {
       maxValW = Math.max(maxValW, Math.ceil(vm.width));
     }
 
-    const keyColW = maxKeyW + padX * 2;
-    const valColW = maxValW + padX * 2;
+    const keyColW = maxKeyW + padX * 2 + wrapSlack;
+    const valColW = maxValW + padX * 2 + wrapSlack;
     this._keyColWidth = keyColW;
 
     const bodyW = keyColW + valColW + this.theme.edgeGap;

@@ -1,4 +1,5 @@
 import { createTheme, type Theme } from '../shared/theme.ts';
+import { BlockLayout } from '../shared/block-layout.ts';
 import { TextBlock, type FontSpec } from '../shared/text-block.ts';
 import { createRenderer } from '../primitives/index.ts';
 import { getScaledParticipantConfig, buildParticipantLabel, measureBracketBody } from '../primitives/participant.ts';
@@ -40,7 +41,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const renderers = new Map<string, Renderer>();
   let titleLayout = null;
   if (model.title) {
-    const titleRenderer = createRenderer('title', { id: 'diagram-title', label: model.title, theme });
+    const titleRenderer = createRenderer('title', { id: 'diagram-title', label: model.title, labelHtml: model.titleHtml, theme });
     renderers.set('diagram-title', titleRenderer);
     const { width, height } = titleRenderer.measure();
     titleLayout = {
@@ -61,6 +62,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const seqFont: FontSpec = { size: fontSize, family: fontFamily };
   const measureLabel = (html: string) => TextBlock.fromHtml(html, seqFont).width + titlePadX;
   const measureHtmlWidth = (raw: string) => TextBlock.inline(raw, seqFont).width;
+  const measureRenderedHtmlWidth = (html: string) => TextBlock.fromHtml(html, seqFont).width;
 
   const maxRowIndex = Math.max(getRowCount(model) - 1, 0);
 
@@ -108,7 +110,17 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     // Box type: geometry = visual, height adjusts for multiline text
     if (p.bracketLines && p.bracketLines.length > 0) {
       // Bracket body participant: measure rich content
-      const bodySize = measureBracketBody(p.bracketLines, fontSize, fontFamily, theme);
+      const bodySize = p.bracketBlocks && p.bracketBlocks.length > 0
+        ? (function() {
+            const metrics: Partial<any> = {};
+            if (fontSize != null) metrics.bodyFontSize = fontSize;
+            if (fontFamily != null) metrics.fontFamily = fontFamily;
+            const size = BlockLayout.richBlocks(p.bracketBlocks, Object.keys(metrics).length ? metrics : undefined, theme).measure();
+            const contentPad = theme.edgeGap;
+            const sw = theme.strokeWidth;
+            return { width: size.width + contentPad * 2 + sw * 2, height: size.height + contentPad * 2 + sw * 2 };
+          })()
+        : measureBracketBody(p.bracketLines, fontSize, fontFamily, theme);
       const w = Math.max(titleMinWidth, bodySize.width);
       const iconHeight = Math.max(baseH, bodySize.height);
       return { geomWidth: w, visualWidth: w, iconHeight };
@@ -128,7 +140,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const noteId = `note${idx + 1}`;
     const rawLines = (n.text || '').split('\n');
     const noteType = n.noteType || 'note';
-    const r = createRenderer('note', { id: noteId, lines: rawLines, noteType, color: n.color, theme });
+    const r = createRenderer('note', { id: noteId, lines: rawLines, textHtml: n.textHtml, richBlocks: n.richBlocks, noteType, color: n.color, theme });
     renderers.set(noteId, r);
     const { width: w, height: h } = r.measure();
     return { width: w, height: h, row: n.row ?? 0 };
@@ -473,8 +485,8 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
       fragmentElseRows.add(sec.startRow);
     }
     // Ref fragments: compute body content height from label text
-    if (f.type === 'ref' && f.label) {
-      const labelH = TextBlock.inline(f.label, seqFont).height;
+    if (f.type === 'ref' && (f.conditionLabelHtml || f.labelHtml)) {
+      const labelH = TextBlock.fromHtml(f.conditionLabelHtml || f.labelHtml || '', seqFont).height;
       const refH = tabHeight + labelH + theme.contentPad; // tab + body text + bottom padding
       refContentHeightByRow[f.startRow] = Math.max(refContentHeightByRow[f.startRow] || 0, refH);
     }
@@ -1193,8 +1205,9 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
 
     // For ref frames, the label content determines the minimum width.
     // Center the label over the participant span, then expand bounds as needed.
-    if (f.type === 'ref' && f.label) {
-      const refLabelW = Math.max(...f.label.split('\n').map((l: string) => measureHtmlWidth(l))) + smallPad * 2;
+    if (f.type === 'ref' && (f.conditionLabelHtml || f.labelHtml)) {
+      const refHtml = f.conditionLabelHtml || f.labelHtml || '';
+      const refLabelW = Math.max(...refHtml.split(/<br\s*\/?\s*>/i).map((line: string) => measureRenderedHtmlWidth(line || ''))) + smallPad * 2;
       const refCenterX = (centerXs[range.minIdx] + centerXs[range.maxIdx]) / 2;
       rawLeft = Math.min(rawLeft, refCenterX - refLabelW / 2);
       rawRight = Math.max(rawRight, refCenterX + refLabelW / 2);
@@ -1268,15 +1281,11 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   for (let idx = 0; idx < modelFragments.length; idx++) {
     const f = modelFragments[idx];
     if (f.type === 'ref') continue;
-    const isGroupLike2 = f.type === 'group' || f.type === 'partition';
-    const tabLabel2 = isGroupLike2 ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
-    const tabTextW2 = TextBlock.inline(tabLabel2 || f.type, { ...seqFont, weight: 'bold' }).width;
+    const tabHtml2 = f.tabLabelHtml || TextBlock.inline(f.tabLabel || f.type, seqFont).html;
+    const tabTextW2 = TextBlock.fromHtml(`<b>${tabHtml2}</b>`, seqFont).width;
     const tabWidth2 = Math.max(Math.ceil(tabTextW2) + 2 * theme.cornerClip, theme.nodeMinW);
-    const condLabel2 = isGroupLike2
-      ? ((f.label || '').match(/\[([^\]]*)\]/)?.[1] || '')
-      : (f.label || '');
-    if (condLabel2) {
-      const condW2 = measureHtmlWidth(condLabel2) + smallPad * 2;
+    if (f.conditionLabelHtml) {
+      const condW2 = measureRenderedHtmlWidth(f.conditionLabelHtml) + smallPad * 2;
       const minRight2 = fragmentBounds[idx].left + tabWidth2 + smallPad + condW2 + smallPad;
       fragmentBounds[idx].right = Math.max(fragmentBounds[idx].right, minRight2);
     }
@@ -1305,23 +1314,24 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const fragBottom = (rowTopYs[endPlaceholderRow] ?? rowTop);
     // Minimum height: for ref type, account for body text content lines
     let minFragH = theme.nodeMinW;
-    if (f.type === 'ref' && f.label) {
-      const labelLines = f.label.split('\n').length;
+    if (f.type === 'ref' && (f.conditionLabel || f.label)) {
+      const labelLines = (f.conditionLabel || f.label || '').split('\n').length;
       const lineH = theme.titleFontSize;
       minFragH = tabHeight + labelLines * lineH + theme.arcSize;
     }
     const fragH = Math.max(minFragH, fragBottom - fragY);
-    // Tab width: based on actual tab text width + padding (aligned with FrameRenderer)
-    // For group/partition, the tab shows the label text, not the keyword
-    const isGroupLike = f.type === 'group' || f.type === 'partition';
-    const tabLabel = isGroupLike ? (f.label || '').replace(/\s*\[.*\]\s*$/, '').trim() : f.type;
-    const tabTextW = TextBlock.inline(tabLabel || f.type, { ...seqFont, weight: 'bold' }).width;
+    const tabHtml = f.tabLabelHtml || TextBlock.inline(f.tabLabel || f.type, seqFont).html;
+    const tabTextW = TextBlock.fromHtml(`<b>${tabHtml}</b>`, seqFont).width;
     const tabWidth = Math.max(Math.ceil(tabTextW) + 2 * theme.cornerClip, theme.nodeMinW);
 
     return {
       id: `frag${idx + 1}`,
       type: f.type,
       label: f.label,
+      tabLabel: f.tabLabel,
+      tabLabelHtml: f.tabLabelHtml,
+      conditionLabel: f.conditionLabel,
+      conditionLabelHtml: f.conditionLabelHtml,
       lineColor: f.lineColor,
       fillColor: f.fillColor,
       tabWidth,
@@ -1490,7 +1500,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   // Mainframe layout: wraps the entire diagram with uniform internal padding
   let mainframeLayout = undefined;
   if (model.mainframe) {
-    const frameRenderer = createRenderer('frame', { id: 'mainframe', label: model.mainframe, fixedHeight: tabHeight, theme });
+    const frameRenderer = createRenderer('frame', { id: 'mainframe', label: model.mainframe, labelHtml: model.mainframeHtml, fixedHeight: tabHeight, theme });
     renderers.set('mainframe', frameRenderer);
     const mfY = titleLayout ? titleLayout.height + smallPad : 0;
     // Compute tight content bounds for uniform padding

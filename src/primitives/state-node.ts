@@ -375,14 +375,16 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
 
 class StateNodeRenderer extends SwimlaneRenderer {
   private _nodeLabel: string;
+  private _nodeLabelHtml?: string;
   private nodeStyle?: string | null;
 
   constructor(node: RenderDescriptor) {
     super(node.id, node.theme);
     this._nodeLabel = node.label ?? '';
+    this._nodeLabelHtml = node.labelHtml;
     this.nodeStyle = node.style;
-    const titleHtml = TextBlock.inline(node.label ?? '', { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
-    this.initContent(titleHtml, { bodyLines: node.bodyLines });
+    const titleHtml = this._nodeLabelHtml || TextBlock.inline(node.label ?? '', { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
+    this.initContent(titleHtml, { bodyLines: node.bodyLines, bodyBlocks: node.bodyBlocks });
   }
 
   protected finalizeBody(ctx: FinalizeBodyCtx) {
@@ -404,7 +406,9 @@ class StateNodeRenderer extends SwimlaneRenderer {
 
   /** Height of the state title bar (startSize in DrawIO swimlane). */
   private get titleBarHeight(): number {
-    const m = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure();
+    const m = this._nodeLabelHtml
+      ? TextBlock.fromHtml(this._nodeLabelHtml, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure()
+      : TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure();
     return Math.ceil(m.height) + this.theme.titlePadY;
   }
 
@@ -417,7 +421,9 @@ class StateNodeRenderer extends SwimlaneRenderer {
    */
   render(box: ContentBox): string[] {
     if (this.children.length > 0) {
-      const labelMeas = TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily });
+      const labelMeas = this._nodeLabelHtml
+        ? TextBlock.fromHtml(this._nodeLabelHtml, { size: this.theme.fontSize, family: this.theme.fontFamily })
+        : TextBlock.inline(this._nodeLabel, { size: this.theme.fontSize, family: this.theme.fontFamily });
       const labelHtml = labelMeas.html;
       const parentCellId = this.parentId || '1';
       const titleBarH = Math.ceil(labelMeas.measure().height) + this.theme.titlePadY;

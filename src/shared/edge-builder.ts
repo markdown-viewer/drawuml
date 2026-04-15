@@ -18,6 +18,8 @@ export interface EdgeCellSpec {
   id: string;
   /** Raw PlantUML label text — automatically processed via Content.inline(). */
   label?: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
   /** Pre-built DrawIO style string. `html=1` is appended when label is non-empty. */
   style: string;
   /** Parent cell id (default "1"). */
@@ -43,8 +45,12 @@ export interface EdgeCellSpec {
   };
   /** Raw PlantUML text — cardinality marker at source end. */
   cardFrom?: string;
+  /** Normalized HTML cardinality marker at source end. */
+  cardFromHtml?: string;
   /** Raw PlantUML text — cardinality marker at target end. */
   cardTo?: string;
+  /** Normalized HTML cardinality marker at target end. */
+  cardToHtml?: string;
   /** Font size for label / cardinality text (from theme). */
   fontSize?: number;
   /** Font family for label / cardinality text (from theme). */
@@ -61,7 +67,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
 
   // Process label through Content pipeline
   const font = { size: spec.fontSize || 12, family: spec.fontFamily || 'Arial, Helvetica, sans-serif' };
-  const htmlLabel = spec.label ? TextBlock.inline(spec.label, font).html : '';
+  const htmlLabel = spec.labelHtml || (spec.label ? TextBlock.inline(spec.label, font).html : '');
   const value = htmlLabel ? escapeXml(htmlLabel) : '';
   let style = spec.style;
   if (htmlLabel && !style.includes('html=1')) style += 'html=1;';
@@ -115,16 +121,16 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
 
   // Sub-labels (cardinality markers at edge endpoints)
   const cardFontStyle = (spec.fontSize ? `fontSize=${spec.fontSize};` : '') + (spec.fontFamily ? `fontFamily=${spec.fontFamily};` : '');
-  if (spec.cardFrom) {
-    const cardHtml = escapeXml(TextBlock.inline(spec.cardFrom, font).html);
+  if (spec.cardFrom || spec.cardFromHtml) {
+    const cardHtml = escapeXml(spec.cardFromHtml || TextBlock.inline(spec.cardFrom!, font).html);
     cells.push(
       `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(spec.id))}">`
       + `<mxGeometry x="-1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`
       + `</mxCell>`
     );
   }
-  if (spec.cardTo) {
-    const cardHtml = escapeXml(TextBlock.inline(spec.cardTo, font).html);
+  if (spec.cardTo || spec.cardToHtml) {
+    const cardHtml = escapeXml(spec.cardToHtml || TextBlock.inline(spec.cardTo!, font).html);
     cells.push(
       `<mxCell value="${cardHtml}" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;points=[];labelBackgroundColor=none;${cardFontStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(spec.id))}">`
       + `<mxGeometry x="1" y="0" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>`

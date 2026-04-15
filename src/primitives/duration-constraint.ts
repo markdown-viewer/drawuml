@@ -18,6 +18,7 @@ export function renderDurationConstraint(dc: {
   y1: number;
   y2: number;
   label?: string;
+  labelHtml?: string;
   labelX?: number;
   labelWidth?: number;
 }): string[] {
@@ -37,7 +38,7 @@ export function renderDurationConstraint(dc: {
   );
   if (dc.label) {
     // Convert raw Creole label to HTML
-    const labelHtml = TextBlock.inline(dc.label, { size: smallFontSize, family: theme.fontFamily }).html;
+    const labelHtml = dc.labelHtml || TextBlock.inline(dc.label, { size: smallFontSize, family: theme.fontFamily }).html;
     const lineH = dc.y2 - dc.y1;
     const labelH = Math.ceil(smallFontSize + theme.edgeGap);
     const labelY = dc.y1 + lineH / 2 - labelH / 2;

@@ -20,6 +20,7 @@ export function renderDivider(divider: {
   id: string;
   type: string;
   label: string;
+  labelHtml?: string;
   x1: number;
   x2: number;
   y: number;
@@ -36,7 +37,7 @@ export function renderDivider(divider: {
 
   // Delay dividers: plain text, no lines — render at label size, not full span
   if (divider.type === 'delay') {
-    const labelHtml = TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily }).html;
+    const labelHtml = divider.labelHtml || TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily }).html;
     const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};${fontFamilyStyle(theme)}`;
     const hh = divider.halfHeight;
     const lx = divider.labelX ?? divider.x1;
@@ -66,7 +67,7 @@ export function renderDivider(divider: {
     x: divider.x1, y: lineY2, width: divider.x2 - divider.x1, height: 1,
   }));
   // Bordered text box centered between the lines
-  const labelHtml = TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily, weight: 'bold' }).html;
+  const labelHtml = divider.labelHtml || TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily, weight: 'bold' }).html;
   const hh = divider.halfHeight;
   const boxStyle = `rounded=0;whiteSpace=nowrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
   cells.push(mxVertex({

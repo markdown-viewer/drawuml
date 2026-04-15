@@ -15,6 +15,7 @@
 
 import type { Renderer } from './renderer.ts';
 import type { BodyLine } from '../model/class-model.ts';
+import type { NormalizedBodyBlock, NormalizedRichBlock } from '../model/normalized-rich-text.ts';
 import type { Theme } from '../shared/theme.ts';
 
 // ---------------------------------------------------------------------------
@@ -33,10 +34,18 @@ export interface RenderDescriptor {
   // ── Common display (标题 / 正文 / 颜色) ─────────────────────────────
   /** Display label / title text. */
   label?: string;
+  /** Normalized HTML label / title. */
+  labelHtml?: string;
   /** Multi-line text content (for notes, legends). */
   lines?: string[];
+  /** Normalized HTML block content (for notes, legends). */
+  textHtml?: string;
+  /** Structured normalized blocks (for notes, legends). */
+  richBlocks?: NormalizedRichBlock[];
   /** Rich body lines for class/entity body rendering. */
   bodyLines?: BodyLine[];
+  /** Structured normalized class/state body blocks. */
+  bodyBlocks?: NormalizedBodyBlock[];
   /** Background/fill color override. */
   color?: string;
   /** Raw PlantUML style string, e.g. "#palegreen ##[dashed]green". */
@@ -58,7 +67,7 @@ export interface RenderDescriptor {
   /** Hide method lines in the body. */
   hideMethods?: boolean;
   /** Map entries for "map" blocks (key => value table rows). */
-  mapEntries?: { key: string; value: string; linked?: boolean }[];
+  mapEntries?: { key: string; value: string; linked?: boolean; keyHtml?: string; valueHtml?: string }[];
   /** User-defined $tags from class declaration syntax. */
   tags?: string[];
   /** Whether to show visibility icons in class body. */

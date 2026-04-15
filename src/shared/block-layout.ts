@@ -13,6 +13,7 @@
 import { mxVertex, n4 } from './xml-utils.ts';
 import { TextBlock, type FontSpec } from './text-block.ts';
 import type { BodyLine } from '../model/class-model.ts';
+import type { NormalizedBodyBlock, NormalizedRichBlock } from '../model/normalized-rich-text.ts';
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-measure';
 import { createTheme, type Theme } from './theme.ts';
 import { separatorStyle, richTextStyle } from './content-types.ts';
@@ -452,6 +453,7 @@ export class BlockLayout {
     titleHtml: string;
     nodeId: string;
     bodyLines?: BodyLine[];
+    bodyBlocks?: NormalizedBodyBlock[];
     visibilityIcons?: boolean;
     hideFields?: boolean;
     hideMethods?: boolean;
@@ -476,6 +478,42 @@ export class BlockLayout {
     const titleFont: FontSpec = { size: titleFontSize, family: fontFamily };
     const bodyFont: FontSpec = { size: bodyFontSize, family: fontFamily };
     blocks.push({ kind: 'title', text: TextBlock.fromHtml(opts.titleHtml, titleFont) });
+
+    if (opts.bodyBlocks && opts.bodyBlocks.length > 0) {
+      for (const block of opts.bodyBlocks) {
+        if (block.kind === 'row') {
+          blocks.push({ kind: 'row', text: TextBlock.fromHtml(block.html, bodyFont), id: block.id });
+        } else if (block.kind === 'rich') {
+          blocks.push({ kind: 'rich', text: TextBlock.fromHtml(block.html, bodyFont) });
+        } else {
+          blocks.push({ kind: 'separator', variant: block.variant, titleText: block.titleHtml ? TextBlock.fromHtml(block.titleHtml, bodyFont) : undefined });
+        }
+      }
+
+      if (opts.finalizeBody) {
+        const result = opts.finalizeBody({
+          blocks,
+          lines: opts.bodyLines || [],
+          hasSeparator: blocks.some((block) => block.kind === 'separator'),
+          hideFields: opts.hideFields,
+          hideMethods: opts.hideMethods,
+        });
+        if (result !== null) {
+          const fo: Partial<ContentMetrics> = { ...result };
+          if (opts.fontSize) { fo.titleFontSize = opts.fontSize; fo.bodyFontSize = opts.fontSize; }
+          if (opts.fontFamily) fo.fontFamily = opts.fontFamily;
+          return new BlockLayout(blocks, { ...classMetrics(opts.theme), ...fo });
+        }
+      }
+
+      const fontOverrides: Partial<ContentMetrics> = {};
+      if (opts.fontSize) {
+        fontOverrides.titleFontSize = opts.fontSize;
+        fontOverrides.bodyFontSize = opts.fontSize;
+      }
+      if (opts.fontFamily) fontOverrides.fontFamily = opts.fontFamily;
+      return new BlockLayout(blocks, { ...classMetrics(opts.theme), ...fontOverrides }, opts.theme);
+    }
 
     const allLines = opts.bodyLines || [];
     const showIcons = opts.visibilityIcons !== false; // default true
@@ -666,6 +704,31 @@ export class BlockLayout {
       family: opts?.fontFamily || DEFAULTS.fontFamily,
     };
     return new BlockLayout([{ kind: 'rich', text: TextBlock.fromHtml(html, font) }], opts);
+  }
+
+  /**
+   * Create content from normalized rich blocks produced during model normalization.
+   * Preserves structural separators while avoiding render-time block parsing.
+   */
+  static richBlocks(
+    richBlocks: NormalizedRichBlock[],
+    metrics?: Partial<ContentMetrics>,
+    theme?: Theme,
+  ): BlockLayout {
+    const baseFontSize = metrics?.bodyFontSize ?? DEFAULTS.bodyFontSize;
+    const fontFamily = metrics?.fontFamily ?? DEFAULTS.fontFamily;
+    const bodyFont: FontSpec = { size: baseFontSize, family: fontFamily };
+    const blocks: ContentBlock[] = richBlocks.map((block) => {
+      if (block.kind === 'rich') {
+        return { kind: 'rich', text: TextBlock.fromHtml(block.html, bodyFont) };
+      }
+      return {
+        kind: 'separator',
+        variant: block.variant,
+        titleText: block.titleHtml ? TextBlock.fromHtml(block.titleHtml, bodyFont) : undefined,
+      };
+    });
+    return new BlockLayout(blocks, { ...richBodyMetrics(theme), ...metrics }, theme);
   }
 
   /**

@@ -388,7 +388,7 @@ function creoleInline(text: string): string {
   s = s.replace(/<img\s+[^>]*>/gi, '(Cannot decode)');
 
   // --- Creole inline markup → HTML ---
-  s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  s = s.replace(/\*\*([\s\S]+?)\*\*/g, '<b>$1</b>');
   s = s.replace(/\/\/(.+?)\/\//g, '<i>$1</i>');
   s = s.replace(/__(.+?)__/g, '<u>$1</u>');
   s = s.replace(/--(.+?)--/g, '<s>$1</s>');

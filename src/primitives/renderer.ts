@@ -217,6 +217,7 @@ export abstract class SwimlaneRenderer extends Renderer {
    */
   protected initContent(titleHtml: string, opts?: {
     bodyLines?: BodyLine[];
+    bodyBlocks?: import('../model/normalized-rich-text.ts').NormalizedBodyBlock[];
     visibilityIcons?: boolean;
     hideFields?: boolean;
     hideMethods?: boolean;
@@ -225,6 +226,7 @@ export abstract class SwimlaneRenderer extends Renderer {
       titleHtml,
       nodeId: this.id,
       bodyLines: opts?.bodyLines,
+      bodyBlocks: opts?.bodyBlocks,
       visibilityIcons: opts?.visibilityIcons,
       hideFields: opts?.hideFields,
       hideMethods: opts?.hideMethods,

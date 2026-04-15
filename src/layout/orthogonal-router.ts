@@ -57,7 +57,7 @@ export function routeOrthogonal(layout: LayoutResult, model: SemanticModel, them
       if (le.labelPos && !le.labelSize) {
         const se = edgeById.get(le.id);
         if (se?.label) {
-          const lr = new LabelRenderer({ id: le.id + '__label', label: se.label, theme });
+          const lr = new LabelRenderer({ id: le.id + '__label', label: se.label, labelHtml: se.labelHtml, theme });
           le.labelSize = lr.measure();
         }
       }

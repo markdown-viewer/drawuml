@@ -67,8 +67,9 @@ class FrameShapeRenderer extends RichRenderer {
   protected buildStyle(): string {
     // Measure tab text with bold font (Creole markup stripped by TextBlock.inline)
     const font = { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' as const };
-    const lines = this.label.split('\n');
-    const maxLineWidth = Math.max(...lines.map(l => Math.ceil(TextBlock.inline(l, font).width)));
+    const maxLineWidth = this.desc.labelHtml
+      ? Math.ceil(TextBlock.fromHtml(this.desc.labelHtml, { size: this.theme.fontSize, family: this.theme.fontFamily, weight: 'bold' }).width)
+      : Math.max(...this.label.split('\n').map(l => Math.ceil(TextBlock.inline(l, font).width)));
     // tabWidth must accommodate spacingLeft (cornerClip) + text + right bevel (cornerClip)
     const tabW = Math.max(maxLineWidth + 2 * this.theme.cornerClip, this.theme.tabMinW);
     const tabH = this.computeLabelHeight();
@@ -103,7 +104,7 @@ class FrameShapeRenderer extends RichRenderer {
 
   // Mainframe: label in frame value, no body content
   protected getFrameValue(): string {
-    if (this.isMainframe) return TextBlock.inline(this.label, DEFAULT_FONT).html;
+    if (this.isMainframe) return this.desc.labelHtml || TextBlock.inline(this.label, DEFAULT_FONT).html;
     return super.getFrameValue();
   }
 

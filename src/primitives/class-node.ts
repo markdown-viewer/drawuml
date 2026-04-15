@@ -17,6 +17,7 @@ import { registerRenderer } from './registry.ts';
 import type { RenderDescriptor, NodeDescriptor } from './registry.ts';
 import type { ContentBox, FinalizeBodyCtx } from '../shared/content-types.ts';
 import type { BodyLine } from '../model/class-model.ts';
+import type { NormalizedBodyBlock } from '../model/normalized-rich-text.ts';
 import type { LayoutGraphNode } from '../layout/layout-graph.ts';
 import { createTheme, type Theme } from '../shared/theme.ts';
 import { mxVertex } from '../shared/xml-utils.ts';
@@ -63,7 +64,8 @@ export function buildTitleHtml(node: { label: string; stereotype?: string | null
   // Custom spot from <<(X,color)>> overrides the default SPOT_MAP lookup.
   const spotInfo = node.hideCircle ? undefined : (node.spot || SPOT_MAP[stype]);
   // Convert raw Creole label to HTML inside the renderer
-  const labelHtml = TextBlock.inline(node.label, DEFAULT_FONT).html;
+  const labelHtml = (node as { labelHtml?: string }).labelHtml
+    || TextBlock.inline(node.label, { size: node.theme?.fontSize || DEFAULT_FONT.size, family: node.theme?.fontFamily || DEFAULT_FONT.family }).html;
   return buildLabelHtml({
     label: labelHtml,
     stereotypeLabel: node.stereotypeLabel,
@@ -100,6 +102,7 @@ export function classContent(node: {
   type?: string;
   stereotypeLabel?: string;
   bodyLines?: BodyLine[];
+  bodyBlocks?: NormalizedBodyBlock[];
   visibilityIcons?: boolean;
   hideCircle?: boolean;
   hideFields?: boolean;
@@ -113,6 +116,7 @@ export function classContent(node: {
     titleHtml: buildTitleHtml(node),
     nodeId: node.id,
     bodyLines: node.bodyLines,
+    bodyBlocks: node.bodyBlocks,
     visibilityIcons: node.visibilityIcons,
     hideFields: node.hideFields,
     hideMethods: node.hideMethods,
@@ -211,6 +215,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
     this.skipAutoSep = entityType === 'object';
     this.initContent(buildTitleHtml(node), {
       bodyLines: node.bodyLines,
+      bodyBlocks: node.bodyBlocks,
       visibilityIcons: node.visibilityIcons,
       hideFields: node.hideFields,
       hideMethods: node.hideMethods,

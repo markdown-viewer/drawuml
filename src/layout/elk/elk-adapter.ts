@@ -901,14 +901,14 @@ export function collectEdges(
     // When edge has no text, use 0x0 placeholder with text='X' so ELK's
     // LabelDummyInserter always creates a dummy layer, ensuring uniform spacing.
     if (edge.label) {
-      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme });
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, labelHtml: edge.labelHtml, theme });
       const m = lr.measure();
       labels.push({ text: edge.label, width: m.width, height: m.height, placement: 'center' });
     }
 
     // TAIL label — only when quantifier exists
     if (edge.cardFrom) {
-      const lr = new LabelRenderer({ id: edge.id + '__card_from', label: edge.cardFrom, theme });
+      const lr = new LabelRenderer({ id: edge.id + '__card_from', label: edge.cardFrom, labelHtml: edge.cardFromHtml, theme });
       const m = lr.measure();
       labels.push({ text: edge.cardFrom, width: m.width, height: m.height, placement: 'tail',
         layoutOptions: { 'org.eclipse.elk.edgeLabels.placement': 'TAIL' } });
@@ -916,7 +916,7 @@ export function collectEdges(
 
     // HEAD label — only when quantifier exists
     if (edge.cardTo) {
-      const lr = new LabelRenderer({ id: edge.id + '__card_to', label: edge.cardTo, theme });
+      const lr = new LabelRenderer({ id: edge.id + '__card_to', label: edge.cardTo, labelHtml: edge.cardToHtml, theme });
       const m = lr.measure();
       labels.push({ text: edge.cardTo, width: m.width, height: m.height, placement: 'head',
         layoutOptions: { 'org.eclipse.elk.edgeLabels.placement': 'HEAD' } });

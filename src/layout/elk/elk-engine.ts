@@ -131,8 +131,10 @@ function rewriteNotesForElk(model: SemanticModel, theme?: Theme): void {
       stereotype: 'note',
       // Extra fields for NoteNodeRenderer (spread into RenderDescriptor)
       lines: note.text.split('\n'),
+      textHtml: note.textHtml,
+      richBlocks: note.richBlocks,
       color: note.color,
-    } as SemanticNode & { lines: string[]; color?: string });
+    } as SemanticNode & { lines: string[]; textHtml?: string; richBlocks?: import('../model/normalized-rich-text.ts').NormalizedRichBlock[]; color?: string });
 
     if (note.target && !note.onLink) {
       // Add note to same group as its target (when target is a regular node)

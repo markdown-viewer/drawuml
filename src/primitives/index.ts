@@ -232,10 +232,10 @@ export function createGlobalRenderers(model: SemanticModel, options?: { theme?: 
   const theme = options?.theme ?? createTheme();
   const map = new Map<string, RendererBase>();
   if (model.title) {
-    map.set('__title__', createRendererFn('title', { id: '__title__', label: model.title, theme }));
+    map.set('__title__', createRendererFn('title', { id: '__title__', label: model.title, labelHtml: model.titleHtml, theme }));
   }
   if (model.legend) {
-    map.set('__legend__', createRendererFn('legend', { id: '__legend__', lines: model.legend.text.split('\n'), align: model.legend.align, theme }));
+    map.set('__legend__', createRendererFn('legend', { id: '__legend__', lines: model.legend.text.split('\n'), textHtml: model.legend.textHtml, richBlocks: model.legend.richBlocks, align: model.legend.align, theme }));
   }
   return map;
 }

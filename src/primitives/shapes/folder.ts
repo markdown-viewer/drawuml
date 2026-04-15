@@ -56,7 +56,7 @@ class FolderRenderer extends RichRenderer {
 
   // Package: label always in folder tab (frame value)
   protected getFrameValue(): string {
-    if (this.isPackage) return TextBlock.inline(this.label, DEFAULT_FONT).html;
+    if (this.isPackage) return this.desc.labelHtml || TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
     return super.getFrameValue();
   }
 

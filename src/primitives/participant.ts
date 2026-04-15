@@ -168,11 +168,12 @@ export function participantStyle(
  * Converts raw Creole label to HTML internally, then delegates to shared buildLabelHtml.
  */
 export function buildParticipantLabel(
-  p: { label: string; stereotypeLabel?: string; spot?: { char: string; color: string } },
+  p: { label: string; labelHtml?: string; stereotypeLabel?: string; spot?: { char: string; color: string } },
   opts?: { stereotypePosition?: 'top' | 'bottom'; fontSize?: number; spotSize?: number; spotFontSize?: number; spotMargin?: number },
 ): string {
   // Convert raw Creole label to HTML inside the renderer
-  const labelHtml = TextBlock.inline(p.label, DEFAULT_FONT).html;
+  const labelHtml = p.labelHtml
+    || TextBlock.inline(p.label, { size: opts?.fontSize || DEFAULT_FONT.size, family: DEFAULT_FONT.family }).html;
   return buildLabelHtml({
     label: labelHtml,
     stereotypeLabel: p.stereotypeLabel,
@@ -222,6 +223,19 @@ export function measureBracketBody(bracketLines: string[], bodyFontSize?: number
   };
 }
 
+function measureBracketBlocks(bracketBlocks: import('../model/normalized-rich-text.ts').NormalizedRichBlock[], bodyFontSize?: number, fontFamily?: string, theme: Theme = createTheme()): { width: number; height: number } {
+  const metrics: Partial<any> = {};
+  if (bodyFontSize != null) metrics.bodyFontSize = bodyFontSize;
+  if (fontFamily != null) metrics.fontFamily = fontFamily;
+  const size = BlockLayout.richBlocks(bracketBlocks, Object.keys(metrics).length ? metrics : undefined, theme).measure();
+  const contentPad = theme.edgeGap;
+  const sw = theme.strokeWidth;
+  return {
+    width: size.width + contentPad * 2 + sw * 2,
+    height: size.height + contentPad * 2 + sw * 2,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -231,7 +245,7 @@ export function measureBracketBody(bracketLines: string[], bodyFontSize?: number
  * Returns an array: for bracket participants, includes container + child cells.
  */
 export function renderParticipant(
-  p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
+  p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; bracketBlocks?: import('../model/normalized-rich-text.ts').NormalizedRichBlock[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
@@ -243,7 +257,9 @@ export function renderParticipant(
     const bracketMetrics: Partial<any> = {};
     if (theme.fontSize != null) bracketMetrics.bodyFontSize = theme.fontSize;
     if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
-    const content = BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
+    const content = p.bracketBlocks && p.bracketBlocks.length > 0
+      ? BlockLayout.richBlocks(p.bracketBlocks, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme)
+      : BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const cells: string[] = [];
     const containerStyleStr = participantStyle(p.type, { color: p.color, participantFill: theme.participantFill, iconHeight: layout.iconHeight, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });
     const colorDark = theme.colorDark;
@@ -296,7 +312,7 @@ export function renderParticipant(
  * Returns an array: for bracket participants, includes container + child cells.
  */
 export function renderFootbox(
-  p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
+  p: { id: string; label: string; type: string; color?: string; bracketLines?: string[]; bracketBlocks?: import('../model/normalized-rich-text.ts').NormalizedRichBlock[]; stereotypeLabel?: string; spot?: { char: string; color: string } },
   layout: { x: number; y: number; width: number; height: number; iconHeight?: number },
   opts?: { stereotypePosition?: 'top' | 'bottom'; participantAlign?: 'left' | 'center' | 'right'; actorStyle?: string; theme?: Theme },
 ): string[] {
@@ -312,7 +328,9 @@ export function renderFootbox(
     const bracketMetrics: Partial<any> = {};
     if (theme.fontSize != null) bracketMetrics.bodyFontSize = theme.fontSize;
     if (theme.fontFamily != null) bracketMetrics.fontFamily = theme.fontFamily;
-    const content = BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
+    const content = p.bracketBlocks && p.bracketBlocks.length > 0
+      ? BlockLayout.richBlocks(p.bracketBlocks, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme)
+      : BlockLayout.bracketBody(p.bracketLines, Object.keys(bracketMetrics).length ? bracketMetrics : undefined, theme);
     const footId = p.id + '_foot';
     const cells: string[] = [];
     const footStyleStr = participantStyle(p.type, { isFootbox: true, color: p.color, participantFill: theme.participantFill, iconHeight: footH, actorStyle: opts?.actorStyle, fontSize: theme.fontSize, fontFamily: theme.fontFamily, arcSize: theme.arcSize, strokeWidth: theme.strokeWidth });

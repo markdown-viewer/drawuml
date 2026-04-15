@@ -46,7 +46,14 @@ export function createRenderers(model: SemanticModel, options?: { theme?: Theme 
   }
 
   for (const note of model.notes || []) {
-    renderers.set(note.id, createRenderer('note', { id: note.id, lines: note.text.split('\n'), color: note.color, theme }));
+    renderers.set(note.id, createRenderer('note', {
+      id: note.id,
+      lines: note.text.split('\n'),
+      textHtml: note.textHtml,
+      richBlocks: note.richBlocks,
+      color: note.color,
+      theme,
+    }));
   }
 
   // Global renderers (title, legend) via factory
@@ -90,7 +97,7 @@ export function buildRendererTree(
       }
     } else {
       const shape = resolveGroupShape(g.type, g.stereotype, globalPkgStyle, g.id);
-      const gr = createNodeRenderer({ id: g.id, label: g.label, stereotype: shape, color: g.color, style: g.style, theme });
+      const gr = createNodeRenderer({ id: g.id, label: g.label, labelHtml: g.labelHtml, stereotype: shape, color: g.color, style: g.style, theme });
       groupRenderers.set(g.id, gr);
       renderers.set(g.id, gr);
     }

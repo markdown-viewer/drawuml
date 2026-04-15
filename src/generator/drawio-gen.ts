@@ -347,6 +347,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       // Only pass label to buildEdgeCells when no ELK layout position is available;
       // positioned labels are emitted as standalone absolute-position cells below.
       label: layoutLabelPos ? undefined : edge.label,
+      labelHtml: layoutLabelPos ? undefined : edge.labelHtml,
       style,
       source: omitSource ? undefined : sourceId,
       target: omitTarget ? undefined : targetId,
@@ -354,13 +355,15 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       // Only pass card labels to buildEdgeCells when no layout position is available;
       // positioned labels are emitted as standalone absolute-position cells below.
       cardFrom: layoutCardFromPos ? undefined : edge.cardFrom,
+      cardFromHtml: layoutCardFromPos ? undefined : edge.cardFromHtml,
       cardTo: layoutCardToPos ? undefined : edge.cardTo,
+      cardToHtml: layoutCardToPos ? undefined : edge.cardToHtml,
       fontSize: theme.fontSize,
       fontFamily: theme.fontFamily,
     }));
     // Edge center label at layout-computed absolute position
     if (edge.label && layoutLabelPos) {
-      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, theme });
+      const lr = new LabelRenderer({ id: edge.id + '__label', label: edge.label, labelHtml: edge.labelHtml, theme });
       const m = lr.measure();
       const w = layoutLabelSize?.width || m.width;
       const h = layoutLabelSize?.height || m.height;
@@ -372,7 +375,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     }
     // Cardinality labels at layout-computed positions (both DOT and ELK)
     if (edge.cardFrom && layoutCardFromPos) {
-      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, theme });
+      const cfr = new LabelRenderer({ id: edge.id + '__cardFrom', label: edge.cardFrom, labelHtml: edge.cardFromHtml, theme });
       const m = cfr.measure();
       cells.push(...cfr.render({
         x: layoutCardFromPos.x - m.width / 2,
@@ -381,7 +384,7 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
       }));
     }
     if (edge.cardTo && layoutCardToPos) {
-      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, theme });
+      const ctr = new LabelRenderer({ id: edge.id + '__cardTo', label: edge.cardTo, labelHtml: edge.cardToHtml, theme });
       const m = ctr.measure();
       cells.push(...ctr.render({
         x: layoutCardToPos.x - m.width / 2,

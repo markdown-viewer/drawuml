@@ -19,6 +19,7 @@ import type { ContentBox } from '../shared/content-types.ts';
 
 export interface BoxRendererOpts {
   label?: string;
+  labelHtml?: string;
   color?: string;
   labelHeight?: number;
   theme?: Theme;
@@ -35,7 +36,8 @@ class BoxRenderer extends Renderer {
     const fill = opts?.color ? normalizeColor(opts.color) : this.theme.legendFill;
     this.fillColor = fill;
     this.strokeColor = darkenColor(fill);
-    this.htmlLabel = opts?.label ? TextBlock.inline(opts.label, { size: this.theme.titleFontSize, family: this.theme.fontFamily, weight: 'bold' }).html : '';
+    this.htmlLabel = opts?.labelHtml
+      || (opts?.label ? TextBlock.inline(opts.label, { size: this.theme.titleFontSize, family: this.theme.fontFamily, weight: 'bold' }).html : '');
     this.labelHeight = opts?.labelHeight ?? 20;
   }
 
@@ -69,6 +71,7 @@ export function registerBoxRenderer(): void {
   registerRenderer('box', (desc: RenderDescriptor) => {
     return new BoxRenderer(desc.id, {
       label: desc.label,
+      labelHtml: desc.labelHtml,
       color: desc.color,
       labelHeight: desc.fixedHeight,
       theme: desc.theme,

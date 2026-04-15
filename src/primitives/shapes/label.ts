@@ -24,6 +24,12 @@ export class LabelRenderer extends RichRenderer {
   // Use block-level Creole for multi-line label support
   protected buildContent(): BlockLayout {
     if (this.hasRichBody) return super.buildContent();
+    if (this.desc.labelHtml) {
+      return BlockLayout.rich(this.desc.labelHtml, {
+        bodyFontSize: this.theme.fontSize,
+        fontFamily: this.theme.fontFamily,
+      });
+    }
     const tb = TextBlock.block(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily });
     return BlockLayout.rich(tb.html, { bodyFontSize: this.theme.fontSize, fontFamily: this.theme.fontFamily });
   }

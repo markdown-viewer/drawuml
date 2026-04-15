@@ -21,14 +21,20 @@ class TitleRenderer extends Renderer {
   private textBlock: TextBlock;
   private textHeight = 0;
 
-  constructor(id: string, text: string, opts?: { fontSize?: number; theme?: Theme }) {
+  constructor(id: string, text: string, opts?: { fontSize?: number; theme?: Theme; html?: string }) {
     super(id, opts?.theme);
     this.fontSize = opts?.fontSize ?? this.theme.titleFontSize;
-    this.textBlock = TextBlock.inline(text, {
-      size: this.fontSize,
-      family: this.theme.fontFamily,
-      weight: 'bold',
-    });
+    this.textBlock = opts?.html
+      ? TextBlock.fromHtml(opts.html, {
+        size: this.fontSize,
+        family: this.theme.fontFamily,
+        weight: 'bold',
+      })
+      : TextBlock.inline(text, {
+        size: this.fontSize,
+        family: this.theme.fontFamily,
+        weight: 'bold',
+      });
   }
 
   protected doMeasure() {
@@ -52,6 +58,6 @@ class TitleRenderer extends Renderer {
 /** Register title renderer into global registry. */
 export function registerTitleRenderer(): void {
   registerRenderer('title', (desc: RenderDescriptor) => {
-    return new TitleRenderer(desc.id, desc.label || '', { theme: desc.theme });
+    return new TitleRenderer(desc.id, desc.label || '', { theme: desc.theme, html: desc.labelHtml });
   });
 }

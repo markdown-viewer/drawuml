@@ -24,6 +24,10 @@ export function renderFragment(frag: {
   id: string;
   type: string;
   label?: string;
+  tabLabel?: string;
+  tabLabelHtml?: string;
+  conditionLabel?: string;
+  conditionLabelHtml?: string;
   tabWidth?: number;
   tabHeight?: number;
   x: number;
@@ -34,31 +38,12 @@ export function renderFragment(frag: {
   fillColor?: string;
   sections: Array<{
     label: string;
+    labelHtml?: string;
     y?: number;
     fillColor?: string;
   }>;
 }): string[] {
   const cells: string[] = [];
-
-  // For group/partition: tab shows the label text, condition in [brackets] to the right
-  // For other types: tab shows the keyword (alt, loop, etc.), label to the right
-  const isGroupLike = frag.type === 'group' || frag.type === 'partition';
-  let tabText: string;
-  let conditionLabel: string;
-  if (isGroupLike) {
-    const rawLabel = frag.label || '';
-    const bracketMatch = rawLabel.match(/^(.*?)\s*\[(.*)\]\s*$/);
-    if (bracketMatch) {
-      tabText = bracketMatch[1].trim();
-      conditionLabel = bracketMatch[2].trim();
-    } else {
-      tabText = rawLabel;
-      conditionLabel = '';
-    }
-  } else {
-    tabText = frag.type;
-    conditionLabel = frag.label || '';
-  }
   const tabW = frag.tabWidth || 60;
   const tabH = frag.tabHeight || 20;
 
@@ -81,8 +66,8 @@ export function renderFragment(frag: {
   }
   if (frag.fillColor) style += `swimlaneFillColor=${normalizeColor(frag.fillColor)};`;
 
-  // Convert raw Creole labels to HTML
-  const tabHtml = TextBlock.inline(tabText, { size: fontSize, family: theme.fontFamily }).html;
+  const tabHtml = frag.tabLabelHtml
+    || TextBlock.inline(frag.tabLabel || frag.type, { size: fontSize, family: theme.fontFamily }).html;
 
   cells.push(mxVertex({
     id: frag.id, value: tabHtml, style,
@@ -98,10 +83,11 @@ export function renderFragment(frag: {
   const sectionH = theme.tabH;           // section label cell height
 
   const isRef = frag.type === 'ref';
+  const conditionLabel = frag.conditionLabel || (isRef ? (frag.label || '') : '');
+  const conditionHtml = frag.conditionLabelHtml
+    || (conditionLabel ? TextBlock.inline(conditionLabel, { size: smallFontSize, family: theme.fontFamily }).html : '');
   if (conditionLabel) {
-    const condBlock = TextBlock.inline(conditionLabel, { size: smallFontSize, family: theme.fontFamily });
-    const condHtml = condBlock.html;
-    const condSize = condBlock.measure();
+    const condSize = TextBlock.fromHtml(conditionHtml, { size: smallFontSize, family: theme.fontFamily }).measure();
     const condMinH = theme.tabH;
     const condH = Math.max(condMinH, Math.ceil(condSize.height) + theme.edgeGap);
     if (isRef) {
@@ -110,14 +96,14 @@ export function renderFragment(frag: {
       const contentH = frag.height - tabH;
       const labelStyle = `text;html=1;align=center;verticalAlign=middle;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
       cells.push(mxVertex({
-        id: frag.id + '_label', value: condHtml, style: labelStyle,
+        id: frag.id + '_label', value: conditionHtml, style: labelStyle,
         parent: '1',
         x: frag.x, y: contentY, width: frag.width, height: contentH,
       }));
     } else {
       const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${labelSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
       cells.push(mxVertex({
-        id: frag.id + '_label', value: '[' + condHtml + ']', style: labelStyle,
+        id: frag.id + '_label', value: '[' + conditionHtml + ']', style: labelStyle,
         parent: '1',
         x: frag.x + tabW + labelGap, y: frag.y, width: frag.width - tabW - labelGap * 2, height: condH,
       }));
@@ -151,7 +137,7 @@ export function renderFragment(frag: {
       x: frag.x, y, width: frag.width, height: 1,
     }));
     cells.push(mxVertex({
-      id: frag.id + '_sec_' + (i + 1), value: '[' + TextBlock.inline(section.label, { size: smallFontSize, family: theme.fontFamily }).html + ']',
+      id: frag.id + '_sec_' + (i + 1), value: '[' + (section.labelHtml || TextBlock.inline(section.label, { size: smallFontSize, family: theme.fontFamily }).html) + ']',
       style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`,
       parent: '1',
       x: frag.x + labelGap, y: y + 2, width: frag.width - labelGap * 2, height: sectionH,

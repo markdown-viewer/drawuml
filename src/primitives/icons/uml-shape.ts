@@ -8,7 +8,7 @@
 
 import { IconRenderer } from './icon-renderer.ts';
 import { Renderer } from '../renderer.ts';
-import { TextBlock, DEFAULT_FONT } from '../../shared/text-block.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
 import { normalizeColor } from '../../shared/color-utils.ts';
@@ -51,7 +51,7 @@ class UmlShapeRenderer extends IconRenderer {
   private get color(): string | undefined { return this.desc.color; }
 
   render(box: ContentBox): string[] {
-    const labelHtml = TextBlock.inline(this.label, DEFAULT_FONT).html;
+    const labelHtml = this.desc.labelHtml || TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
     const value = buildLabelHtml({
       label: labelHtml,
       stereotypeLabel: this.desc.stereotypeLabel || undefined,

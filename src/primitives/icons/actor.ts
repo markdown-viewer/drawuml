@@ -7,7 +7,7 @@
 
 import { IconRenderer } from './icon-renderer.ts';
 import { Renderer } from '../renderer.ts';
-import { TextBlock, DEFAULT_FONT } from '../../shared/text-block.ts';
+import { TextBlock } from '../../shared/text-block.ts';
 import { mxVertex } from '../../shared/xml-utils.ts';
 import { buildLabelHtml } from '../label.ts';
 import { parseNodeStyle } from '../../shared/color-utils.ts';
@@ -29,7 +29,7 @@ class ActorRenderer extends IconRenderer {
 
   constructor(desc: RenderDescriptor) {
     super(desc);
-    this.labelHtml = TextBlock.inline(this.label, DEFAULT_FONT).html;
+    this.labelHtml = desc.labelHtml || TextBlock.inline(this.label, { size: this.theme.fontSize, family: this.theme.fontFamily }).html;
 
     // Parse inline style if present
     let fill = this.theme.defaultFill;

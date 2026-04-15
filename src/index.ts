@@ -6,6 +6,7 @@ import { parseMindmapDiagram } from './parsers/mindmap.ts';
 import type { MindmapNode } from './parsers/mindmap.ts';
 import { parsePlantUml } from './parsers/puml.ts';
 import { preprocess } from './shared/preprocessor.ts';
+import { normalizeClassModelText, normalizeSequenceModelText } from './shared/normalize-model-text.ts';
 import { dotLayout } from './layout/dot-layout.ts';
 import { elkLayout } from './layout/elk/elk-engine.ts';
 import { sequenceTableLayout } from './layout/table-layout.ts';
@@ -45,7 +46,7 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
 
   // Sequence diagrams always use table layout (fixed, cannot be changed)
   if (diagramType === DiagramType.Sequence) {
-    const model = parseSequenceDiagram(source, { strict: true });
+    const model = normalizeSequenceModelText(parseSequenceDiagram(source, { strict: true }), theme);
     const { renderers, ...layout } = sequenceTableLayout(model, { theme });
     return sequenceToDrawioXml(model, layout, renderers, theme);
   }
@@ -88,9 +89,10 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
     engine = options.engine;
   }
 
-  const model = diagramContext === 'activity'
+  const rawModel = diagramContext === 'activity'
     ? parseActivityDiagram(parsed.statements, { pragmas })
     : parseClassDiagram(parsed.statements, { pragmas, diagramContext });
+  const model = normalizeClassModelText(rawModel, theme);
   model.diagramType = diagramType;
   model.diagramContext = diagramContext;
 

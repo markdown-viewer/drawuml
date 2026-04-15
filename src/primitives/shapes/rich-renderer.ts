@@ -209,16 +209,19 @@ export abstract class RichRenderer extends Renderer {
   protected buildContent(): BlockLayout {
     const fontSize = this.theme.fontSize;
     const fontFamily = this.theme.fontFamily;
+    if (this.desc.richBlocks && this.desc.richBlocks.length > 0) {
+      return BlockLayout.richBlocks(this.desc.richBlocks, { bodyFontSize: fontSize, fontFamily }, this.theme);
+    }
     if (this.hasRichBody) {
       return BlockLayout.richBody(this.getRichBodyLines(), { bodyFontSize: fontSize, fontFamily }, this.theme);
     }
     // bodyLines without separators: render lines as the node's display content
     if (this.desc.bodyLines && this.desc.bodyLines.length > 0) {
       const lines = this.getRichBodyLines();
-      const html = lines.map(l => TextBlock.inline(l, DEFAULT_FONT).html).join('<br />');
+      const html = lines.map(l => TextBlock.inline(l, { size: fontSize, family: fontFamily }).html).join('<br />');
       return BlockLayout.rich(html, { bodyFontSize: fontSize, fontFamily });
     }
-    const labelHtml = TextBlock.inline(this.label, DEFAULT_FONT).html;
+    const labelHtml = this.desc.labelHtml || TextBlock.inline(this.label, { size: fontSize, family: fontFamily }).html;
     return BlockLayout.rich(buildLabelHtml({
       label: labelHtml,
       stereotypeLabel: this.desc.stereotypeLabel || undefined,
@@ -330,6 +333,13 @@ export abstract class RichRenderer extends Renderer {
     const bodyHtml = this.getBodyHtml();
 
     let s = this.buildStyle();
+
+    // Container titles may already contain inline HTML such as <b>...</b>.
+    // When that happens, force html=1 so drawio2svg does not fall back to
+    // native SVG text and escape the markup literally.
+    if (frameValue.includes('<') && !s.includes('html=1;')) {
+      s += 'html=1;';
+    }
 
     // Inject custom fontFamily when user overrides the default
     s += fontFamilyStyle(this.theme);

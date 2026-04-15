@@ -176,6 +176,9 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     // Close unclosed HTML tags in prefix so styles don't leak into label.
     const closedPrefix = prefix ? closeUnclosedTags(prefix) : '';
     const displayLabel = closedPrefix ? (label ? closedPrefix + ' ' + label : closedPrefix) : label;
+    const displayLabelHtml = msg.numberPrefixHtml
+      ? (msg.labelHtml ? `${msg.numberPrefixHtml} ${msg.labelHtml}` : msg.numberPrefixHtml)
+      : msg.labelHtml;
 
     // Override exitX/exitY/entryX/entryY when connected to activation boxes.
     // exitX/entryX: use edge direction to connect to left/right edge (not center).
@@ -265,6 +268,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
       cells.push(...buildEdgeCells({
         id: msg.id,
         label: displayLabel || undefined,
+        labelHtml: displayLabelHtml,
         style: selfFinalStyle,
         source: selfSource,
         target: selfTarget,
@@ -324,6 +328,7 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
     cells.push(...buildEdgeCells({
       id: msg.id,
       label: displayLabel || undefined,
+      labelHtml: displayLabelHtml,
       style: finalStyle,
       source: sourceId,
       target: targetId,

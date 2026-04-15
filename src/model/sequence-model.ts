@@ -2,14 +2,19 @@
  * Sequence diagram specific model types.
  */
 import type { NodeTypeName } from './common.ts';
+import type { NormalizedRichBlock } from './normalized-rich-text.ts';
 
 export interface SequenceParticipant {
   id: string;
   type: NodeTypeName;
   /** Raw PlantUML label text (Creole markup, NOT pre-processed HTML). */
   label: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
   /** Bracket body lines for multiline participant labels (e.g. participant P [ ... ]). */
   bracketLines?: string[];
+  /** Structured normalized bracket body blocks, preserving separators. */
+  bracketBlocks?: NormalizedRichBlock[];
   alias?: string;
   order?: number;          // explicit ordering via `order` keyword
   color?: string;          // background color (#xxx)
@@ -22,8 +27,12 @@ export interface SequenceMessage {
   to: string;
   /** Raw PlantUML label text (Creole markup, NOT pre-processed HTML). */
   label: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
   /** Raw autonumber prefix text (NOT pre-processed HTML). */
   numberPrefix?: string;
+  /** Normalized HTML autonumber prefix, produced by the text normalization pass. */
+  numberPrefixHtml?: string;
   arrowStyle: SequenceArrowStyle;
   activate?: boolean;      // ++ shorthand
   deactivate?: boolean;    // -- shorthand
@@ -54,20 +63,34 @@ export interface SequenceFragment {
   type: string;           // alt, loop, opt, par, break, group, ref, ...
   /** Raw PlantUML label text (Creole markup, NOT pre-processed HTML). */
   label: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
+  /** Raw tab label text after fragment-specific splitting. */
+  tabLabel?: string;
+  /** Normalized HTML tab label. */
+  tabLabelHtml?: string;
+  /** Raw condition/body label after fragment-specific splitting. */
+  conditionLabel?: string;
+  /** Normalized HTML condition/body label. */
+  conditionLabelHtml?: string;
   startRow: number;
   endRow: number;
-  sections?: { label: string; startRow: number }[];   // else sections in alt
+  sections?: { label: string; labelHtml?: string; startRow: number }[];   // else sections in alt
 }
 
 export interface SequenceDivider {
   /** Raw PlantUML label text (Creole markup, NOT pre-processed HTML). */
   label: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
   row: number;
 }
 
 export interface SequenceDurationConstraint {
   /** Raw PlantUML label text (Creole markup, NOT pre-processed HTML). */
   label: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
   fromTag: string;
   toTag: string;
   startRow: number;
@@ -78,6 +101,10 @@ export interface SequenceDurationConstraint {
 export interface SequenceNote {
   /** Raw PlantUML text (unprocessed, NOT HTML). Lines separated by \n. */
   text: string;
+  /** Normalized HTML note body, produced by the text normalization pass. */
+  textHtml?: string;
+  /** Structured normalized blocks for note body, preserving separators. */
+  richBlocks?: NormalizedRichBlock[];
   position: 'left' | 'right' | 'over';
   participants: string[];    // one or two participant ids
   row: number;
@@ -99,4 +126,10 @@ export interface SequenceModel {
   participantAlign?: 'left' | 'center' | 'right';
   /** Raw PlantUML title text (Creole markup, NOT pre-processed HTML). */
   title?: string;
+  /** Normalized HTML title, produced by the text normalization pass. */
+  titleHtml?: string;
+  /** Raw PlantUML mainframe label text (Creole markup, NOT pre-processed HTML). */
+  mainframe?: string;
+  /** Normalized HTML mainframe label, produced by the text normalization pass. */
+  mainframeHtml?: string;
 }

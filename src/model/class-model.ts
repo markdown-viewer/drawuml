@@ -2,6 +2,7 @@
  * Class diagram specific model types.
  */
 import type { DiagramTypeName, NodeTypeName, EdgeTypeName, ArrowMetaParts } from './common.ts';
+import type { NormalizedBodyBlock, NormalizedRichBlock } from './normalized-rich-text.ts';
 
 /** A single body line: plain string or tagged ({field}/{method}) entry parsed by PEG. */
 export type BodyLine = string | { text: string; tag: string };
@@ -11,10 +12,14 @@ export interface SemanticNode {
   type: NodeTypeName;
   /** Raw PlantUML label text (Creole markup, NOT pre-processed HTML). */
   label: string;
+  /** Normalized HTML label, produced by the text normalization pass. */
+  labelHtml?: string;
   stereotype?: string | null;
   stereotypeLabel?: string;
   /** Raw body lines (unprocessed PlantUML text) for class body rendering. */
   bodyLines?: BodyLine[];
+  /** Structured normalized body blocks, produced by the text normalization pass. */
+  bodyBlocks?: NormalizedBodyBlock[];
   /** Raw PlantUML style string, e.g. "#palegreen ##[dashed]green" or "#back:red;line:00FFFF" */
   style?: string | null;
   /** Custom spot override from stereotype syntax, e.g. <<(S,#FF7700) Singleton>> */
@@ -26,7 +31,7 @@ export interface SemanticNode {
   /** When true, hide method lines in the body (from "hide methods" directive). */
   hideMethods?: boolean;
   /** Map entries for "map" blocks (key => value table rows). */
-  mapEntries?: { key: string; value: string; linked?: boolean }[];
+  mapEntries?: { key: string; value: string; linked?: boolean; keyHtml?: string; valueHtml?: string }[];
   /** Generic type parameter text, e.g. "? extends Element". */
   generic?: string;
   /** User-defined $tags from class declaration syntax. */
@@ -54,8 +59,11 @@ export interface SemanticEdge {
   arrow?: string;
   arrowMeta?: ArrowMetaParts | null;
   label?: string;
+  labelHtml?: string;
   cardFrom?: string;
+  cardFromHtml?: string;
   cardTo?: string;
+  cardToHtml?: string;
   /** Raw PlantUML inline style on the edge, e.g. "#line:red;line.bold;text:red" */
   style?: string | null;
   /** Field-level port on the source node (e.g. "字段1" from "Foo::字段1") */
@@ -72,6 +80,10 @@ export interface ClassNote {
   id: string;
   /** Raw PlantUML text (unprocessed, NOT HTML). Lines separated by \n. */
   text: string;
+  /** Normalized HTML note body, produced by the text normalization pass. */
+  textHtml?: string;
+  /** Structured normalized blocks for note body, preserving separators. */
+  richBlocks?: NormalizedRichBlock[];
   position?: string;      // 'top' | 'left' | 'right' | 'bottom'
   target?: string;        // node id this note is attached to
   memberTarget?: string;  // full member-level target, e.g. "A::counter"
@@ -84,6 +96,10 @@ export interface ClassNote {
 export interface ClassLegend {
   /** Raw PlantUML text (unprocessed, NOT HTML). Lines separated by \n. */
   text: string;
+  /** Normalized HTML legend body, produced by the text normalization pass. */
+  textHtml?: string;
+  /** Structured normalized blocks for legend body, preserving separators. */
+  richBlocks?: NormalizedRichBlock[];
   align?: string;         // 'left' | 'center' | 'right' (default: 'center')
 }
 
@@ -93,6 +109,7 @@ export interface ClassLegend {
 export interface SemanticGroup {
   id: string;
   label: string;
+  labelHtml?: string;
   type: string;           // 'package' | 'namespace' | 'rectangle' | 'frame' | 'folder' | ...
   stereotype?: string;    // package shape stereotype: 'Node' | 'Rectangle' | 'Folder' | 'Frame' | 'Cloud' | 'Database' | ...
   alias?: string;         // optional alias for edge resolution (e.g. "as LB")
@@ -121,6 +138,8 @@ export interface SemanticModel {
   groups?: SemanticGroup[];
   /** Diagram title ("title ..."). */
   title?: string;
+  /** Normalized HTML title, produced by the text normalization pass. */
+  titleHtml?: string;
   /** Legend block ("legend ... end legend"). */
   legend?: ClassLegend;
   /** DOT rankdir override: 'TB' | 'BT' | 'LR' | 'RL'. Default: 'BT'. */
