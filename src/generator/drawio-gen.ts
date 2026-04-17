@@ -102,6 +102,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
 
   // Edges
   const defaultStrokeWidth = theme.strokeWidth;
+  const globalArrowColor = model.skinparams?.ArrowColor;
+  const globalArrowFontColor = model.skinparams?.ArrowFontColor;
+  const globalArrowThickness = model.skinparams?.ArrowThickness;
   for (const edge of model.edges) {
     let style: string;
     if (edge.arrow) {
@@ -138,6 +141,9 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
 
     if (es.lineStyle === 'hidden') continue; // hidden edges are layout-only, not rendered
 
+    if (!es.strokeColor && globalArrowColor) style += `strokeColor=${globalArrowColor};`;
+    if (!es.textColor && globalArrowFontColor) style += `fontColor=${globalArrowFontColor};`;
+    if (!es.thickness && globalArrowThickness) style += `strokeWidth=${globalArrowThickness};`;
     if (es.strokeColor) style += `strokeColor=${es.strokeColor};`;
     if (es.textColor) style += `fontColor=${es.textColor};`;
     if (es.thickness) style += `strokeWidth=${es.thickness};`;

@@ -394,6 +394,7 @@ export class BlockLayout {
   private _buildRowStyle(co?: ChildStyleOpts): string {
     const fs = this._m.bodyFontSize;
     const ff = this._m.fontFamily;
+    const fc = co?.fontColor;
     if (co?.portConstraint) {
       // Swimlane row: textRowStyle style with port constraint
       const sx = co.spacingX ?? this._theme.edgeGap;
@@ -406,6 +407,7 @@ export class BlockLayout {
       ];
       if (fs) parts.push(`fontSize=${fs}`);
       if (ff) parts.push(`fontFamily=${ff}`);
+      if (fc) parts.push(`fontColor=${fc}`);
       if (co.childLineStyle === 'dashed') parts.push('dashed=1');
       else if (co.childLineStyle === 'dotted') parts.push('dashed=1', 'dashPattern=1 2');
       else if (co.childLineStyle === 'bold') parts.push(`strokeWidth=${this._theme.boldStrokeWidth}`);
@@ -413,7 +415,7 @@ export class BlockLayout {
     }
     // Rich body row: richTextStyle
     const sx = co?.spacingX ?? this._theme.edgeGap;
-    return richTextStyle(sx, sx, co?.align ?? 'left', fs, ff);
+    return richTextStyle(sx, sx, co?.align ?? 'left', fs, ff, fc);
   }
 
   /**

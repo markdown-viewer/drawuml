@@ -81,6 +81,17 @@ function resolveNoteTarget(raw: string): { classId: string; memberTarget?: strin
   return { classId: s };
 }
 
+function extractStereotypeTexts(raw: string): string[] {
+  const values: string[] = [];
+  const re = /<<([^>]+)>>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(String(raw || '')))) {
+    const value = String(match[1] || '').trim();
+    if (value) values.push(value);
+  }
+  return values;
+}
+
 export function parseClassDiagram(statements: any[], options: ParseClassDiagramOptions = {}) {
   const strict = options.strict === true;
   const diagramContext: DiagramContext = options.diagramContext || 'class';
@@ -559,7 +570,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
               if (child.kind === 'block_statement' && child.type === 'style_block_end') break;
               if (child.kind === 'style_text_line') {
                 const line = String(child.text || '').trim();
-                const m = line.match(/^(\w+)\s+(.+)$/);
+                const m = line.match(/^([A-Za-z][\w]*(?:<<[^>]+>>)?)+\s+(.+)$/);
                 if (m) {
                   skinparams[(prefix ? prefix + m[1] : m[1])] = m[2].trim();
                 }
@@ -1320,6 +1331,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         // Parse "as <alias>" from tail text
         const aliasMatch = tailText.match(/^as\s+(\S+)/i);
         const alias = aliasMatch ? aliasMatch[1].replace(/^"|"$/g, '') : '';
+        const stereos = extractStereotypeTexts(tailText);
+        const stereotypeLabel = stereos.map(s => `«${s}»`).join(' ');
         const id = normalizeId(alias || rawName);
         if (id) {
           if (!nodesById[id]) nodeOrder.push(id);
@@ -1328,7 +1341,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
             type: NodeType.Class,
             label: rawName,
             stereotype: 'component',
-            stereotypeLabel: '',
+            stereotypeLabel: stereotypeLabel || '',
             bodyLines: [],
           };
           registerNodeInGroup(id);
@@ -1688,6 +1701,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           position: st.pos || st.dir || undefined,
           target,
           memberTarget: resolved?.memberTarget,
+          color: st.color || undefined,
           floating: Boolean(st.floating),
         });
         continue;
@@ -1718,6 +1732,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           position: st.pos || st.dir || undefined,
           target,
           memberTarget: resolved?.memberTarget,
+          color: st.color || undefined,
           floating: Boolean(st.alias),
         });
         continue;
@@ -2666,11 +2681,52 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     }
   }
 
+  const getSkinparamValue = (key: string): string | undefined => {
+    return skinparams[key]
+      || skinparams[key.charAt(0).toUpperCase() + key.slice(1)]
+      || skinparams[Object.keys(skinparams).find(k => k.toLowerCase() === key.toLowerCase()) || ''];
+  };
+
+  const extractCustomStereotypes = (stereotypeLabel?: string | null): string[] => {
+    if (!stereotypeLabel) return [];
+    const values: string[] = [];
+    const re = /«([^»]+)»/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(String(stereotypeLabel)))) {
+      const value = String(match[1] || '').trim();
+      if (value) values.push(value);
+    }
+    return values;
+  };
+
+  const buildStereoVariants = (stereo: string): string[] => {
+    const raw = String(stereo || '').trim();
+    if (!raw) return [];
+    const variants = new Set<string>();
+    const lower = raw.toLowerCase();
+    variants.add(lower);
+    variants.add(lower.replace(/\s+/g, '_'));
+    variants.add(lower.replace(/_/g, ' '));
+    return Array.from(variants);
+  };
+
+  const getStereotypeSkinparamValue = (typeName: string, property: string, stereotypeLabels?: string[] | null): string | undefined => {
+    const labels = Array.isArray(stereotypeLabels) ? stereotypeLabels : [];
+    for (const label of labels) {
+      for (const variant of buildStereoVariants(label)) {
+        const direct = getSkinparamValue(`${typeName}${property}<<${variant}>>`);
+        if (direct) return direct;
+      }
+    }
+    return getSkinparamValue(typeName + property);
+  };
+
   // Apply skinparam type-specific colors to groups (e.g. skinparam node { BackgroundColor ... })
   for (const g of groups) {
     const gtype = String(g.type || '').toLowerCase();
-    const bg = skinparams[gtype + 'BackgroundColor'];
-    const border = skinparams[gtype + 'BorderColor'];
+    const gCustomStereos = extractCustomStereotypes(g.stereotype);
+    const bg = getStereotypeSkinparamValue(gtype, 'BackgroundColor', gCustomStereos);
+    const border = getStereotypeSkinparamValue(gtype, 'BorderColor', gCustomStereos);
     if (!g.color && bg) g.color = bg;
     if (border && !g.style) {
       g.style = `#line:${border}`;
@@ -2686,7 +2742,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     // skinparam state { BackgroundColor/BorderColor } still applies.
     if (!ntype && node.type === NodeType.State) ntype = 'state';
     if (!ntype) continue;
-    const fc = skinparams[ntype + 'FontColor'];
+    const customStereos = extractCustomStereotypes(node.stereotypeLabel);
+    const fc = getStereotypeSkinparamValue(ntype, 'FontColor', customStereos);
     if (node.style) {
       // Node already has inline style — merge FontColor if missing
       if (fc && !node.style.includes('text:')) {
@@ -2694,8 +2751,8 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       }
       continue;
     }
-    const bg = skinparams[ntype + 'BackgroundColor'];
-    const border = skinparams[ntype + 'BorderColor'];
+    const bg = getStereotypeSkinparamValue(ntype, 'BackgroundColor', customStereos);
+    const border = getStereotypeSkinparamValue(ntype, 'BorderColor', customStereos);
     if (bg || border || fc) {
       const parts: string[] = [];
       if (bg) parts.push(`back:${bg}`);

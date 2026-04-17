@@ -46,7 +46,7 @@ class TitleRenderer extends Renderer {
 
   render(box: ContentBox) {
     // Render only the text portion (exclude the bottom gap from the cell)
-    const style = `text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${this.fontSize};${fontFamilyStyle(this.theme)}`;
+    const style = `text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${this.fontSize};fontColor=${this.theme.fontColor};${fontFamilyStyle(this.theme)}`;
     return [mxVertex({
       id: this.id, value: this.textBlock.html, style,
       parent: this.parentId || '1',

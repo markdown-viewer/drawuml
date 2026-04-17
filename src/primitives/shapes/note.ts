@@ -14,7 +14,14 @@ import type { RenderDescriptor } from '../registry.ts';
 
 class NoteNodeRenderer extends RichRenderer {
   private get noteType(): string { return this.desc.noteType || 'note'; }
-  private get fillColor(): string { return normalizeColor(this.desc.color || '#FEFFDD'); }
+  private get fillColor(): string { return normalizeColor(this.desc.color || this.theme.noteFill); }
+  private get strokeColor(): string { return normalizeColor(this.theme.noteBorderColor) || darkenColor(this.fillColor); }
+
+  protected override get contentFontSize(): number { return this.theme.noteFontSize; }
+  protected override get contentFontFamily(): string { return this.theme.noteFontFamily; }
+  protected override get richBodyFontColor(): string | undefined {
+    return normalizeColor(this.theme.noteFontColor) || undefined;
+  }
 
   // Note always uses rich body mode (desc.lines as content)
   protected detectRichBody(): boolean { return true; }
@@ -22,12 +29,13 @@ class NoteNodeRenderer extends RichRenderer {
 
   protected buildStyle(): string {
     const fill = this.fillColor;
-    const stroke = darkenColor(fill);
+    const stroke = this.strokeColor;
     const clip = this.theme.cornerClip;
-    const fs = this.theme.fontSize;
-    const ff = this.theme.fontFamily;
+    const fs = this.theme.noteFontSize;
+    const ff = this.theme.noteFontFamily;
     const sw = this.theme.strokeWidth;
-    const base = `whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${sw};fontSize=${fs};fontFamily=${ff};`;
+    const fc = normalizeColor(this.theme.noteFontColor) || this.theme.fontColor;
+    const base = `whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${sw};fontSize=${fs};fontFamily=${ff};fontColor=${fc};`;
     if (this.noteType === 'hnote') {
       return `shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=${clip};${base}`;
     }

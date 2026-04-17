@@ -17,6 +17,42 @@ export interface ThemeConfig {
   fontSize?: number;
   /** Font family (default: DEFAULT_FONT_FAMILY from text-measure). */
   fontFamily?: string;
+  /** Note font family override. */
+  noteFontFamily?: string;
+  /** Note font size override. */
+  noteFontSize?: number;
+  /** Default text color for generic labels and titles. */
+  fontColor?: string;
+  /** Note text color override. */
+  noteFontColor?: string;
+  /** Global arrow stroke color. */
+  arrowColor?: string;
+  /** Global arrow label color. */
+  arrowFontColor?: string;
+  /** Global arrow stroke width. */
+  arrowStrokeWidth?: number;
+  /** Note fill color override. */
+  noteFill?: string;
+  /** Note border color override. */
+  noteBorderColor?: string;
+  /** Note connector color override. */
+  noteLinkColor?: string;
+  /** Sequence participant fill. */
+  participantFill?: string;
+  /** Sequence participant border color. */
+  participantBorderColor?: string;
+  /** Sequence participant text color. */
+  participantFontColor?: string;
+  /** Sequence lifeline stroke color. */
+  lifelineStrokeColor?: string;
+  /** Sequence lifeline stroke width. */
+  lifelineStrokeWidth?: number;
+  /** Sequence frame stroke color. */
+  frameStrokeColor?: string;
+  /** Extra participant spacing for sequence layout. */
+  participantPadding?: number;
+  /** Extra box spacing for sequence layout. */
+  boxPadding?: number;
 }
 
 /** Full computed theme — all values ready for use. */
@@ -30,16 +66,30 @@ export interface Theme {
 
   // ── Colors & fills ────────────────────────────────────────────────────────
   readonly colorDark: string;
+  readonly fontColor: string;
   readonly defaultFill: string;
   readonly groupFill: string;
   readonly participantFill: string;
+  readonly participantBorderColor: string;
+  readonly participantFontColor: string;
+  readonly lifelineStrokeColor: string;
   readonly dividerFill: string;
   readonly legendFill: string;
   readonly noteLinkColor: string;
+  readonly noteFill: string;
+  readonly noteBorderColor: string;
+  readonly noteFontColor: string;
+  readonly noteFontFamily: string;
+  readonly noteFontSize: number;
   readonly destroyStroke: string;
+  readonly arrowColor: string;
+  readonly arrowFontColor: string;
+  readonly frameStrokeColor: string;
 
   // ── Stroke & corner ───────────────────────────────────────────────────────
   readonly strokeWidth: number;
+  readonly arrowStrokeWidth: number;
+  readonly lifelineStrokeWidth: number;
   readonly boldStrokeWidth: number;    // strokeWidth × 2, used for bold lines
   readonly largeArcSize: number;
   readonly cornerClip: number;
@@ -92,16 +142,50 @@ export interface Theme {
   readonly groupPad: number;    // cluster interior padding       (= padXL,  30)
   readonly unitGap: number;     // sequence unit gap              (= padXL,  30)
   readonly layerGap: number;    // layer-to-layer ranksep         (= padXXL, 40)
+  readonly participantPadding: number;
+  readonly boxPadding: number;
 }
 
 /** Round a number to at most 4 decimal places, stripping trailing zeros. */
 function r4(v: number): number { return +v.toFixed(4); }
 
+function getSkinparamValue(skinparams: Record<string, string> | undefined, key: string): string | undefined {
+  if (!skinparams) return undefined;
+  if (Object.prototype.hasOwnProperty.call(skinparams, key)) return skinparams[key];
+  const foundKey = Object.keys(skinparams).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+  return foundKey ? skinparams[foundKey] : undefined;
+}
+
+function stripOptionalQuotes(value?: string): string | undefined {
+  if (!value) return value;
+  const trimmed = String(value).trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
 /** Create a fully computed Theme from minimal config. */
 export function createTheme(config?: ThemeConfig): Theme {
   const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
-  const fontFamily = config?.fontFamily ?? DEFAULT_FONT_FAMILY;
+  const fontFamily = stripOptionalQuotes(config?.fontFamily) ?? DEFAULT_FONT_FAMILY;
   const strokeWidth = r4(fontSize / 12);
+  const fontColor = config?.fontColor ?? '#181818';
+  const noteFill = config?.noteFill ?? '#FEFFDD';
+  const noteBorderColor = config?.noteBorderColor ?? '#AEAE8F';
+  const noteLinkColor = config?.noteLinkColor ?? noteBorderColor;
+  const noteFontColor = config?.noteFontColor ?? '#000000';
+  const noteFontFamily = stripOptionalQuotes(config?.noteFontFamily) ?? fontFamily;
+  const noteFontSize = config?.noteFontSize ?? fontSize;
+  const participantFill = config?.participantFill ?? '#E2E2F0';
+  const participantBorderColor = config?.participantBorderColor ?? '#181818';
+  const participantFontColor = config?.participantFontColor ?? fontColor;
+  const lifelineStrokeColor = config?.lifelineStrokeColor ?? participantBorderColor;
+  const arrowColor = config?.arrowColor ?? '#181818';
+  const arrowFontColor = config?.arrowFontColor ?? fontColor;
+  const frameStrokeColor = config?.frameStrokeColor ?? '#181818';
+  const arrowStrokeWidth = r4(config?.arrowStrokeWidth ?? strokeWidth);
+  const lifelineStrokeWidth = r4(config?.lifelineStrokeWidth ?? strokeWidth);
 
   // ── Spec variables — computed once, referenced by semantic aliases ──
   const sizeXXS = r4(fontSize * 5 / 12);
@@ -130,16 +214,30 @@ export function createTheme(config?: ThemeConfig): Theme {
 
     // ── Colors & fills ──
     colorDark: '#181818',
+    fontColor,
     defaultFill: '#F1F1F1',
     groupFill: '#FFFFFF',
-    participantFill: '#E2E2F0',
+    participantFill,
+    participantBorderColor,
+    participantFontColor,
+    lifelineStrokeColor,
     dividerFill: '#EEEEEE',
     legendFill: '#DDDDDD',
-    noteLinkColor: '#AEAE8F',
+    noteLinkColor,
+    noteFill,
+    noteBorderColor,
+    noteFontColor,
+    noteFontFamily,
+    noteFontSize,
     destroyStroke: '#A80036',
+    arrowColor,
+    arrowFontColor,
+    frameStrokeColor,
 
     // ── Stroke & corner ──
     strokeWidth: strokeWidth,
+    arrowStrokeWidth,
+    lifelineStrokeWidth,
     boldStrokeWidth: r4(strokeWidth * 2),
     largeArcSize: fontSize,
     cornerClip: r4(fontSize * 8 / 12),
@@ -161,7 +259,41 @@ export function createTheme(config?: ThemeConfig): Theme {
     contentPad: padS,  titlePadY: padS,      titlePadX: padXL,  spacingTop: padXXS,
     // Layout gaps
     edgeGap: padXS,    nodeGap: padL,        groupPad: padXL,   unitGap: padXL,    layerGap: padXXL,
+    participantPadding: config?.participantPadding ?? padS,
+    boxPadding: config?.boxPadding ?? padS,
   };
+}
+
+function parseThemeNumber(raw?: string): number | undefined {
+  if (!raw) return undefined;
+  const value = parseFloat(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+export function createThemeFromSkinparams(
+  skinparams?: Record<string, string>,
+  baseConfig?: ThemeConfig,
+): Theme {
+  return createTheme({
+    ...baseConfig,
+    fontFamily: stripOptionalQuotes(getSkinparamValue(skinparams, 'defaultFontName')) || baseConfig?.fontFamily,
+    fontColor: getSkinparamValue(skinparams, 'defaultFontColor') || baseConfig?.fontColor,
+    noteFill: getSkinparamValue(skinparams, 'NoteBackgroundColor') || baseConfig?.noteFill,
+    noteBorderColor: getSkinparamValue(skinparams, 'NoteBorderColor') || baseConfig?.noteBorderColor,
+    noteFontColor: getSkinparamValue(skinparams, 'NoteFontColor') || baseConfig?.noteFontColor,
+    noteFontFamily: stripOptionalQuotes(getSkinparamValue(skinparams, 'NoteFontName')) || baseConfig?.noteFontFamily,
+    noteFontSize: parseThemeNumber(getSkinparamValue(skinparams, 'NoteFontSize')) ?? baseConfig?.noteFontSize,
+    arrowColor: getSkinparamValue(skinparams, 'ArrowColor') || baseConfig?.arrowColor,
+    arrowFontColor: getSkinparamValue(skinparams, 'ArrowFontColor') || baseConfig?.arrowFontColor,
+    arrowStrokeWidth: parseThemeNumber(getSkinparamValue(skinparams, 'ArrowThickness')) ?? baseConfig?.arrowStrokeWidth,
+    participantFill: getSkinparamValue(skinparams, 'ParticipantBackgroundColor') || baseConfig?.participantFill,
+    participantBorderColor: getSkinparamValue(skinparams, 'ParticipantBorderColor') || baseConfig?.participantBorderColor,
+    participantFontColor: getSkinparamValue(skinparams, 'ParticipantFontColor') || baseConfig?.participantFontColor,
+    lifelineStrokeColor: getSkinparamValue(skinparams, 'SequenceLifeLineBorderColor') || baseConfig?.lifelineStrokeColor,
+    lifelineStrokeWidth: parseThemeNumber(getSkinparamValue(skinparams, 'SequenceLifeLineBorderThickness')) ?? baseConfig?.lifelineStrokeWidth,
+    participantPadding: parseThemeNumber(getSkinparamValue(skinparams, 'ParticipantPadding')) ?? baseConfig?.participantPadding,
+    boxPadding: parseThemeNumber(getSkinparamValue(skinparams, 'BoxPadding')) ?? baseConfig?.boxPadding,
+  });
 }
 
 /**

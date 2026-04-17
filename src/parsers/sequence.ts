@@ -47,6 +47,12 @@ function isSequenceMessageStatement(st) {
   ].includes(String(st.type || ''));
 }
 
+function isBogusSkinparamRelation(st): boolean {
+  const raw = String(st?.raw || '').trim();
+  const from = String(st?.from || '').trim();
+  return /^skinparam\s/i.test(raw) || /^skinparam\s/i.test(from);
+}
+
 function notePositionFromStatement(st, strict) {
   if (st.pos === 'left' || st.dir === 'left') return 'left';
   if (st.pos === 'right' || st.dir === 'right') return 'right';
@@ -203,6 +209,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
   let stereotypePosition: 'top' | 'bottom' = 'top';
   let participantAlign: 'left' | 'center' | 'right' = 'center';
   let actorStyle: string | undefined;
+  const skinparams: Record<string, string> = {};
   const titleLines: string[] = [];
   let mainframeLabel: string | undefined;
   let currentBoxStack: { label: string; color?: string; participants: string[] }[] = [];
@@ -854,6 +861,14 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       const kw = String(st.keyword || '').toLowerCase();
       const txt = String(st.text || '').trim();
       const txtLower = txt.toLowerCase();
+      if (kw === 'skinparam') {
+        if (st.key && st.value) {
+          skinparams[String(st.key)] = String(st.value).trim();
+        } else if (txt) {
+          const spIdx = txt.indexOf(' ');
+          if (spIdx > 0) skinparams[txt.slice(0, spIdx)] = txt.slice(spIdx + 1).trim();
+        }
+      }
       if (kw === 'hide' && txtLower === 'footbox') {
         hideFootbox = true;
       }
@@ -1362,6 +1377,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     }
 
     if (isSequenceMessageStatement(st)) {
+      if (isBogusSkinparamRelation(st)) continue;
       if (st.type === 'sequence_start_message') {
         pushMessage('__external_left__', st.target, st.label || '', st.arrow, st.arrowMeta || null);
         continue;
@@ -1388,6 +1404,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     }
 
     if (st.kind === 'generic_statement' && st.type === 'usecase_relation') {
+      if (isBogusSkinparamRelation(st)) continue;
       pushMessage(st.from, st.to, st.label || '', st.arrow, st.arrowMeta || null, { color: st.style || undefined });
       continue;
     }
@@ -1403,12 +1420,14 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     }
 
     if (st.kind === 'relation_statement') {
+      if (isBogusSkinparamRelation(st)) continue;
       pushMessage(st.from, st.to, st.label || '', st.arrow, st.arrowMeta || null);
       continue;
     }
 
     if (st.kind === 'arrow_statement') {
       if (st.from && st.to) {
+        if (isBogusSkinparamRelation(st)) continue;
         pushMessage(st.from, st.to, st.label || '', st.arrow);
         continue;
       }
@@ -1463,5 +1482,6 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     participantAlign,
     actorStyle,
     title: titleText,
+    skinparams: Object.keys(skinparams).length > 0 ? skinparams : undefined,
   };
 }

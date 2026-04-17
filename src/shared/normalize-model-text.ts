@@ -33,6 +33,14 @@ function fontFromTheme(theme?: Theme) {
   return theme ? { size: theme.fontSize, family: theme.fontFamily } : DEFAULT_FONT;
 }
 
+function noteFontFromTheme(theme?: Theme) {
+  if (!theme) return DEFAULT_FONT;
+  return {
+    size: theme.noteFontSize || theme.fontSize,
+    family: theme.noteFontFamily || theme.fontFamily,
+  };
+}
+
 function normalizeInlineHtml(text?: string | null, theme?: Theme): string | undefined {
   if (!text) return undefined;
   return TextBlock.inline(text, fontFromTheme(theme)).html;
@@ -140,10 +148,11 @@ function normalizeClassGroup(group: SemanticGroup, theme?: Theme): SemanticGroup
 }
 
 function normalizeClassNote(note: ClassNote, theme?: Theme): ClassNote {
+  const noteFont = noteFontFromTheme(theme);
   return {
     ...note,
-    textHtml: normalizeBlockHtml(note.text, theme),
-    richBlocks: normalizeRichBlocks(note.text, theme),
+    textHtml: note.text ? TextBlock.block(note.text, noteFont).html : undefined,
+    richBlocks: note.text ? normalizeRichBlocks(note.text, { ...theme, fontSize: noteFont.size, fontFamily: noteFont.family }) : undefined,
   };
 }
 
@@ -240,10 +249,11 @@ function normalizeSequenceDurationConstraint(dc: SequenceDurationConstraint, the
 }
 
 function normalizeSequenceNote(note: SequenceNote, theme?: Theme): SequenceNote {
+  const noteFont = noteFontFromTheme(theme);
   return {
     ...note,
-    textHtml: normalizeBlockHtml(note.text, theme),
-    richBlocks: normalizeRichBlocks(note.text, theme),
+    textHtml: note.text ? TextBlock.block(note.text, noteFont).html : undefined,
+    richBlocks: note.text ? normalizeRichBlocks(note.text, { ...theme, fontSize: noteFont.size, fontFamily: noteFont.family }) : undefined,
   };
 }
 

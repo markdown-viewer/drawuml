@@ -29,12 +29,12 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const titleMinWidth = theme.titleMinW;
   const titlePadX = theme.titlePadX;
   const titlePadY = theme.titlePadY;
-  const minGap = theme.nodeGap;
+  const minGap = Math.max(theme.nodeGap, theme.participantPadding);
   const marginX = model.mainframe ? minGap : 0;
   let marginTop = 0;
   const tabHeight = theme.tabH;
   const unitGap = theme.unitGap;
-  const smallPad = theme.edgeGap;
+  const smallPad = Math.max(theme.edgeGap, theme.boxPadding);
   const extBoundaryGap = theme.unitGap;
 
   // Title: compute height and push participants down by title height + gap

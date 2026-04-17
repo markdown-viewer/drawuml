@@ -209,7 +209,10 @@ export function sequenceToDrawioXml(model, layout, renderers?: Map<string, Rende
       }
     }
 
-    let style = messageStyle(msgForStyle, theme.strokeWidth);
+    let style = messageStyle(msgForStyle, theme.arrowStrokeWidth, {
+      strokeColor: theme.arrowColor,
+      fontColor: theme.arrowFontColor,
+    });
 
     if (msg.self) {
       // Self-reference: 3-segment path using sourcePoint + waypoints + targetPoint.

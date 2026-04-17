@@ -121,7 +121,11 @@ export interface SequenceModel {
   dividers: SequenceDivider[];
   durationConstraints: SequenceDurationConstraint[];
   notes: SequenceNote[];
+  boxes?: Array<{ label: string; color?: string; participants: string[] }>;
   hideFootbox?: boolean;
+  responseMessageBelowArrow?: boolean;
+  stereotypePosition?: 'top' | 'bottom';
+  actorStyle?: string;
   /** Horizontal alignment for participant bracket body content ('left' | 'center' | 'right'). */
   participantAlign?: 'left' | 'center' | 'right';
   /** Raw PlantUML title text (Creole markup, NOT pre-processed HTML). */
@@ -132,4 +136,5 @@ export interface SequenceModel {
   mainframe?: string;
   /** Normalized HTML mainframe label, produced by the text normalization pass. */
   mainframeHtml?: string;
+  skinparams?: Record<string, string>;
 }

@@ -40,6 +40,7 @@ export interface ShapePadding {
 /** Style keys that belong to container layout, not shape identity. */
 const LAYOUT_STYLE_KEYS = new Set([
   'whiteSpace', 'html', 'fontStyle', 'fontSize', 'align', 'verticalAlign',
+  'fontFamily',
   'spacingTop', 'spacingLeft', 'spacingRight', 'spacingBottom',
   'fillColor', 'strokeColor', 'strokeWidth', 'fontColor',
   'collapsible', 'container', 'overflow', 'swimlaneHead', 'swimlaneBody',
@@ -202,13 +203,22 @@ export abstract class RichRenderer extends Renderer {
     return [];
   }
 
+  /** Font size used to build rich content blocks. */
+  protected get contentFontSize(): number { return this.theme.fontSize; }
+
+  /** Font family used to build rich content blocks. */
+  protected get contentFontFamily(): string { return this.theme.fontFamily; }
+
+  /** Optional font color override for rich-body child cells. */
+  protected get richBodyFontColor(): string | undefined { return undefined; }
+
   /**
    * Build Content from label + stereotype HTML, or rich body lines.
    * Override for custom label patterns (e.g. package shows stereo in body).
    */
   protected buildContent(): BlockLayout {
-    const fontSize = this.theme.fontSize;
-    const fontFamily = this.theme.fontFamily;
+    const fontSize = this.contentFontSize;
+    const fontFamily = this.contentFontFamily;
     if (this.desc.richBlocks && this.desc.richBlocks.length > 0) {
       return BlockLayout.richBlocks(this.desc.richBlocks, { bodyFontSize: fontSize, fontFamily }, this.theme);
     }
@@ -417,6 +427,9 @@ export abstract class RichRenderer extends Renderer {
     const fullStyle = this.buildStyle();
     const shapeFragment = extractShapeFragment(fullStyle);
     const cp = this.contentPad;
+    const fontSize = this.contentFontSize;
+    const fontFamily = this.contentFontFamily;
+    const fontColor = this.richBodyFontColor || this.theme.fontColor;
     // Preserve original fillColor/strokeColor from buildStyle if present
     const fill = fullStyle.match(/fillColor=([^;]*)/)?.[1] ?? this.theme.defaultFill;
     const stroke = fullStyle.match(/strokeColor=([^;]*)/)?.[1] ?? this.theme.colorDark;
@@ -427,7 +440,7 @@ export abstract class RichRenderer extends Renderer {
       'align=left', 'verticalAlign=top',
       `spacingLeft=${cp}`, `spacingRight=${cp}`, `spacingTop=${n4(cp + this.resolvedTopPad)}`, `spacingBottom=${cp}`,
       'overflow=hidden',
-      `fontSize=${this.theme.fontSize}`, `fontFamily=${this.theme.fontFamily}`,
+      `fontSize=${fontSize}`, `fontFamily=${fontFamily}`, `fontColor=${fontColor}`,
     ];
     return base.join(';') + ';';
   }
@@ -468,6 +481,7 @@ export abstract class RichRenderer extends Renderer {
       fillColor,
       strokeColor,
       spacingX: this.contentPad,
+      fontColor: this.richBodyFontColor,
       separatorBounds: this.separatorBounds(box.width, box.height),
     }, childStartY, padLeft));
     return cells;

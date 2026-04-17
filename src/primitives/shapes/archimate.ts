@@ -317,8 +317,11 @@ class ArchimateRenderer extends RichRenderer {
   protected shapePadding(): ShapePadding { return {}; }
   protected override get hasTitlebar(): boolean { return true; }
   protected override get titleAreaHeight(): number {
-    const extraLines = Math.max(0, this.label.split('\n').length - 1);
-    return this.theme.portSize + this.theme.padXS + extraLines * this.theme.fontSize * 1.2;
+    // Reserve a fixed top band for the icon only.
+    // Multi-line labels are already measured by the content block itself,
+    // so adding line-dependent height here double-counts the label and
+    // makes component-like shapes much taller than PlantUML.
+    return this.theme.portSize + this.theme.padXS;
   }
 
   // Cat 2: has title area (icon) but no title container border.

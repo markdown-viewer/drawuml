@@ -56,8 +56,8 @@ export function renderFragment(frag: {
   let style = buildUmlFrameStyle({
     tabWidth: tabW, tabHeight: tabH,
     fontSize, cornerClip, strokeWidth: sw,
-    fillColor: theme.defaultFill,
-    fontColor: colorDark, strokeColor: colorDark,
+    fillColor: theme.dividerFill,
+    fontColor: theme.fontColor, strokeColor: theme.frameStrokeColor,
     fontFamily: theme.fontFamily,
   });
   if (frag.lineColor) {
@@ -94,14 +94,14 @@ export function renderFragment(frag: {
       // ref: label text centered in content area, no brackets
       const contentY = frag.y + tabH;
       const contentH = frag.height - tabH;
-      const labelStyle = `text;html=1;align=center;verticalAlign=middle;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
+      const labelStyle = `text;html=1;align=center;verticalAlign=middle;fontSize=${smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
       cells.push(mxVertex({
         id: frag.id + '_label', value: conditionHtml, style: labelStyle,
         parent: '1',
         x: frag.x, y: contentY, width: frag.width, height: contentH,
       }));
     } else {
-      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${labelSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`;
+      const labelStyle = `text;html=1;align=left;verticalAlign=top;spacingLeft=${labelSpacingX};spacingTop=-2;fontSize=${smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
       cells.push(mxVertex({
         id: frag.id + '_label', value: '[' + conditionHtml + ']', style: labelStyle,
         parent: '1',
@@ -130,7 +130,7 @@ export function renderFragment(frag: {
     }
 
     // Section separator: dashed line + label text
-    const lineStyle = `shape=line;strokeWidth=${theme.strokeWidth};strokeColor=${colorDark};dashed=1;dashPattern=5 5;`;
+    const lineStyle = `shape=line;strokeWidth=${theme.strokeWidth};strokeColor=${theme.frameStrokeColor};dashed=1;dashPattern=5 5;`;
     cells.push(mxVertex({
       id: frag.id + '_sec_line_' + (i + 1), value: '', style: lineStyle,
       parent: '1',
@@ -138,7 +138,7 @@ export function renderFragment(frag: {
     }));
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + (section.labelHtml || TextBlock.inline(section.label, { size: smallFontSize, family: theme.fontFamily }).html) + ']',
-      style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};${fontFamilyStyle(theme)}`,
+      style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`,
       parent: '1',
       x: frag.x + labelGap, y: y + 2, width: frag.width - labelGap * 2, height: sectionH,
     }));

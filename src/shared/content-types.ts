@@ -61,6 +61,8 @@ export interface ChildStyleOpts {
   align?: 'left' | 'center' | 'right';
   /** Row spacingLeft/spacingRight override */
   spacingX?: number;
+  /** Row font color override */
+  fontColor?: string;
 }
 
 /**
@@ -125,7 +127,7 @@ export function separatorStyle(opts?: {
 /**
  * Build a DrawIO style string for rich text child cells.
  */
-export function richTextStyle(spacingLeft: number, spacingRight: number, align: 'left' | 'center' | 'right' = 'left', fontSize?: number, fontFamily?: string): string {
+export function richTextStyle(spacingLeft: number, spacingRight: number, align: 'left' | 'center' | 'right' = 'left', fontSize?: number, fontFamily?: string, fontColor?: string): string {
   const parts = [
     'text', 'html=1', 'strokeColor=none', 'fillColor=none',
     `align=${align}`, 'verticalAlign=middle',
@@ -134,5 +136,6 @@ export function richTextStyle(spacingLeft: number, spacingRight: number, align: 
   ];
   if (fontSize) parts.push(`fontSize=${fontSize}`);
   if (fontFamily) parts.push(`fontFamily=${fontFamily}`);
+  if (fontColor) parts.push(`fontColor=${fontColor}`);
   return parts.join(';') + ';';
 }

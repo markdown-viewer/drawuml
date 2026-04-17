@@ -19,7 +19,7 @@ import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
 import { createRenderer } from './primitives/registry.ts';
 import type { Renderer } from './primitives/renderer.ts';
 import type { ThemeConfig, Theme } from './shared/theme.ts';
-import { createTheme } from './shared/theme.ts';
+import { createTheme, createThemeFromSkinparams } from './shared/theme.ts';
 
 // Re-export render warning API for external consumers
 export { getRenderWarnings, clearRenderWarnings } from './primitives/index.ts';
@@ -40,19 +40,21 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
   // Clear warnings from previous render pass
   clearRenderWarnings();
 
-  const theme = createTheme(options?.theme);
   const { diagramType, body, parsed, diagramContext } = dispatch(dsl);
   const { source, pragmas } = preprocess(body);
 
   // Sequence diagrams always use table layout (fixed, cannot be changed)
   if (diagramType === DiagramType.Sequence) {
-    const model = normalizeSequenceModelText(parseSequenceDiagram(source, { strict: true }), theme);
+    const rawModel = parseSequenceDiagram(source, { strict: true });
+    const theme = createThemeFromSkinparams(rawModel.skinparams, options?.theme);
+    const model = normalizeSequenceModelText(rawModel, theme);
     const { renderers, ...layout } = sequenceTableLayout(model, { theme });
     return sequenceToDrawioXml(model, layout, renderers, theme);
   }
 
   // Mindmap diagrams use custom tree layout
   if (diagramType === DiagramType.Mindmap) {
+    const theme = createTheme(options?.theme);
     const model = parseMindmapDiagram(parsed.statements, { pragmas });
 
     // Create a renderer for each mindmap node
@@ -92,6 +94,7 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
   const rawModel = diagramContext === 'activity'
     ? parseActivityDiagram(parsed.statements, { pragmas })
     : parseClassDiagram(parsed.statements, { pragmas, diagramContext });
+  const theme = createThemeFromSkinparams(rawModel.skinparams, options?.theme);
   const model = normalizeClassModelText(rawModel, theme);
   model.diagramType = diagramType;
   model.diagramContext = diagramContext;

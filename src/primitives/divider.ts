@@ -38,7 +38,7 @@ export function renderDivider(divider: {
   // Delay dividers: plain text, no lines — render at label size, not full span
   if (divider.type === 'delay') {
     const labelHtml = divider.labelHtml || TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily }).html;
-    const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};${fontFamilyStyle(theme)}`;
+    const divStyle = `text;align=center;verticalAlign=middle;html=1;fontSize=${fontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
     const hh = divider.halfHeight;
     const lx = divider.labelX ?? divider.x1;
     const lw = divider.labelWidth ?? (divider.x2 - divider.x1);
@@ -51,7 +51,7 @@ export function renderDivider(divider: {
   }
 
   // Section dividers (== text ==): two horizontal lines + bordered text box
-  const colorDark = theme.colorDark;
+  const colorDark = theme.frameStrokeColor;
   const dividerFill = theme.dividerFill;
   const sw = theme.strokeWidth;
   const lineY1 = divider.y - 1;
@@ -69,7 +69,7 @@ export function renderDivider(divider: {
   // Bordered text box centered between the lines
   const labelHtml = divider.labelHtml || TextBlock.inline(divider.label, { size: fontSize, family: theme.fontFamily, weight: 'bold' }).html;
   const hh = divider.halfHeight;
-  const boxStyle = `rounded=0;whiteSpace=nowrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
+  const boxStyle = `rounded=0;whiteSpace=nowrap;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=${fontSize};fontColor=${theme.fontColor};fillColor=${dividerFill};strokeColor=${colorDark};strokeWidth=${n4(sw * 2)};${fontFamilyStyle(theme)}`;
   cells.push(mxVertex({
     id: divider.id, value: labelHtml, style: boxStyle,
     parent: '1',
