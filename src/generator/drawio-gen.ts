@@ -141,9 +141,12 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
 
     if (es.lineStyle === 'hidden') continue; // hidden edges are layout-only, not rendered
 
-    if (!es.strokeColor && globalArrowColor) style += `strokeColor=${globalArrowColor};`;
-    if (!es.textColor && globalArrowFontColor) style += `fontColor=${globalArrowFontColor};`;
+    if (!es.strokeColor) style += `strokeColor=${globalArrowColor || theme.arrowColor};`;
+    if (!es.textColor) style += `fontColor=${globalArrowFontColor || theme.arrowFontColor};`;
     if (!es.thickness && globalArrowThickness) style += `strokeWidth=${globalArrowThickness};`;
+    if (style.includes('middleShape=') && !style.includes('middleFillColor=')) {
+      style += `middleFillColor=${theme.defaultFill};`;
+    }
     if (es.strokeColor) style += `strokeColor=${es.strokeColor};`;
     if (es.textColor) style += `fontColor=${es.textColor};`;
     if (es.thickness) style += `strokeWidth=${es.thickness};`;

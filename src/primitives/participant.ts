@@ -195,9 +195,9 @@ export function buildParticipantLabel(
 // ---------------------------------------------------------------------------
 
 /** Style string for rich text blocks inside a bracket body participant. */
-function bracketTextStyle(align: 'left' | 'center' | 'right' = 'center', fontSize?: number, fontFamily?: string, spacingX?: number): string {
+function bracketTextStyle(align: 'left' | 'center' | 'right' = 'center', fontSize?: number, fontFamily?: string, spacingX?: number, fontColor?: string): string {
   const sx = spacingX ?? 10;
-  return richTextStyle(sx, sx, align, fontSize, fontFamily);
+  return richTextStyle(sx, sx, align, fontSize, fontFamily, fontColor);
 }
 
 
@@ -285,11 +285,12 @@ export function renderParticipant(
         spacingX: theme.edgeGap,
         fillColor,
         strokeColor,
+        fontColor: theme.participantFontColor,
       }, contentPad));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.edgeGap),
+        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.edgeGap, theme.participantFontColor),
         parent: p.id,
         y: 0, width: cellW, height: layout.iconHeight || 28,
       }));
@@ -354,11 +355,12 @@ export function renderFootbox(
         spacingX: theme.edgeGap,
         fillColor,
         strokeColor,
+        fontColor: theme.participantFontColor,
       }, contentPad));
     } else {
       cells.push(mxVertex({
         value: content.html,
-        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.edgeGap),
+        style: bracketTextStyle(opts?.participantAlign, theme.fontSize, theme.fontFamily, theme.edgeGap, theme.participantFontColor),
         parent: footId,
         y: 0, width: footW, height: footH,
       }));

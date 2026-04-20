@@ -426,7 +426,8 @@ export class BlockLayout {
       strokeWidth: this._theme.strokeWidth,
       fontSize: this._m.bodyFontSize,
       fontFamily: this._m.fontFamily,
-      strokeColor: co?.childStroke,
+      fontColor: co?.fontColor || this._theme.fontColor,
+      strokeColor: co?.childStroke || this._theme.colorDark,
       lineStyle: co?.childLineStyle,
       portConstraint: co?.portConstraint,
     });

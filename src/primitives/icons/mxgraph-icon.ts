@@ -75,7 +75,7 @@ export class MxgraphIconRenderer extends IconRenderer {
         `verticalAlign=${this.labelBelow ? 'top' : 'bottom'}`,
         'align=center',
         `fontSize=${this.theme.fontSize}`,
-        'fontColor=#232F3E',
+        `fontColor=${this.theme.fontColor}`,
       ].join(';') + ';' + fontFamilyStyle(this.theme);
       // Apply user inline overrides (e.g. #color or ##stroke)
       const { style: styledStyle } = Renderer.applyInlineStyle(style, this.desc.style, this.theme.boldStrokeWidth);
@@ -108,7 +108,7 @@ export class MxgraphIconRenderer extends IconRenderer {
         `fontSize=${this.theme.fontSize}`,
         defaultFill,
         `strokeColor=${this.desc.strokeColor ?? this.theme.colorDark}`,
-        `fontColor=${this.desc.strokeColor ?? this.theme.colorDark}`,
+        `fontColor=${this.theme.fontColor}`,
         `strokeWidth=${this.theme.strokeWidth}`,
         dataStyle,
         overrideFill,

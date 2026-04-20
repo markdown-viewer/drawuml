@@ -302,7 +302,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=${this.theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${this.theme.colorDark};`
-      + `fontStyle=0;fontSize=${this.theme.smallFontSize};${fontFamilyStyle(this.theme)}`;
+      + `fontStyle=0;fontSize=${this.theme.smallFontSize};fontColor=${this.theme.fontColor};${fontFamilyStyle(this.theme)}`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
       `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
@@ -370,6 +370,7 @@ function stateNodeStyle(startSize: number, theme: Theme, style?: string | null):
   if (!base.some(s => s.startsWith('fillColor='))) base.push(`fillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('swimlaneFillColor='))) base.push(`swimlaneFillColor=${theme.defaultFill}`);
   if (!base.some(s => s.startsWith('strokeColor='))) base.push(`strokeColor=${theme.colorDark}`);
+  if (!base.some(s => s.startsWith('fontColor='))) base.push(`fontColor=${theme.fontColor}`);
   return base.join(';') + ';';
 }
 
@@ -399,7 +400,12 @@ class StateNodeRenderer extends SwimlaneRenderer {
   protected getChildStyleOpts() {
     const parsed = this.nodeStyle ? parseNodeStyle(this.nodeStyle) : null;
     const fill = parsed?.fillColor || this.theme.defaultFill;
-    return { fillColor: fill, portConstraint: true as const, spacingX: this.theme.edgeGap };
+    return {
+      fillColor: fill,
+      fontColor: parsed?.textColor || this.theme.fontColor,
+      portConstraint: true as const,
+      spacingX: this.theme.edgeGap,
+    };
   }
 
   get clusterLabel(): string { return this._nodeLabel; }

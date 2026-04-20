@@ -658,7 +658,7 @@ export async function elkSwimlaneLayout2(
     const style = `swimlane;html=1;startSize=${startSize};`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=${theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${theme.colorDark};`
-      + `fontStyle=0;fontSize=${theme.smallFontSize};${fontFamilyStyle(theme)}`;
+      + `fontStyle=0;fontSize=${theme.smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
     prefixCells.push(
       `<mxCell id="${escapeXml(cellId(rid))}" value="${escapeXml(label)}" style="${style}" `
       + `vertex="1" parent="${escapeXml(cellId(swimContainer.id))}">`

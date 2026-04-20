@@ -19,6 +19,7 @@ import type {
 import { TextBlock, DEFAULT_FONT } from './text-block.ts';
 import { normalizeClassBodyBlocks } from './normalize-class-body.ts';
 import type { Theme } from './theme.ts';
+import { parseNodeStyle, parseEdgeInlineStyle } from './color-utils.ts';
 
 const RE_SEP_SOLID = /^-{2,}$/;
 const RE_SEP_DOUBLE = /^={2,}$/;
@@ -41,9 +42,12 @@ function noteFontFromTheme(theme?: Theme) {
   };
 }
 
-function normalizeInlineHtml(text?: string | null, theme?: Theme): string | undefined {
+function normalizeInlineHtml(text?: string | null, theme?: Theme, colorOverride?: string): string | undefined {
   if (!text) return undefined;
-  return TextBlock.inline(text, fontFromTheme(theme)).html;
+  const html = TextBlock.inline(text, fontFromTheme(theme)).html;
+  const color = colorOverride || theme?.fontColor;
+  if (!color) return html;
+  return `<span style="color:${color};">${html}</span>`;
 }
 
 function normalizeBlockHtml(text?: string | null, theme?: Theme): string | undefined {
@@ -116,9 +120,10 @@ function normalizeClassNode(node: SemanticNode, theme?: Theme, defaultVisibility
   const entityType = node.stereotype || node.type || '';
   const autoSeparator = entityType !== 'object' && node.type !== 'state';
   const visibilityIcons = node.visibilityIcons ?? defaultVisibilityIcons;
+  const textColor = parseNodeStyle(node.style)?.textColor;
   return {
     ...node,
-    labelHtml: normalizeInlineHtml(node.label, theme),
+    labelHtml: normalizeInlineHtml(node.label, theme, textColor),
     bodyBlocks: normalizeClassBodyBlocks({
       nodeId: node.id,
       bodyLines: node.bodyLines,
@@ -132,18 +137,20 @@ function normalizeClassNode(node: SemanticNode, theme?: Theme, defaultVisibility
 }
 
 function normalizeClassEdge(edge: SemanticEdge, theme?: Theme): SemanticEdge {
+  const textColor = parseEdgeInlineStyle(edge.style)?.textColor;
   return {
     ...edge,
-    labelHtml: normalizeInlineHtml(edge.label, theme),
-    cardFromHtml: normalizeInlineHtml(edge.cardFrom, theme),
-    cardToHtml: normalizeInlineHtml(edge.cardTo, theme),
+    labelHtml: normalizeInlineHtml(edge.label, theme, textColor),
+    cardFromHtml: normalizeInlineHtml(edge.cardFrom, theme, textColor),
+    cardToHtml: normalizeInlineHtml(edge.cardTo, theme, textColor),
   };
 }
 
 function normalizeClassGroup(group: SemanticGroup, theme?: Theme): SemanticGroup {
+  const textColor = parseNodeStyle(group.style)?.textColor;
   return {
     ...group,
-    labelHtml: normalizeInlineHtml(group.label, theme),
+    labelHtml: normalizeInlineHtml(group.label, theme, textColor),
   };
 }
 

@@ -38,11 +38,13 @@ const svg = convert(xml);                   // DrawIO XML → SVG
 ```javascript
 const xml = await textToDrawioXml(dsl, {
   engine: 'dot',   // 'elk' (default) or 'dot'
-  theme: { fontSize: 14, fontFamily: 'Arial' },
+  theme: { mode: 'dark', fontSize: 14, fontFamily: 'Arial' },
 });
 ```
 
 The engine can also be set per-diagram via `!pragma layout elk` or `!pragma layout vizjs`.
+
+`theme.mode` supports `'light'` and `'dark'`. The dark preset changes node, line, note, and text colors, but does not inject a full-canvas background into the SVG.
 
 ## Architecture
 

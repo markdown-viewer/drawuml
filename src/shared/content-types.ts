@@ -98,6 +98,7 @@ export function separatorStyle(opts?: {
   strokeWidth?: number;
   fontSize?: number;
   fontFamily?: string;
+  fontColor?: string;
   /** Append portConstraint=eastwest (swimlane class/state nodes). */
   portConstraint?: boolean;
 }): string {
@@ -121,6 +122,7 @@ export function separatorStyle(opts?: {
   else if (opts?.lineStyle === 'bold') parts.push(`strokeWidth=${sw * 2}`);
   if (opts?.fontSize) parts.push(`fontSize=${opts.fontSize}`);
   if (opts?.fontFamily) parts.push(`fontFamily=${opts.fontFamily}`);
+  if (opts?.fontColor) parts.push(`fontColor=${opts.fontColor}`);
   return parts.join(';') + ';';
 }
 

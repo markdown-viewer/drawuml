@@ -419,8 +419,7 @@ export function registerArchimateShapes(): void {
     const iconExtraStyle = stereotype === 'other-grouping' ? 'dashed=1;dashPattern=1 1;' : '';
     if (stereotype === 'archimate-junction-and' || stereotype === 'archimate-junction-or') {
       const fill = style.match(/fillColor=([^;]+)/)?.[1] ?? '#FFFFFF';
-      const stroke = style.match(/strokeColor=([^;]+)/)?.[1] ?? '#181818';
-      registerRenderer(stereotype, (desc: RenderDescriptor) => new JunctionRenderer(desc, fill, stroke));
+      registerRenderer(stereotype, (desc: RenderDescriptor) => new JunctionRenderer(desc, fill));
     } else if (stereotype === 'archimate-group') {
       registerRenderer(stereotype, (desc: RenderDescriptor) => new FolderArchimateRenderer(desc, '#D3D3D3'));
     } else if (stereotype === 'archimate-grouping') {

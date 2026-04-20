@@ -30,19 +30,19 @@ import { mxVertex } from '../shared/xml-utils.ts';
 // ---------------------------------------------------------------------------
 
 /** Spot character and background color per entity stereotype/type. */
-const SPOT_MAP: Record<string, { char: string; color: string }> = {
-  abstract:   { char: 'A', color: '#A9DCDF' },
-  annotation: { char: '@', color: '#E3664A' },
-  class:      { char: 'C', color: '#ADD1B2' },
-  interface:  { char: 'I', color: '#B4A7E5' },
-  enum:       { char: 'E', color: '#EB937F' },
-  entity:     { char: 'E', color: '#ADD1B2' },
-  'entity-class': { char: 'E', color: '#ADD1B2' },
-  protocol:   { char: 'P', color: '#F1F1F1' },
-  struct:     { char: 'S', color: '#F1F1F1' },
-  exception:  { char: 'X', color: '#D94321' },
-  metaclass:  { char: 'M', color: '#CCCCCC' },
-  stereotype: { char: 'S', color: '#FF77FF' },
+const SPOT_MAP: Record<string, { char: string; lightColor: string; darkColor: string }> = {
+  abstract:   { char: 'A', lightColor: '#A9DCDF', darkColor: '#2A5D60' },
+  annotation: { char: '@', lightColor: '#E3664A', darkColor: '#4A0000' },
+  class:      { char: 'C', lightColor: '#ADD1B2', darkColor: '#2E5233' },
+  interface:  { char: 'I', lightColor: '#B4A7E5', darkColor: '#352866' },
+  enum:       { char: 'E', lightColor: '#EB937F', darkColor: '#852D19' },
+  entity:     { char: 'E', lightColor: '#ADD1B2', darkColor: '#2E5233' },
+  'entity-class': { char: 'E', lightColor: '#ADD1B2', darkColor: '#2E5233' },
+  protocol:   { char: 'P', lightColor: '#F1F1F1', darkColor: '#313139' },
+  struct:     { char: 'S', lightColor: '#F1F1F1', darkColor: '#313139' },
+  exception:  { char: 'X', lightColor: '#D94321', darkColor: '#7D0000' },
+  metaclass:  { char: 'M', lightColor: '#CCCCCC', darkColor: '#7C7C7C' },
+  stereotype: { char: 'S', lightColor: '#FF77FF', darkColor: '#890089' },
 };
 
 /** Types whose class name should be rendered in italic. */
@@ -62,14 +62,27 @@ const SPOT_TYPES = new Set(Object.keys(SPOT_MAP));
 export function buildTitleHtml(node: { label: string; stereotype?: string | null; type?: string; stereotypeLabel?: string; hideCircle?: boolean; spot?: { char: string; color: string }; theme?: { fontSize: number; fontFamily: string; sizeS?: number; spotFontSize?: number; padXS?: number } }): string {
   const stype = node.stereotype || node.type || '';
   // Custom spot from <<(X,color)>> overrides the default SPOT_MAP lookup.
-  const spotInfo = node.hideCircle ? undefined : (node.spot || SPOT_MAP[stype]);
+  const spotInfo = node.hideCircle
+    ? undefined
+    : (node.spot
+      ? {
+          ...node.spot,
+          borderColor: node.theme?.mode === 'dark' ? '#E7E7E7' : undefined,
+        }
+      : (() => {
+          const mapped = SPOT_MAP[stype];
+          if (!mapped) return undefined;
+          const theme = node.theme;
+          const color = theme?.mode === 'dark' ? mapped.darkColor : mapped.lightColor;
+          return { char: mapped.char, color, borderColor: theme?.mode === 'dark' ? '#E7E7E7' : undefined };
+        })());
   // Convert raw Creole label to HTML inside the renderer
   const labelHtml = (node as { labelHtml?: string }).labelHtml
     || TextBlock.inline(node.label, { size: node.theme?.fontSize || DEFAULT_FONT.size, family: node.theme?.fontFamily || DEFAULT_FONT.family }).html;
   return buildLabelHtml({
     label: labelHtml,
     stereotypeLabel: node.stereotypeLabel,
-    spot: spotInfo ? { char: spotInfo.char, color: spotInfo.color } : undefined,
+    spot: spotInfo ? { char: spotInfo.char, color: spotInfo.color, borderColor: (spotInfo as { borderColor?: string }).borderColor } : undefined,
     italic: ITALIC_TYPES.has(stype),
     fontSize: node.theme?.fontSize,
     spotSize: node.theme?.sizeS,
@@ -193,6 +206,12 @@ export function classNodeStyle(node: { stereotype?: string | null; type?: string
     base.push(`fillColor=${theme.defaultFill}`);
     base.push(`swimlaneFillColor=${theme.defaultFill}`);
   }
+  if (!base.some(s => s.startsWith('strokeColor='))) {
+    base.push(`strokeColor=${theme.colorDark}`);
+  }
+  if (!base.some(s => s.startsWith('fontColor='))) {
+    base.push(`fontColor=${theme.fontColor}`);
+  }
 
   return base.join(';') + ';';
 }
@@ -221,7 +240,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       hideMethods: node.hideMethods,
     });
     const parsed = parseNodeStyle(node.style);
-    this.childStroke = parsed?.strokeColor || undefined;
+    this.childStroke = parsed?.strokeColor || node.theme.colorDark;
     this.childLineStyle = parsed?.lineStyle || undefined;
     this.childFillColor = parsed?.fillColor || node.theme.defaultFill;
   }
@@ -243,6 +262,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       fillColor: this.childFillColor,
       childStroke: this.childStroke,
       childLineStyle: this.childLineStyle,
+      fontColor: this.theme.fontColor,
       portConstraint: true as const,
       spacingX: this.theme.edgeGap,
     };
@@ -309,6 +329,7 @@ class ClassNodeRenderer extends SwimlaneRenderer {
       'align=center', 'verticalAlign=middle',
       `fontSize=${fs}`, 'fontStyle=2',
       `fontFamily=${this.theme.fontFamily}`,
+      `fontColor=${this.theme.fontColor}`,
       `fillColor=${this.theme.groupFill}`,
       `strokeColor=${this.theme.colorDark}`,
       'dashed=1', 'dashPattern=5 2',

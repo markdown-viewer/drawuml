@@ -210,7 +210,7 @@ export abstract class RichRenderer extends Renderer {
   protected get contentFontFamily(): string { return this.theme.fontFamily; }
 
   /** Optional font color override for rich-body child cells. */
-  protected get richBodyFontColor(): string | undefined { return undefined; }
+  protected get richBodyFontColor(): string | undefined { return this.theme.fontColor; }
 
   /**
    * Build Content from label + stereotype HTML, or rich body lines.

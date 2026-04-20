@@ -13,6 +13,8 @@ import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-me
 
 /** Minimal input for theme creation. Defaults computed from fontSize. */
 export interface ThemeConfig {
+  /** Theme mode preset. Default: 'light'. */
+  mode?: 'light' | 'dark';
   /** Base font size (default: 12). All sizing derives from this. */
   fontSize?: number;
   /** Font family (default: DEFAULT_FONT_FAMILY from text-measure). */
@@ -57,6 +59,7 @@ export interface ThemeConfig {
 
 /** Full computed theme — all values ready for use. */
 export interface Theme {
+  readonly mode: 'light' | 'dark';
   // ── Typography ────────────────────────────────────────────────────────────
   readonly fontSize: number;
   readonly fontFamily: string;
@@ -167,23 +170,24 @@ function stripOptionalQuotes(value?: string): string | undefined {
 
 /** Create a fully computed Theme from minimal config. */
 export function createTheme(config?: ThemeConfig): Theme {
+  const mode = config?.mode === 'dark' ? 'dark' : 'light';
   const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
   const fontFamily = stripOptionalQuotes(config?.fontFamily) ?? DEFAULT_FONT_FAMILY;
   const strokeWidth = r4(fontSize / 12);
-  const fontColor = config?.fontColor ?? '#181818';
-  const noteFill = config?.noteFill ?? '#FEFFDD';
-  const noteBorderColor = config?.noteBorderColor ?? '#AEAE8F';
+  const fontColor = config?.fontColor ?? (mode === 'dark' ? '#FFFFFF' : '#181818');
+  const noteFill = config?.noteFill ?? (mode === 'dark' ? '#4F4F2A' : '#FEFFDD');
+  const noteBorderColor = config?.noteBorderColor ?? (mode === 'dark' ? '#C8C88A' : '#AEAE8F');
   const noteLinkColor = config?.noteLinkColor ?? noteBorderColor;
-  const noteFontColor = config?.noteFontColor ?? '#000000';
+  const noteFontColor = config?.noteFontColor ?? (mode === 'dark' ? '#FFFFFF' : '#000000');
   const noteFontFamily = stripOptionalQuotes(config?.noteFontFamily) ?? fontFamily;
   const noteFontSize = config?.noteFontSize ?? fontSize;
-  const participantFill = config?.participantFill ?? '#E2E2F0';
-  const participantBorderColor = config?.participantBorderColor ?? '#181818';
+  const participantFill = config?.participantFill ?? (mode === 'dark' ? '#313139' : '#E2E2F0');
+  const participantBorderColor = config?.participantBorderColor ?? (mode === 'dark' ? '#E7E7E7' : '#181818');
   const participantFontColor = config?.participantFontColor ?? fontColor;
   const lifelineStrokeColor = config?.lifelineStrokeColor ?? participantBorderColor;
-  const arrowColor = config?.arrowColor ?? '#181818';
+  const arrowColor = config?.arrowColor ?? (mode === 'dark' ? '#E7E7E7' : '#181818');
   const arrowFontColor = config?.arrowFontColor ?? fontColor;
-  const frameStrokeColor = config?.frameStrokeColor ?? '#181818';
+  const frameStrokeColor = config?.frameStrokeColor ?? (mode === 'dark' ? '#E7E7E7' : '#181818');
   const arrowStrokeWidth = r4(config?.arrowStrokeWidth ?? strokeWidth);
   const lifelineStrokeWidth = r4(config?.lifelineStrokeWidth ?? strokeWidth);
 
@@ -205,6 +209,7 @@ export function createTheme(config?: ThemeConfig): Theme {
   const padXXL = r4(fontSize * 40 / 12);
 
   return {
+    mode,
     // ── Typography ──
     fontSize,
     fontFamily,
@@ -213,23 +218,23 @@ export function createTheme(config?: ThemeConfig): Theme {
     titleFontSize: r4(fontSize * 1.2),
 
     // ── Colors & fills ──
-    colorDark: '#181818',
+  colorDark: mode === 'dark' ? '#E7E7E7' : '#181818',
     fontColor,
-    defaultFill: '#F1F1F1',
-    groupFill: '#FFFFFF',
+  defaultFill: mode === 'dark' ? '#313139' : '#F1F1F1',
+  groupFill: mode === 'dark' ? '#1F1F23' : '#FFFFFF',
     participantFill,
     participantBorderColor,
     participantFontColor,
     lifelineStrokeColor,
-    dividerFill: '#EEEEEE',
-    legendFill: '#DDDDDD',
+  dividerFill: mode === 'dark' ? '#222228' : '#EEEEEE',
+  legendFill: mode === 'dark' ? '#2A2A2F' : '#DDDDDD',
     noteLinkColor,
     noteFill,
     noteBorderColor,
     noteFontColor,
     noteFontFamily,
     noteFontSize,
-    destroyStroke: '#A80036',
+  destroyStroke: mode === 'dark' ? '#FF6B9A' : '#A80036',
     arrowColor,
     arrowFontColor,
     frameStrokeColor,
@@ -276,6 +281,7 @@ export function createThemeFromSkinparams(
 ): Theme {
   return createTheme({
     ...baseConfig,
+    mode: baseConfig?.mode,
     fontFamily: stripOptionalQuotes(getSkinparamValue(skinparams, 'defaultFontName')) || baseConfig?.fontFamily,
     fontColor: getSkinparamValue(skinparams, 'defaultFontColor') || baseConfig?.fontColor,
     noteFill: getSkinparamValue(skinparams, 'NoteBackgroundColor') || baseConfig?.noteFill,

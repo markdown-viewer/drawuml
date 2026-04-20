@@ -23,11 +23,11 @@ export class JunctionRenderer extends IconRenderer {
   private fillColor: string;
   private strokeColor: string;
 
-  constructor(desc: RenderDescriptor, fillColor: string, strokeColor: string) {
+  constructor(desc: RenderDescriptor, fillColor: string, strokeColor?: string) {
     super(desc);
     // Per-node color (from !define macro) overrides registration-time default
     this.fillColor = normalizeColor(desc.color) ?? normalizeColor(fillColor) ?? fillColor;
-    this.strokeColor = normalizeColor(strokeColor) ?? strokeColor;
+    this.strokeColor = normalizeColor(strokeColor) ?? this.theme.colorDark;
   }
 
   // Half-size icon: junction circle is smaller than standard icons

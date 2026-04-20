@@ -115,7 +115,7 @@ class MapNodeRenderer extends Renderer {
     const ff = this.theme.fontFamily;
 
     // Common font/stroke suffix for partialRectangle cells
-    const fontStyle = `fontSize=${fs};fontFamily=${ff};strokeWidth=${sw};`;
+    const fontStyle = `fontSize=${fs};fontFamily=${ff};fontColor=${this.theme.fontColor};strokeColor=${this.theme.colorDark};strokeWidth=${sw};`;
 
     // Swimlane container
     cells.push(mxVertex({

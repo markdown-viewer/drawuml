@@ -14,7 +14,7 @@ import { darkenColor } from '../shared/color-utils.ts';
 export function buildLabelHtml(opts: {
   label: string;
   stereotypeLabel?: string;
-  spot?: { char: string; color: string };
+  spot?: { char: string; color: string; borderColor?: string };
   italic?: boolean;
   stereotypePosition?: 'top' | 'bottom';
   fontSize?: number;
@@ -51,7 +51,7 @@ export function buildLabelHtml(opts: {
   const spotSize = opts.spotSize ?? fs * 20 / 12;     // = theme.sizeS
   const spotFont = opts.spotFontSize ?? fs * 14 / 12;  // ≈ theme.spotFontSize
   const spotMar = opts.spotMargin ?? fs * 5 / 12;      // = theme.padXS
-  const borderColor = darkenColor(spot!.color);
+  const borderColor = spot!.borderColor || darkenColor(spot!.color);
   const circleHtml =
     `<span style="display:inline-block;width:${spotSize}px;height:${spotSize}px;line-height:${spotSize}px;`
     + `text-align:center;border-radius:50%;background:${spot!.color};`

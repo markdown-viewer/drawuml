@@ -20,8 +20,6 @@ import { TextBlock } from '../shared/text-block.ts';
 import { fontFamilyStyle } from '../shared/theme.ts';
 
 const LABEL_PAD_DEFAULT = 3;      // gap between square edge and label (fallback)
-const DEFAULT_FILL = '#F1F1F1';
-const DEFAULT_STROKE = '#181818';
 
 export class PortNodeRenderer extends Renderer {
   private _label: string;
@@ -53,8 +51,8 @@ export class PortNodeRenderer extends Renderer {
     const cells: string[] = [];
 
     // Resolve colors from PlantUML inline style (#aliceblue;line:blue;…)
-    let fillColor = DEFAULT_FILL;
-    let strokeColor = DEFAULT_STROKE;
+    let fillColor = this.theme.defaultFill;
+    let strokeColor = this.theme.colorDark;
     let extraStyle = '';
     const parsed = parseNodeStyle(this._rawStyle);
     if (parsed) {
@@ -94,7 +92,7 @@ export class PortNodeRenderer extends Renderer {
         ? box.y + portSize + labelPad       // below the square
         : box.y - portLabelH - labelPad;   // above the square
 
-      const textColor = (parsed?.textColor) ? `fontColor=${parsed.textColor};` : '';
+      const textColor = `fontColor=${parsed?.textColor || this.theme.fontColor};`;
       cells.push(mxVertex({
         id: `${this.id}__lbl`,
         value: plainBlock.html,

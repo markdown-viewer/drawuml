@@ -19,8 +19,9 @@ class DatabaseRenderer extends RichRenderer {
     const extraLines = Math.max(0, this.label.split('\n').length - 1);
     return baseCap + extraLines * this.theme.fontSize * 0.6;
   }
+
   protected buildStyle(): string {
-    return `shape=cylinder3;whiteSpace=wrap;size=${n4(this.capHeight)};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.spacingTop)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.colorDark};collapsible=0;container=1;`;
+    return `shape=cylinder3;whiteSpace=wrap;size=${n4(this.capHeight)};fontStyle=1;fontSize=${this.theme.fontSize};align=center;verticalAlign=top;spacingTop=${Math.round(this.theme.spacingTop)};fillColor=none;strokeColor=${this.theme.colorDark};strokeWidth=${this.theme.strokeWidth};fontColor=${this.theme.fontColor};collapsible=0;container=1;`;
   }
   // Top cap ellipse — add cap height as top padding
   protected shapePadding(): ShapePadding {
