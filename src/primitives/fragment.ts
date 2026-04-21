@@ -138,7 +138,7 @@ export function renderFragment(frag: {
     }));
     cells.push(mxVertex({
       id: frag.id + '_sec_' + (i + 1), value: '[' + (section.labelHtml || TextBlock.inline(section.label, { size: smallFontSize, family: theme.fontFamily }).html) + ']',
-      style: `text;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`,
+      style: `text;html=1;align=left;verticalAlign=top;spacingLeft=${sectionSpacingX};spacingTop=-2;fontSize=${smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`,
       parent: '1',
       x: frag.x + labelGap, y: y + 2, width: frag.width - labelGap * 2, height: sectionH,
     }));
