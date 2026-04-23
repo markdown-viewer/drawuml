@@ -38,7 +38,7 @@
   "bugs": {
     "url": "https://github.com/nicedoc/draw-uml/issues"
   },
-  "license": "LGPL-3.0-only",
+  "license": "GPL-3.0-only",
   "engines": {
     "fibjs": ">=0.38.0"
   },
