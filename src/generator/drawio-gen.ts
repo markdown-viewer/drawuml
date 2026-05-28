@@ -212,24 +212,37 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // constraints to preserve ELK's calculated edge separation.
     // Without constraints, SegmentConnector's perimeter projection
     // merges parallel edges to the same routing center.
+    let parallelGuidedPoints: Array<{ x: number; y: number }> | null = null;
     if (engine === 'elk' && !hasPort && !omitSource && !omitTarget
         && (edgePairCount.get(pairKey) || 0) > 1
         && points && points.length >= 2) {
       const srcNode = layout.nodes[edge.from] || layout.groups?.[edge.from];
       const tgtNode = layout.nodes[edge.to] || layout.groups?.[edge.to];
+      let sourceGuide: { x: number; y: number } | undefined;
+      let targetGuide: { x: number; y: number } | undefined;
       if (srcNode) {
         const sp = points[0];
-        const exitX = Math.max(0, Math.min(1, (sp.x - srcNode.x) / srcNode.width));
-        const exitY = Math.max(0, Math.min(1, (sp.y - srcNode.y) / srcNode.height));
+        const srcNeighbor = points.length > 1 ? points[1] : undefined;
+        const { relX: exitX, relY: exitY, guidePoint, side } = computeRelativeConstraintPoint(sp, edge.from, srcNode, renderers, theme.nodeGap, srcNeighbor);
         style += `exitX=${n4(exitX)};exitY=${n4(exitY)};exitDx=0;exitDy=0;`;
-        points = points.slice(1); // strip source endpoint, now constrained
+        style += `sourcePortConstraint=${side};`;
+        sourceGuide = guidePoint;
       }
       if (tgtNode) {
         const ep = points[points.length - 1];
-        const entryX = Math.max(0, Math.min(1, (ep.x - tgtNode.x) / tgtNode.width));
-        const entryY = Math.max(0, Math.min(1, (ep.y - tgtNode.y) / tgtNode.height));
+        const tgtNeighbor = points.length > 1 ? points[points.length - 2] : undefined;
+        const { relX: entryX, relY: entryY, guidePoint, side } = computeRelativeConstraintPoint(ep, edge.to, tgtNode, renderers, theme.nodeGap, tgtNeighbor);
         style += `entryX=${n4(entryX)};entryY=${n4(entryY)};entryDx=0;entryDy=0;`;
-        points = points.slice(0, -1); // strip target endpoint, now constrained
+        style += `targetPortConstraint=${side};`;
+        targetGuide = guidePoint;
+      }
+      const interior = points.slice(1, -1);
+      parallelGuidedPoints = [];
+      if (sourceGuide) parallelGuidedPoints.push(sourceGuide);
+      parallelGuidedPoints.push(...interior);
+      if (targetGuide) parallelGuidedPoints.push(targetGuide);
+      if (parallelGuidedPoints.length > 0) {
+        points = parallelGuidedPoints;
       }
     }
 
@@ -242,7 +255,11 @@ export function semanticToDrawioXml(model, layout, renderers: Map<string, Render
     // have already stripped the constrained endpoints above).
     let geometry: { sourcePoint?: { x: number; y: number }; targetPoint?: { x: number; y: number }; waypoints?: { x: number; y: number }[] } | undefined;
     if (points && points.length >= 2) {
-      if (isParallelEdge) {
+      if (isParallelEdge && parallelGuidedPoints) {
+        geometry = {
+          waypoints: parallelGuidedPoints.length > 0 ? parallelGuidedPoints : undefined,
+        };
+      } else if (isParallelEdge) {
         // For parallel edges, keep the viz.js endpoint of the larger-spread side
         // as a waypoint instead of promoting it to sourcePoint/targetPoint.
         // DrawIO's floating endpoint calculation uses the nearest waypoint as the
@@ -622,6 +639,144 @@ function computePortEdgeSides(
   }
 
   return { exitX, exitY, entryX, entryY };
+}
+
+function computeRelativeConstraintPoint(
+  point: { x: number; y: number },
+  nodeId: string,
+  nodeBox: { x: number; y: number; width: number; height: number },
+  renderers?: Map<string, Renderer>,
+  guideGap: number = 8,
+  neighborPoint?: { x: number; y: number },
+): { relX: number; relY: number; guidePoint: { x: number; y: number }; side: 'north' | 'south' | 'east' | 'west' } {
+  const renderer = renderers?.get(nodeId);
+  const preferDirectionalSide = isCircleLikeRenderer(renderer);
+  const graphic = renderer?.graphicSize();
+  let boxX = nodeBox.x;
+  let boxY = nodeBox.y;
+  let boxW = nodeBox.width;
+  let boxH = nodeBox.height;
+  if (!graphic) {
+    let relX = clamp01((point.x - nodeBox.x) / nodeBox.width);
+    let relY = clamp01((point.y - nodeBox.y) / nodeBox.height);
+    const preferredSide = preferDirectionalSide ? inferConstraintSide(point, neighborPoint) : undefined;
+    const sideInfo = computeConstraintGuidePoint(nodeBox.x, nodeBox.y, nodeBox.width, nodeBox.height, relX, relY, guideGap, preferredSide);
+    if (isCircleLikeRenderer(renderer)) {
+      ({ relX, relY } = projectConstraintToEllipse(relX, relY, sideInfo.side));
+    }
+    return {
+      relX,
+      relY,
+      ...computeConstraintGuidePoint(nodeBox.x, nodeBox.y, nodeBox.width, nodeBox.height, relX, relY, guideGap, preferredSide),
+    };
+  }
+
+  boxX = nodeBox.x + (nodeBox.width - graphic.width) / 2;
+  boxY = nodeBox.y;
+  boxW = graphic.width;
+  boxH = graphic.height;
+  let relX = clamp01((point.x - boxX) / boxW);
+  let relY = clamp01((point.y - boxY) / boxH);
+  const preferredSide = preferDirectionalSide ? inferConstraintSide(point, neighborPoint) : undefined;
+  const sideInfo = computeConstraintGuidePoint(boxX, boxY, boxW, boxH, relX, relY, guideGap, preferredSide);
+  if (isCircleLikeRenderer(renderer)) {
+    ({ relX, relY } = projectConstraintToEllipse(relX, relY, sideInfo.side));
+  }
+  return {
+    relX,
+    relY,
+    ...computeConstraintGuidePoint(boxX, boxY, boxW, boxH, relX, relY, guideGap, preferredSide),
+  };
+}
+
+function inferConstraintSide(
+  point: { x: number; y: number },
+  neighborPoint?: { x: number; y: number },
+): 'north' | 'south' | 'east' | 'west' | undefined {
+  if (!neighborPoint) return undefined;
+  const dx = neighborPoint.x - point.x;
+  const dy = neighborPoint.y - point.y;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? 'east' : 'west';
+  }
+  return dy >= 0 ? 'south' : 'north';
+}
+
+function isCircleLikeRenderer(renderer?: Renderer): boolean {
+  if (!renderer) return false;
+  const desc = (renderer as any).desc;
+  if (desc?.stereotype === 'circle') return true;
+  return renderer.constructor?.name === 'CircleRenderer';
+}
+
+function projectConstraintToEllipse(
+  relX: number,
+  relY: number,
+  side: 'north' | 'south' | 'east' | 'west',
+): { relX: number; relY: number } {
+  const clampSigned = (v: number) => Math.max(-1, Math.min(1, v));
+
+  if (side === 'north' || side === 'south') {
+    const nx = clampSigned(relX * 2 - 1);
+    const ny = Math.sqrt(Math.max(0, 1 - nx * nx));
+    return {
+      relX: clamp01(relX),
+      relY: clamp01(0.5 + (side === 'south' ? 0.5 * ny : -0.5 * ny)),
+    };
+  }
+
+  const ny = clampSigned(relY * 2 - 1);
+  const nx = Math.sqrt(Math.max(0, 1 - ny * ny));
+  return {
+    relX: clamp01(0.5 + (side === 'east' ? 0.5 * nx : -0.5 * nx)),
+    relY: clamp01(relY),
+  };
+}
+
+function computeConstraintGuidePoint(
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
+  relX: number,
+  relY: number,
+  guideGap: number,
+  preferredSide?: 'north' | 'south' | 'east' | 'west',
+): { guidePoint: { x: number; y: number }; side: 'north' | 'south' | 'east' | 'west' } {
+  const gap = Math.max(6, guideGap);
+  const anchorX = boxX + relX * boxW;
+  const anchorY = boxY + relY * boxH;
+
+  if (preferredSide) {
+    switch (preferredSide) {
+      case 'west':
+        return { guidePoint: { x: boxX - gap, y: anchorY }, side: 'west' };
+      case 'east':
+        return { guidePoint: { x: boxX + boxW + gap, y: anchorY }, side: 'east' };
+      case 'north':
+        return { guidePoint: { x: anchorX, y: boxY - gap }, side: 'north' };
+      case 'south':
+        return { guidePoint: { x: anchorX, y: boxY + boxH + gap }, side: 'south' };
+    }
+  }
+
+  const sideDistances = [
+    { side: 'left', dist: relX },
+    { side: 'right', dist: 1 - relX },
+    { side: 'top', dist: relY },
+    { side: 'bottom', dist: 1 - relY },
+  ].sort((a, b) => a.dist - b.dist);
+
+  switch (sideDistances[0].side) {
+    case 'left':
+      return { guidePoint: { x: boxX - gap, y: anchorY }, side: 'west' };
+    case 'right':
+      return { guidePoint: { x: boxX + boxW + gap, y: anchorY }, side: 'east' };
+    case 'top':
+      return { guidePoint: { x: anchorX, y: boxY - gap }, side: 'north' };
+    default:
+      return { guidePoint: { x: anchorX, y: boxY + boxH + gap }, side: 'south' };
+  }
 }
 
 /**
