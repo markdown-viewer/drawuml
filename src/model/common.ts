@@ -6,6 +6,7 @@ export const DiagramType = {
   UML: 'uml',
   Sequence: 'sequence',
   Mindmap: 'mindmap',
+  Gantt: 'gantt',
 } as const;
 
 export type DiagramTypeName = (typeof DiagramType)[keyof typeof DiagramType];

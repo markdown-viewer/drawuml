@@ -110,9 +110,11 @@ export function parsePlantUml(text) {
   const isTimingHint = hasTimingHintsFromPeggy(bodyLines);
   const parseMode = directiveLower === '@startmindmap' || directiveLower === '@startwbs'
     ? 'mindmap'
-    : (directiveLower && directiveLower !== '@startuml'
-      ? 'verbatim'
-      : (isTimingHint ? 'timing' : 'default'));
+    : (directiveLower === '@startgantt'
+      ? 'default'
+      : (directiveLower && directiveLower !== '@startuml'
+        ? 'verbatim'
+        : (isTimingHint ? 'timing' : 'default')));
 
   let inNoteBlock = false;
   let inActivityTextBlock = false;

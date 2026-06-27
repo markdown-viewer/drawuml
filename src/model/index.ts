@@ -4,3 +4,4 @@
 export * from './common.ts';
 export * from './class-model.ts';
 export * from './sequence-model.ts';
+export * from './gantt-model.ts';

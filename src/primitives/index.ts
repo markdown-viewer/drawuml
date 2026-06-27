@@ -58,6 +58,9 @@ import { registerTitleRenderer } from './title.ts';
 import { registerBoxRenderer } from './box.ts';
 import { registerPortNodeRenderer } from './port-node.ts';
 import { MxgraphIconRenderer, registerMxgraphIconRenderer } from './icons/mxgraph-icon.ts';
+import { registerGanttBarRenderer } from './shapes/gantt-bar.ts';
+import { registerGanttMilestoneRenderer } from './shapes/gantt-milestone.ts';
+import { registerGanttSeparatorRenderer } from './shapes/gantt-separator.ts';
 import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
@@ -104,6 +107,9 @@ registerTitleRenderer();
 registerBoxRenderer();
 registerPortNodeRenderer();
 registerMxgraphIconRenderer();
+registerGanttBarRenderer();
+registerGanttMilestoneRenderer();
+registerGanttSeparatorRenderer();
 
 // ── Unified node factory (dispatches via registry) ───────────────────────────
 import { createRenderer, hasRenderer } from './registry.ts';

@@ -89,6 +89,11 @@ export interface Theme {
   readonly arrowFontColor: string;
   readonly frameStrokeColor: string;
 
+  // ── Gantt-specific colors ────────────────────────────────────────────────
+  readonly ganttTaskFill: string;         // default task bar fill (no completion, or 100% completed)
+  readonly ganttUnstartedFill: string;   // unstarted blend source (0% end, only used when explicit style)
+  readonly ganttOverloadColor: string;   // resource overload text color
+
   // ── Stroke & corner ───────────────────────────────────────────────────────
   readonly strokeWidth: number;
   readonly arrowStrokeWidth: number;
@@ -104,6 +109,7 @@ export interface Theme {
   readonly sizeM: number;     //  @12→30  — icon size, tab width
   readonly sizeL: number;     //  @12→40  — dot min node width, fragment/lifeline min, self-ref loop
   readonly sizeXL: number;    //  @12→60  — class/title min width, fork width, icon target, short arrow
+  readonly sizeXXL: number;   //  @12→100 — gantt yearly cell width
   readonly sizeMax: number;   //  @12→720 — max row width for row-packing layout
 
   // ── Spacing — 5 unified tiers (sorted small → large @base12) ──────────────
@@ -198,6 +204,7 @@ export function createTheme(config?: ThemeConfig): Theme {
   const sizeM   = r4(fontSize * 30 / 12);
   const sizeL   = r4(fontSize * 40 / 12);
   const sizeXL  = r4(fontSize * 60 / 12);
+  const sizeXXL = r4(fontSize * 100 / 12);
   const sizeMax = r4(fontSize * 720 / 12);
 
   const padXXS = r4(fontSize * 2 / 12);
@@ -239,6 +246,11 @@ export function createTheme(config?: ThemeConfig): Theme {
     arrowFontColor,
     frameStrokeColor,
 
+    // ── Gantt-specific colors (only where base theme colors don't match) ──
+    ganttTaskFill: mode === 'dark' ? '#555555' : '#E2E2F0',
+    ganttUnstartedFill: mode === 'dark' ? '#E2E2F0' : '#E2E2F0',
+    ganttOverloadColor: mode === 'dark' ? '#FF6666' : '#FF0000',
+
     // ── Stroke & corner ──
     strokeWidth: strokeWidth,
     arrowStrokeWidth,
@@ -248,7 +260,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     cornerClip: r4(fontSize * 8 / 12),
 
     // ── Sizes — 7 standardized tiers ──
-    sizeXXS, sizeXS, sizeS, sizeM, sizeL, sizeXL, sizeMax,
+    sizeXXS, sizeXS, sizeS, sizeM, sizeL, sizeXL, sizeXXL, sizeMax,
 
     // ── Spacing — 7 unified tiers ──
     padXXS, padXS, padS, padM, padL, padXL, padXXL,

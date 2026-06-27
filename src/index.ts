@@ -14,6 +14,9 @@ import { mindmapLayout } from './layout/mindmap-layout.ts';
 import { semanticToDrawioXml } from './generator/drawio-gen.ts';
 import { sequenceToDrawioXml } from './generator/sequence-gen.ts';
 import { mindmapToDrawioXml } from './generator/mindmap-gen.ts';
+import { parseGanttStatements } from './parsers/gantt.ts';
+import { ganttLayout } from './layout/gantt-layout.ts';
+import { ganttToDrawioXml } from './generator/gantt-gen.ts';
 import { DiagramType } from './model/index.ts';
 import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
 import { createRenderer } from './primitives/registry.ts';
@@ -71,6 +74,14 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
 
     const layout = mindmapLayout(model, { theme, renderers });
     return mindmapToDrawioXml(model, layout, renderers, theme);
+  }
+
+  // Gantt diagrams use custom table layout
+  if (diagramType === DiagramType.Gantt) {
+    const theme = createTheme(options?.theme);
+    const model = parseGanttStatements(parsed.statements, pragmas);
+    const { renderers, layout } = ganttLayout(model, { theme });
+    return ganttToDrawioXml(model, layout, renderers, theme);
   }
 
   // Determine layout engine:

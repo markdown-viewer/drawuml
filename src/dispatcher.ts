@@ -53,6 +53,8 @@ export function dispatch(dsl) {
   let diagramType;
   if (parsed.startDirective && parsed.startDirective.toLowerCase() === '@startmindmap') {
     diagramType = DiagramType.Mindmap;
+  } else if (parsed.startDirective && parsed.startDirective.toLowerCase() === '@startgantt') {
+    diagramType = DiagramType.Gantt;
   } else if (diagramContext === 'sequence') {
     diagramType = DiagramType.Sequence;
   } else {
