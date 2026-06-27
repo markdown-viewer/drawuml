@@ -61,6 +61,7 @@ import { MxgraphIconRenderer, registerMxgraphIconRenderer } from './icons/mxgrap
 import { registerGanttBarRenderer } from './shapes/gantt-bar.ts';
 import { registerGanttMilestoneRenderer } from './shapes/gantt-milestone.ts';
 import { registerGanttSeparatorRenderer } from './shapes/gantt-separator.ts';
+import { registerPacketdiagFieldRenderer } from './shapes/packetdiag-field.ts';
 import { _setWarningsGetter } from './group.ts';
 
 // Execute all registrations
@@ -110,6 +111,7 @@ registerMxgraphIconRenderer();
 registerGanttBarRenderer();
 registerGanttMilestoneRenderer();
 registerGanttSeparatorRenderer();
+registerPacketdiagFieldRenderer();
 
 // ── Unified node factory (dispatches via registry) ───────────────────────────
 import { createRenderer, hasRenderer } from './registry.ts';

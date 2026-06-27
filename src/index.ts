@@ -17,6 +17,9 @@ import { mindmapToDrawioXml } from './generator/mindmap-gen.ts';
 import { parseGanttStatements } from './parsers/gantt.ts';
 import { ganttLayout } from './layout/gantt-layout.ts';
 import { ganttToDrawioXml } from './generator/gantt-gen.ts';
+import { parsePacketdiagStatements } from './parsers/packetdiag.ts';
+import { packetdiagLayout } from './layout/packetdiag-layout.ts';
+import { packetdiagToDrawioXml } from './generator/packetdiag-gen.ts';
 import { DiagramType } from './model/index.ts';
 import { clearRenderWarnings, getRenderWarnings } from './primitives/index.ts';
 import { createRenderer } from './primitives/registry.ts';
@@ -82,6 +85,14 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
     const model = parseGanttStatements(parsed.statements, pragmas);
     const { renderers, layout } = ganttLayout(model, { theme });
     return ganttToDrawioXml(model, layout, renderers, theme);
+  }
+
+  // Packetdiag diagrams use manual bit-grid layout (no DOT/ELK)
+  if (diagramType === DiagramType.Packetdiag) {
+    const theme = createTheme(options?.theme);
+    const model = parsePacketdiagStatements(parsed.statements, pragmas);
+    const { renderers, layout } = packetdiagLayout(model, { theme });
+    return packetdiagToDrawioXml(model, layout, renderers, theme);
   }
 
   // Determine layout engine:

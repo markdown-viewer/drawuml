@@ -7,6 +7,7 @@ export const DiagramType = {
   Sequence: 'sequence',
   Mindmap: 'mindmap',
   Gantt: 'gantt',
+  Packetdiag: 'packetdiag',
 } as const;
 
 export type DiagramTypeName = (typeof DiagramType)[keyof typeof DiagramType];
