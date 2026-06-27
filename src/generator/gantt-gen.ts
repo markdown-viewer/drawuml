@@ -45,6 +45,9 @@ export function ganttToDrawioXml(
   // Print range offset: skip days before printRange.from
   const startD = tc.printFromOff || 0;
 
+  // Canonical day-offset → pixel-x transform (matches gantt-layout's dayToX)
+  const dayToX = (d: number) => Math.round(timelineX + (d - startD) * dayW);
+
   // Grid line color: use defaultFill for consistency
   const gridLineFill = theme.defaultFill;
 
@@ -54,7 +57,7 @@ export function ganttToDrawioXml(
 
     for (let d = startD; d <= totalDays; d++) {
       const cur = new Date(gMinDate); cur.setDate(cur.getDate() + d);
-      const x = Math.round(timelineX + (d - startD) * dayW);
+      const x = dayToX(d);
 
       cells.push(mxVertex({
         id: `grid_${d}`,
@@ -69,7 +72,7 @@ export function ganttToDrawioXml(
         if (m !== lastMonth) {
           if (lastMonth >= 0 && d > monthStartDay) {
             const span = (d - monthStartDay) * dayW;
-            const midX = Math.round(timelineX + (monthStartDay + d - 1) / 2 * dayW - startD * dayW);
+            const midX = dayToX((monthStartDay + d - 1) / 2);
             cells.push(mxVertex({
               id: `mon_${monthStartDay}`, parent: '1',
               value: `${monthNames[lastMonth]} ${cur.getFullYear() - (m < lastMonth ? 1 : 0)}`,
@@ -85,7 +88,7 @@ export function ganttToDrawioXml(
 
       const showDay = hasProjectStart ? (d < totalDays) : (d > 0);
       if (showDay) {
-        const cellCenter = Math.round(timelineX + (hasProjectStart ? d + 0.5 : d - 0.5) * dayW - startD * dayW);
+        const cellCenter = dayToX(hasProjectStart ? d + 0.5 : d - 0.5);
         const labelText = hasProjectStart ? String(cur.getDate()) : String(d);
         cells.push(mxVertex({
           id: `day_${d}`, parent: '1', value: labelText,
@@ -99,7 +102,7 @@ export function ganttToDrawioXml(
     if (hasProjectStart && lastMonth >= 0 && totalDays > monthStartDay) {
       const cur = new Date(gMinDate); cur.setDate(cur.getDate() + totalDays);
       const span = (totalDays - monthStartDay + 1) * dayW;
-      const midX = Math.round(timelineX + (monthStartDay + totalDays) / 2 * dayW - startD * dayW);
+      const midX = dayToX((monthStartDay + totalDays) / 2);
       cells.push(mxVertex({
         id: `mon_${monthStartDay}`, parent: '1',
         value: `${monthNames[lastMonth]} ${cur.getFullYear()}`,
@@ -114,13 +117,20 @@ export function ganttToDrawioXml(
   }
 
   // Date range backgrounds — rendered BEFORE task bars so they appear behind
+
+  // Helper: convert a date to x coordinate via dayToX
+  function _dateToX(date: Date): number {
+    const dayOff = Math.round((date.getTime() - gMinDate.getTime()) / 86400000);
+    return dayToX(dayOff);
+  }
+
   for (const dr of model.dateRanges) {
     const fromDate = _resolveDate(dr.from);
     let toDate = _resolveDate(dr.to);
     if (!fromDate || !toDate) continue;
     toDate = new Date(toDate.getTime() + 86400000); // +1 day (exclusive)
-    const x = _dateToX(fromDate, layout);
-    const endX = _dateToX(toDate, layout);
+    const x = _dateToX(fromDate);
+    const endX = _dateToX(toDate);
     const rangeW = Math.max(1, endX - x);
 
     cells.push(mxVertex({
@@ -242,7 +252,7 @@ export function ganttToDrawioXml(
       const cur = new Date(gMinDate); cur.setDate(cur.getDate() + d);
       // Skip if already covered by a closed date range (avoids double shading)
       if (closedDays.includes(cur.getDay()) && !isInClosedDate(d)) {
-        const wx = Math.round(timelineX + (d - startD) * dayW);
+        const wx = dayToX(d);
         cells.push(mxVertex({
           id: `closed_${d}`, parent: '1', value: '',
           style: `shape=rect;fillColor=${closedDayFill};strokeColor=none;opacity=55;html=1;`,
@@ -258,7 +268,7 @@ export function ganttToDrawioXml(
     const cdFrom = Math.max(startD, iv.from);
     const cdTo = Math.min(totalDays, iv.to);
     if (cdTo <= cdFrom) continue;
-    const wx = Math.round(timelineX + (cdFrom - startD) * dayW);
+    const wx = dayToX(cdFrom);
     const rangeW = Math.round((cdTo - cdFrom) * dayW);
     cells.push(mxVertex({
       id: `closed_range_${cdFrom}`,
@@ -270,8 +280,8 @@ export function ganttToDrawioXml(
   }
 
   // Title
-  const titleH = Math.round(theme.fontSize * 2);  // 24 @12
-  const titleGap = Math.round(theme.fontSize * 28 / 12); // 28 @12
+  const titleH = Math.round(theme.titleBarH);  // 20 @12
+  const titleGap = Math.round(theme.padXL); // 30 @12
   let topOffset = 0;
   if (model.title) {
     cells.push(mxVertex({
@@ -317,8 +327,8 @@ export function ganttToDrawioXml(
   }
 
   // Legend table — line height and padding derived from fontSize
-  const legendLineH = Math.round(theme.fontSize * 20 / 12); // 20 @12
-  const legendPadH = Math.round(theme.fontSize * 30 / 12);  // 30 @12
+  const legendLineH = Math.round(theme.rowH); // 20 @12
+  const legendPadH = Math.round(theme.padXL);  // 30 @12
   if (model.legend && model.legend.lines?.length) {
     const legendH = model.legend.lines.length * legendLineH + legendPadH;
     const legendY = layout.height + theme.padS;
@@ -330,9 +340,9 @@ export function ganttToDrawioXml(
   }
 
   // Notes — line height and padding derived from fontSize
-  const noteLineH = Math.round(theme.fontSize * 18 / 12); // 18 @12
-  const notePadH = Math.round(theme.fontSize * 16 / 12);  // 16 @12
-  const legendOffsetH = Math.round(theme.fontSize * 40 / 12); // 40 @12
+  const noteLineH = Math.round(theme.padL); // 20 @12
+  const notePadH = Math.round(theme.padM);  // 15 @12
+  const legendOffsetH = Math.round(theme.padXXL); // 40 @12
   let noteY = layout.height + resourceRowCount * rowH + theme.padS + (model.legend?.lines?.length ? model.legend.lines.length * legendLineH + legendOffsetH : 0);
   for (const note of model.notes) {
     const noteH = note.lines.length * noteLineH + notePadH;
@@ -388,6 +398,7 @@ function renderResourceBars(
   const rowH = tc.rowHeight;
   const dayW = tc.dayWidth;
   const startD = tc.printFromOff || 0;
+  const dayToX = (d: number) => Math.round(timelineX + (d - startD) * dayW);
   const gMinDate = new Date(tc.minDate); gMinDate.setHours(0, 0, 0, 0);
   const gMaxDate = new Date(tc.maxDate); gMaxDate.setHours(0, 0, 0, 0);
   const totalDays = Math.ceil((gMaxDate.getTime() - gMinDate.getTime()) / 86400000);
@@ -421,7 +432,7 @@ function renderResourceBars(
         `fontStyle=1`, `fontColor=${theme.fontColor}`,
         `align=left`, `verticalAlign=middle`,
       ].join(';') + ';',
-      x: Math.round(timelineX - theme.padXS),
+      x: Math.round(timelineX),
       y: Math.round(resY),
       width: nameW,
       height: Math.round(rowH / 2),
@@ -444,7 +455,7 @@ function renderResourceBars(
     const periods = getResourcePeriods(resName, model, resolved, gMinDate, totalDays, startD, periodDays, resOffDays);
     for (const p of periods) {
       if (p.load > 0) {
-        const px = Math.round(timelineX + (p.startDay - startD) * dayW);
+        const px = dayToX(p.startDay);
         const pw = Math.round((p.endDay - p.startDay) * dayW);
         cells.push(mxVertex({
           id: `res_num_${ri}_${p.startDay}`,
@@ -697,14 +708,6 @@ function _resolveDate(expr: any): Date | null {
   return null;
 }
 
-function _dateToX(date: Date, layout: GanttLayoutResult): number {
-  const tc = layout.timelineConfig;
-  const margin = 10;
-  const dayOff = Math.round((date.getTime() - tc.minDate.getTime()) / 86400000);
-  const printOff = tc.printFromOff || 0;
-  return tc.taskListWidth + margin + (dayOff - printOff) * tc.dayWidth;
-}
-
 // ═══ Scale-aware header rendering ════════════════════════════════════════════
 
 function dayOffset(date: Date, minDate: Date): number {
@@ -725,9 +728,10 @@ function renderScaleHeader(
 
   const gridLineFill = theme.defaultFill;
   const gridLineW = theme.padXXS;
+  const dayToX = (d: number) => Math.round(timelineX + (d - startD) * dayW);
 
   const drawGrid = (d: number, id: string) => {
-    const x = Math.round(timelineX + (d - startD) * dayW);
+    const x = dayToX(d);
     cells.push(mxVertex({
       id, parent: '1', value: '',
       style: `shape=rect;fillColor=${gridLineFill};strokeColor=none;html=1;`,
@@ -737,8 +741,8 @@ function renderScaleHeader(
   };
 
   const drawLabel = (dStart: number, dEnd: number, text: string, topHalf: boolean, id: string) => {
-    const xStart = Math.round(timelineX + (dStart - startD) * dayW);
-    const xEnd = Math.round(timelineX + (dEnd - startD) * dayW);
+    const xStart = dayToX(dStart);
+    const xEnd = dayToX(dEnd);
     const w = Math.max(theme.sizeS, xEnd - xStart);
     cells.push(mxVertex({
       id, parent: '1', value: text,
@@ -946,8 +950,8 @@ function renderScaleHeader(
 
       if (d < totalDays && dEnd > d) {
         // Year label spanning full header height, bold
-        const xStart = Math.round(timelineX + (d - startD) * dayW);
-        const xEnd = Math.round(timelineX + (dEnd - startD) * dayW);
+        const xStart = dayToX(d);
+        const xEnd = dayToX(dEnd);
         const w = Math.max(theme.sizeS, xEnd - xStart);
         cells.push(mxVertex({
           id: `year_${cur.getFullYear()}`, parent: '1',

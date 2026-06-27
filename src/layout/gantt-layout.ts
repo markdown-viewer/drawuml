@@ -44,11 +44,11 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   const theme = options.theme || createTheme();
   const renderers = options.renderers || new Map();
   // Layout sizes derived from fontSize so everything scales proportionally
-  const baseHeaderH = Math.round(theme.fontSize * 40 / 12); // 40 @12
-  const baseDayW = Math.round(theme.fontSize * 20 / 12);    // 20 @12
-  // bar height = fontSize + 12; rowH = barH + 2×padXXS (padXXS = per-side bar gap)
-  const barH = theme.fontSize + 12;               // 24 @12, 28 @16
-  const rowH = barH + theme.padXXS * 2;           // 28 @12, 33.33 @16
+  const baseHeaderH = Math.round(theme.sizeL); // 40 @12
+  const baseDayW = Math.round(theme.sizeS);    // 20 @12
+  // bar height from theme semantic alias; rowH = barH + 2×padXXS (padXXS = per-side bar gap)
+  const barH = Math.round(theme.titleBarH);        // 20 @12
+  const rowH = barH + theme.padXXS * 2;           // 24 @12, 29.33 @16
   const nodes: Record<string, GanttLayoutNode> = {};
   const edges: GanttLayoutEdge[] = [];
   const st = model.style || {} as any;
