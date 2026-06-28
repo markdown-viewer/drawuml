@@ -11,6 +11,7 @@ import type { Renderer } from '../primitives/renderer.ts';
 import { createRenderer } from '../primitives/registry.ts';
 import type { Theme } from '../shared/theme.ts';
 import { createTheme } from '../shared/theme.ts';
+import { TextBlock } from '../shared/text-block.ts';
 
 // ── Theme-derived geometry (kept in sync with packetdiag-gen.ts) ────────────
 
@@ -57,19 +58,34 @@ export function packetdiagLayout(
   }
 
   // 2. Compute pixel coordinates for each field
+  // same_height: all fields get the max height in their row
+  const sameHeight = model.config.sameHeight === true;
+
   const layoutFields: PacketdiagLayoutField[] = [];
+  let actualMaxBits = 0; // actual data extent (PlantUML: only render used bits)
   for (let ri = 0; ri < rows.length; ri++) {
     let rowBitCursor = 0;
+    // Compute max height in this row for same_height
+    let maxH = 0;
+    if (sameHeight) {
+      for (const field of rows[ri]) {
+        const h = nodeHeight * (field.height ?? 1);
+        if (h > maxH) maxH = h;
+      }
+    }
     for (const field of rows[ri]) {
       const len = field.length ?? ((field.bitEnd ?? 0) - (field.bitStart ?? 0) + 1);
       // rtl: rows already reversed, so use simple left-to-right pixel placement
       const x = rowBitCursor * pixPerBit;
       const y = ri * nodeHeight + scaleH;
-      const h = nodeHeight * (field.height ?? 1);
+      const h = sameHeight ? maxH : nodeHeight * (field.height ?? 1);
+      const rawLabel = field.description || field.label;
+      const displayLabel = TextBlock.inline(rawLabel, { size: theme.fontSize, family: theme.fontFamily }).html;
 
       layoutFields.push({
         id: field.id,
         label: field.label,
+        displayLabel,
         row: ri,
         bitOffset: rowBitCursor,
         bitStart: field.bitStart,
@@ -84,11 +100,13 @@ export function packetdiagLayout(
         color: field.color,
         textColor: field.textColor,
         border: field.border,
+        lineColor: field.lineColor,
         isReserved: field.isReserved,
       });
 
       rowBitCursor += len;
     }
+    if (rowBitCursor > actualMaxBits) actualMaxBits = rowBitCursor;
   }
 
   // 3. Create renderers
@@ -96,10 +114,14 @@ export function packetdiagLayout(
   for (const lf of layoutFields) {
     const renderer = createRenderer('packetdiag-field', {
       id: lf.id,
-      label: lf.label,
+      label: lf.displayLabel || lf.label,
       color: lf.color,
+      textColor: lf.textColor,
+      lineColor: lf.lineColor,
+      rotate: lf.rotate,
+      isReserved: lf.isReserved,
+      border: lf.border,
       theme,
-      // extra props passed through via cast (same pattern as gantt-bar)
     } as any);
     renderers.set(lf.id, renderer);
   }
@@ -109,7 +131,7 @@ export function packetdiagLayout(
     layout: {
       fields: layoutFields,
       rowCount: rows.length,
-      totalWidth: maxBitsPerRow * pixPerBit,
+      totalWidth: actualMaxBits * pixPerBit,
       totalHeight: rows.length * nodeHeight + scaleH,
       colwidth: pixPerBit,
       nodeHeight,

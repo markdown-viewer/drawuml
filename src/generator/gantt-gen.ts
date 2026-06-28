@@ -27,11 +27,12 @@ export function ganttToDrawioXml(
   const timelineX = theme.padS;         // margin from layout (10px)
   const headerH = tc.headerHeight;
   const rowH = tc.rowHeight;
+  const y0 = tc.titleOffset || 0;       // vertical offset for title/header space
   // Compute resource rows (for footbox height calculation)
   const resourceNames = collectResourceNames(model);
   const resourceRowCount = model.config.hideResourcesFootbox ? 0 : resourceNames.length;
   const rowAreaH = (layout.rowCount + resourceRowCount) * rowH;
-  const gridBottom = headerH + rowAreaH;
+  const gridBottom = y0 + headerH + rowAreaH;
 
   const dayW = tc.dayWidth;
   const gMinDate = new Date(tc.minDate); gMinDate.setHours(0, 0, 0, 0);
@@ -63,8 +64,8 @@ export function ganttToDrawioXml(
         id: `grid_${d}`,
         parent: '1', value: '',
         style: `shape=rect;fillColor=${gridLineFill};strokeColor=none;html=1;`,
-        x: x - 1, y: Math.round(headerH / 2),
-        width: gridLineW, height: gridBottom - Math.round(headerH / 2),
+        x: x - 1, y: y0 + Math.round(headerH / 2),
+        width: gridLineW, height: gridBottom - y0 - Math.round(headerH / 2),
       }));
 
       if (hasProjectStart) {
@@ -77,7 +78,7 @@ export function ganttToDrawioXml(
               id: `mon_${monthStartDay}`, parent: '1',
               value: `${monthNames[lastMonth]} ${cur.getFullYear() - (m < lastMonth ? 1 : 0)}`,
               style: `shape=rect;fillColor=none;strokeColor=none;html=1;fontSize=${theme.fontSize - 2};fontFamily=${theme.fontFamily};fontColor=${theme.fontColor};fontStyle=1;align=center;verticalAlign=middle;`,
-              x: midX - Math.round(span / 2), y: 0,
+              x: midX - Math.round(span / 2), y: y0,
               width: Math.round(span), height: headerH / 2,
             }));
           }
@@ -93,7 +94,7 @@ export function ganttToDrawioXml(
         cells.push(mxVertex({
           id: `day_${d}`, parent: '1', value: labelText,
           style: `shape=rect;fillColor=none;strokeColor=none;html=1;fontSize=${theme.fontSize - 2};fontFamily=${theme.fontFamily};fontColor=${theme.fontColor};align=center;verticalAlign=middle;`,
-          x: Math.round(cellCenter - theme.sizeS / 2), y: headerH / 2,
+          x: Math.round(cellCenter - theme.sizeS / 2), y: y0 + headerH / 2,
           width: theme.sizeS, height: headerH / 2,
         }));
       }
@@ -107,13 +108,13 @@ export function ganttToDrawioXml(
         id: `mon_${monthStartDay}`, parent: '1',
         value: `${monthNames[lastMonth]} ${cur.getFullYear()}`,
         style: `shape=rect;fillColor=none;strokeColor=none;html=1;fontSize=${theme.fontSize - 2};fontFamily=${theme.fontFamily};fontColor=${theme.fontColor};fontStyle=1;align=center;verticalAlign=middle;`,
-        x: midX - Math.round(span / 2), y: 0,
+        x: midX - Math.round(span / 2), y: y0,
         width: Math.round(span), height: headerH / 2,
       }));
     }
   } else {
     // ── Non-daily header: weekly / monthly / quarterly ──
-    renderScaleHeader(cells, gMinDate, gMaxDate, dayW, timelineX, headerH, gridBottom, effectiveScale, hasProjectStart, theme, monthNames, startD, model.config.printScale?.weekNumberingFrom, model.config.printScale?.calendarDate, model.config.weekStartsOn, model.config.weekMinDays);
+    renderScaleHeader(cells, gMinDate, gMaxDate, dayW, timelineX, headerH, gridBottom, effectiveScale, hasProjectStart, theme, monthNames, startD, y0, model.config.printScale?.weekNumberingFrom, model.config.printScale?.calendarDate, model.config.weekStartsOn, model.config.weekMinDays);
   }
 
   // Date range backgrounds — rendered BEFORE task bars so they appear behind
@@ -142,7 +143,7 @@ export function ganttToDrawioXml(
         `strokeColor=none`, `opacity=50`, `html=1`,
       ].join(';') + ';',
       x: Math.round(x),
-      y: tc.headerHeight,
+      y: y0 + tc.headerHeight,
       width: Math.round(rangeW),
       height: (layout.rowCount + resourceRowCount) * tc.rowHeight,
     }));
@@ -173,8 +174,8 @@ export function ganttToDrawioXml(
   }
 
   // Render task bars via renderers (labels are embedded inside bars)
+  // Deleted tasks are rendered with unstarted/pale style (PlantUML behavior)
   for (const task of model.tasks) {
-    if (task.deleted) continue;
     const renderer = renderers.get(task.id);
     const node = layout.nodes[task.id];
     if (renderer && node) {
@@ -256,7 +257,7 @@ export function ganttToDrawioXml(
         cells.push(mxVertex({
           id: `closed_${d}`, parent: '1', value: '',
           style: `shape=rect;fillColor=${closedDayFill};strokeColor=none;opacity=55;html=1;`,
-          x: wx, y: tc.headerHeight,
+          x: wx, y: y0 + tc.headerHeight,
           width: dayW, height: (layout.rowCount + resourceRowCount) * tc.rowHeight,
         }));
       }
@@ -274,40 +275,38 @@ export function ganttToDrawioXml(
       id: `closed_range_${cdFrom}`,
       parent: '1', value: '',
       style: `shape=rect;fillColor=${closedDayFill};strokeColor=none;opacity=55;html=1;`,
-      x: wx, y: tc.headerHeight,
+      x: wx, y: y0 + tc.headerHeight,
       width: rangeW, height: (layout.rowCount + resourceRowCount) * tc.rowHeight,
     }));
   }
 
-  // Title
-  const titleH = Math.round(theme.titleBarH);  // 20 @12
-  const titleGap = Math.round(theme.padXL); // 30 @12
-  let topOffset = 0;
+  // Title — consistent with shared TitleRenderer: text shape, titleFontSize, nodeGap below
+  const titleTextH = Math.round(theme.titleFontSize);
   if (model.title) {
     cells.push(mxVertex({
       id: 'gantt_title',
       parent: '1',
       value: escapeXml(model.title),
       style: [
-        `shape=rect`, `fillColor=none`, `strokeColor=none`,
-        `html=1`, `fontSize=${theme.fontSize + 4}`,
+        `text`, `html=1`,
+        `fontSize=${theme.titleFontSize}`,
         `fontFamily=${theme.fontFamily}`, `fontStyle=1`,
+        `fontColor=${theme.fontColor}`,
         `align=center`, `verticalAlign=middle`,
       ].join(';') + ';',
-      x: 0, y: topOffset, width: layout.width, height: titleH,
+      x: 0, y: 0, width: layout.width, height: titleTextH,
     }));
-    topOffset += titleGap;
   }
 
   // Header / Footer / Caption — use theme.sizeS (20) for row height
   const subHeaderH = theme.sizeS;
   if (model.header) {
+    const headerY = model.title ? titleTextH + theme.nodeGap : 0;
     cells.push(mxVertex({
       id: 'gantt_header', parent: '1', value: escapeXml(model.header),
       style: `shape=rect;fillColor=none;strokeColor=none;html=1;fontSize=${theme.fontSize - 2};fontFamily=${theme.fontFamily};align=center;`,
-      x: 0, y: topOffset, width: layout.width, height: subHeaderH,
+      x: 0, y: headerY, width: layout.width, height: subHeaderH,
     }));
-    topOffset += theme.padL;
   }
 
   if (model.caption) {
@@ -397,6 +396,7 @@ function renderResourceBars(
   const headerH = tc.headerHeight;
   const rowH = tc.rowHeight;
   const dayW = tc.dayWidth;
+  const y0 = tc.titleOffset || 0;
   const startD = tc.printFromOff || 0;
   const dayToX = (d: number) => Math.round(timelineX + (d - startD) * dayW);
   const gMinDate = new Date(tc.minDate); gMinDate.setHours(0, 0, 0, 0);
@@ -413,7 +413,7 @@ function renderResourceBars(
   const font = { size: theme.fontSize - 2, family: theme.fontFamily };
   const nameFont = { size: theme.fontSize, family: theme.fontFamily, weight: 'bold' as const };
 
-  const rowStartY = headerH + layout.rowCount * rowH;
+  const rowStartY = y0 + headerH + layout.rowCount * rowH;
   const nameW = theme.sizeXL; // left margin for resource names (60px)
 
   for (let ri = 0; ri < resourceNames.length; ri++) {
@@ -719,6 +719,7 @@ function renderScaleHeader(
   dayW: number, timelineX: number, headerH: number, gridBottom: number,
   scale: string, hasProjectStart: boolean, theme: Theme, monthNames: string[],
   startD: number,
+  y0: number,
   weekNumberingFrom?: number,
   calendarDate?: boolean,
   weekStartsOn?: number,
@@ -735,8 +736,8 @@ function renderScaleHeader(
     cells.push(mxVertex({
       id, parent: '1', value: '',
       style: `shape=rect;fillColor=${gridLineFill};strokeColor=none;html=1;`,
-      x: x - 1, y: Math.round(headerH / 2),
-      width: gridLineW, height: gridBottom - Math.round(headerH / 2),
+      x: x - 1, y: y0 + Math.round(headerH / 2),
+      width: gridLineW, height: gridBottom - y0 - Math.round(headerH / 2),
     }));
   };
 
@@ -747,7 +748,7 @@ function renderScaleHeader(
     cells.push(mxVertex({
       id, parent: '1', value: text,
       style: labelStyle + (topHalf ? ';fontStyle=1' : ''),
-      x: xStart, y: topHalf ? 0 : headerH / 2,
+      x: xStart, y: y0 + (topHalf ? 0 : headerH / 2),
       width: w, height: headerH / 2,
     }));
   };

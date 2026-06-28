@@ -16,6 +16,7 @@ class PacketdiagFieldRenderer extends Renderer {
   private _label: string;
   private _fillColor: string;
   private _textColor: string;
+  private _lineColor: string;
   private _rotate: number;
   private _isReserved: boolean;
 
@@ -25,6 +26,7 @@ class PacketdiagFieldRenderer extends Renderer {
       label: string;
       color?: string;
       textColor?: string;
+      lineColor?: string;
       rotate?: number;
       isReserved?: boolean;
       border?: string;
@@ -35,6 +37,7 @@ class PacketdiagFieldRenderer extends Renderer {
     this._label = opts.label || '';
     this._fillColor = opts.color || this.theme.defaultFill;
     this._textColor = opts.textColor || this.theme.fontColor;
+    this._lineColor = opts.lineColor || this.theme.colorDark;
     this._rotate = opts.rotate ?? 0;
     this._isReserved = opts.isReserved ?? false;
   }
@@ -55,7 +58,7 @@ class PacketdiagFieldRenderer extends Renderer {
     cells.push(mxVertex({
       id: this.id,
       value: '',
-      style: `rounded=0;whiteSpace=wrap;html=1;fillColor=${this._fillColor};strokeColor=${t.colorDark};strokeWidth=${t.strokeWidth};${strokeExtra}`,
+      style: `rounded=0;whiteSpace=wrap;html=1;fillColor=${this._fillColor};strokeColor=${this._lineColor};strokeWidth=${t.strokeWidth};${strokeExtra}`,
       parent: this.parentId || '1',
       x: box.x,
       y: box.y,
@@ -88,6 +91,7 @@ export function registerPacketdiagFieldRenderer(): void {
     label?: string;
     color?: string;
     textColor?: string;
+    lineColor?: string;
     rotate?: number;
     isReserved?: boolean;
     border?: string;
@@ -96,6 +100,7 @@ export function registerPacketdiagFieldRenderer(): void {
       label: desc.label || '',
       color: desc.color,
       textColor: desc.textColor,
+      lineColor: desc.lineColor,
       rotate: desc.rotate,
       isReserved: desc.isReserved,
       border: desc.border,

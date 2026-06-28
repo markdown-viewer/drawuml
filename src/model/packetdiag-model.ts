@@ -21,6 +21,8 @@ export interface PacketdiagField {
   color?: string;          // "#FFD700"
   textColor?: string;      // "white"
   border?: string;         // "dashed"
+  lineColor?: string;      // "red" — border/stroke color override
+  description?: string;    // display text override (PlantUML: description=)
   /** Derived: true when label was wrapped in parentheses like `(Options)` */
   isReserved?: boolean;
 }
@@ -32,6 +34,7 @@ export interface PacketdiagConfig {
   nodeHeight?: number;         // default 48
   scaleDirection?: 'ltr' | 'rtl';  // default 'ltr'
   scaleInterval?: number;      // default 4
+  sameHeight?: boolean;        // all fields same height as tallest
 }
 
 // ── Top-level model ──────────────────────────────────────────────────────────
@@ -51,6 +54,7 @@ export interface PacketdiagLayoutField extends PacketdiagField {
   y: number;
   w: number;
   h: number;
+  displayLabel?: string;   // resolved label: description > label attr > original label
 }
 
 export interface PacketdiagLayoutResult {

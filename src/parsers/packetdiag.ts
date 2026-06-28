@@ -119,6 +119,9 @@ function t_config(ctx: ParseContext, st: any): void {
         cfg.scaleDirection = value;
       }
       break;
+    case 'same_height':
+      cfg.sameHeight = value === 'true';
+      break;
   }
 }
 
@@ -128,6 +131,13 @@ function t_config(ctx: ParseContext, st: any): void {
 function isReservedLabel(raw: string): boolean {
   const trimmed = raw.trim();
   return trimmed.startsWith('(') && trimmed.endsWith(')');
+}
+
+/** Strip matching double-quotes from an attribute value captured by PEG. */
+function stripQuotes(v: string): string {
+  const s = v.trim();
+  if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) return s.slice(1, -1);
+  return s;
 }
 
 /** Apply parsed [key=value] attributes onto a field */
@@ -142,7 +152,10 @@ function applyAttr(field: PacketdiagField, attr: Record<string, string>): void {
     const v = parseInt(String(attr.height || attr.colheight), 10);
     if (!isNaN(v)) field.height = v;
   }
-  if (attr.color) field.color = String(attr.color);
-  if (attr.textcolor) field.textColor = String(attr.textcolor);
-  if (attr.border) field.border = String(attr.border);
+  if (attr.color) field.color = stripQuotes(String(attr.color));
+  if (attr.textcolor) field.textColor = stripQuotes(String(attr.textcolor));
+  if (attr.linecolor) field.lineColor = stripQuotes(String(attr.linecolor));
+  if (attr.border) field.border = stripQuotes(String(attr.border));
+  if (attr.description) field.description = stripQuotes(String(attr.description));
+  if (attr.label) field.description = stripQuotes(String(attr.label)); // "label" attr is alias for description
 }

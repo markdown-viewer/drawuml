@@ -39,6 +39,18 @@ interface ParseContext { model: GanttModel; lastTaskId: string | null; taskIndex
 
 // ── Task rest parsing ────────────────────────────────────────────────────────
 
+/** Month name set for disambiguation (Format C: MONTH DD YYYY vs other patterns). */
+const MONTH_NAMES = new Set([
+  'january','february','march','april','may','june','july',
+  'august','september','october','november','december',
+  'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec',
+]);
+
+function looksLikeMonthFirst(s: string): boolean {
+  const firstWord = s.trim().split(/\s+/, 1)[0].toLowerCase().replace(/[^a-z]/g, '');
+  return MONTH_NAMES.has(firstWord);
+}
+
 /** Parse "on {Alice} {Bob:50%}" → resource ref list. Each {Name} or {Name:load%}. */
 function parseResourceList(matched: string): GanttResourceRef[] {
   const resources: GanttResourceRef[] = [];
@@ -69,8 +81,16 @@ function parseTaskRest(rest: string, daysInWeek = 7): Partial<GanttTask> {
   if (/\bis\s+deleted\b/.test(s)) r.deleted = true;
   const clm = s.match(/is\s+colored\s+in\s+(\S+?)(?:\s*\/\s*(\S+))?(?:\s|$)/); if (clm) r.color = { bg: clm[1], fg: clm[2] || clm[1] };
   const rm = s.match(/on\s+(\{[^}]+\}(?:\s*\{[^}]+\})*)/); if (rm) r.resources = parseResourceList(rm[1]);
-  const absS = s.match(/starts?\s+(?:at\s+)?(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (absS) r.start = { type: 'absolute', date: absS[1] };
-  const absE = s.match(/ends?\s+(?:at\s+)?(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (absE) r.end = { type: 'absolute', date: absE[1] };
+  const absS = s.match(/starts?\s+(?:at\s+|on\s+)?(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (absS) r.start = { type: 'absolute', date: absS[1] };
+  const absE = s.match(/(?:and\s+)?ends?\s+(?:at\s+|on\s+)?(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (absE) r.end = { type: 'absolute', date: absE[1] };
+  // Human-readable dates: "starts the 1st of january 2026" / "ends the 30th of june 2026"
+  // PlantUML ref: DayPattern + ComplementDate.any() — format A: DD MONTH YYYY
+  const absSh = s.match(/starts?\s+(?:at\s+|on\s+)?((?:the\s+)?\d+(?:st|nd|rd|th)?\s+of\s+\w+\s+\d{4})/i); if (absSh) r.start = { type: 'absolute', date: absSh[1] };
+  const absEh = s.match(/(?:and\s+)?ends?\s+(?:at\s+|on\s+)?((?:the\s+)?\d+(?:st|nd|rd|th)?\s+of\s+\w+\s+\d{4})/i); if (absEh) r.end = { type: 'absolute', date: absEh[1] };
+  // Format C: MONTH DD YYYY — e.g., "starts January 15 2024" / "ends Feb 1 2025"
+  // PlantUML ref: TimeResolution.toUbrexC_MONTH_DD_YYYY
+  const absSc = s.match(/starts?\s+(?:at\s+|on\s+)?((?:the\s+)?\w+\s+\d+(?:st|nd|rd|th)?,?\s+\d{4})/i); if (absSc && looksLikeMonthFirst(absSc[1])) r.start = { type: 'absolute', date: absSc[1] };
+  const absEc = s.match(/(?:and\s+)?ends?\s+(?:at\s+|on\s+)?((?:the\s+)?\w+\s+\d+(?:st|nd|rd|th)?,?\s+\d{4})/i); if (absEc && looksLikeMonthFirst(absEc[1])) r.end = { type: 'absolute', date: absEc[1] };
   const offS = s.match(/starts?\s+D\+(\d+)/); if (offS) r.start = { type: 'offset_from_start', days: parseInt(offS[1]) };
   const offE = s.match(/ends?\s+D\+(\d+)/); if (offE) r.end = { type: 'offset_from_start', days: parseInt(offE[1]) };
   const relS = s.match(/starts?\s+at\s+\[([^\]]+)\]\'s\s+(start|end)/); if (relS) r.start = { type: 'relative_to_task', taskId: relS[1], anchor: relS[2] as any };
@@ -94,8 +114,14 @@ function parseMilestoneRest(rest: string, daysInWeek = 7): { at?: GanttDateExpr 
   m = rest.match(/^on\s+(\d+)\s+(day|week)s?\s+after\s+\[([^\]]+)\]\'s\s+(start|end)/); if (m) return { at: { type: 'relative_to_task', taskId: m[3], anchor: m[4] as any, offsetDays: parseInt(m[1]) * (m[2] === 'week' ? daysInWeek : 1) } };
   m = rest.match(/^(\d+)\s+days?\s+after\s+start/); if (m) return { at: { type: 'offset_from_start', days: parseInt(m[1]) } };
   m = rest.match(/^(\d+)\s+days?\s+after\s+\[([^\]]+)\]\'s\s+(start|end)/); if (m) return { at: { type: 'relative_to_task', taskId: m[2], anchor: m[3] as any, offsetDays: parseInt(m[1]) } };
-  m = rest.match(/^(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (m) return { at: { type: 'absolute', date: m[1] } };
+  // ISO dates: happens 2020-07-03 / happens at 2020-07-03 / happens on 2020-07-03
+  m = rest.match(/^(?:at\s+|on\s+)?(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (m) return { at: { type: 'absolute', date: m[1] } };
   m = rest.match(/^at\s+(\d{4}[-\/]\d{2}[-\/]\d{2})/); if (m) return { at: { type: 'absolute', date: m[1] } };
+  // Human-readable dates: happens at the 29th of September 2018
+  // PlantUML ref: gantt4/gantt5 — "happens at the 29th of September 2018"
+  m = rest.match(/^(?:at\s+|on\s+)?((?:the\s+)?\d+(?:st|nd|rd|th)?\s+of\s+\w+\s+\d{4})/i); if (m) return { at: { type: 'absolute', date: m[1] } };
+  // Format C: MONTH DD YYYY — e.g., "happens January 15 2024"
+  m = rest.match(/^(?:at\s+|on\s+)?((?:the\s+)?\w+\s+\d+(?:st|nd|rd|th)?,?\s+\d{4})/i); if (m && looksLikeMonthFirst(m[1])) return { at: { type: 'absolute', date: m[1] } };
   return {};
 }
 
@@ -262,7 +288,7 @@ function t_styleText(ctx: ParseContext, st: any): void {
 
 function t_cfg(ctx: ParseContext, st: any): void {
   const raw = (st.raw || '').trim();
-  if (/^Project\s+starts\s+(.+)/i.test(raw)) ctx.model.projectStart = { type: 'absolute', date: RegExp.$1!.trim() };
+  if (/^Project\s+starts\s+(?:on\s+)?(.+)/i.test(raw)) ctx.model.projectStart = { type: 'absolute', date: RegExp.$1!.trim() };
   else if (/^Print\s+between\s+(.+)\s+and\s+(.+)/i.test(raw)) ctx.model.config.printRange = { from: { type: 'absolute', date: RegExp.$1!.trim() }, to: { type: 'absolute', date: RegExp.$2!.trim() } };
   else if (/^projectscale\s+(\w+)/.test(raw)) {
     ctx.model.config.scale = RegExp.$1!.trim() as any;

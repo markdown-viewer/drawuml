@@ -12,7 +12,7 @@ import { createTheme } from '../shared/theme.ts';
 export interface GanttLayoutNode { id: string; x: number; y: number; width: number; height: number; }
 export interface GanttLayoutEdge { fromId: string; toId: string; waypoints?: { x: number; y: number }[]; }
 export interface GanttLayoutResult { nodes: Record<string, GanttLayoutNode>; edges: GanttLayoutEdge[]; width: number; height: number; timelineConfig: GanttTimelineConfig; rowCount: number; }
-export interface GanttTimelineConfig { minDate: Date; maxDate: Date; dayWidth: number; scale: string; headerHeight: number; taskListWidth: number; rowHeight: number; printFromOff?: number; }
+export interface GanttTimelineConfig { minDate: Date; maxDate: Date; dayWidth: number; scale: string; headerHeight: number; taskListWidth: number; rowHeight: number; printFromOff?: number; titleOffset: number; }
 export interface GanttLayoutOptions { theme?: Theme; renderers?: Map<string, Renderer>; }
 
 /** Build display label with resource info: "Task1 {Alice}" or "Task2 {Bob:50%}".
@@ -64,6 +64,22 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   const { effectiveScale, scaleCompress } = getEffectiveScale(model, theme);
   const dayW = baseDayW / scaleCompress;
   const headerH = effectiveScale === 'yearly' ? Math.round(baseHeaderH / 2) : baseHeaderH;
+  // Title/header offset: reserve space above timeline for diagram title and header.
+  // Consistent with shared TitleRenderer: textHeight ≈ titleFontSize, gap = nodeGap.
+  const titleTextH = Math.round(theme.titleFontSize);
+  const titleGap = theme.nodeGap;              // padL, matches TitleRenderer bottom gap
+  const subHeaderH = theme.sizeS;               // 20 @12
+  let titleOffset = 0;
+  if (model.title || model.header) {
+    if (model.header) {
+      // header is at y=titleTextH+titleGap (if title present) or y=0; add its height + gap
+      const headerTop = model.title ? titleTextH + titleGap : 0;
+      titleOffset = headerTop + subHeaderH + theme.padS;
+    } else {
+      // title only: title text at y=0, h≈titleFontSize, gap=nodeGap below
+      titleOffset = titleTextH + titleGap;
+    }
+  }
   // Print range clipping: shift timeline to start at printRange.from
   const printFromOff = model.config.printRange?.from
     ? dateOff(parseDate(model.config.printRange.from.date), resolved.minDay) : 0;
@@ -101,8 +117,9 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
           barW = Math.max(minBarW, visibleEnd - barX);
         }
       }
-      const hasCompletion = t.completion !== undefined;
+      const hasCompletion = t.deleted ? true : t.completion !== undefined;
       const isUnstarted = t.completion === 0;
+      const isDeleted = !!t.deleted;
       // PlantUML: HColors.unlinear(unstarted, regular, completion) — cubic HSL blend
       // Default: unstarted = regular = taskFill, so blend is constant (no visible blending)
       // Only when explicit unstarted style is set does the blend produce intermediate colors
@@ -121,18 +138,20 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
       // In dark mode, use dark fill instead of white so the completed portion pops
       const undoneColor = st.undone?.backgroundColor
         || (hasCompletion ? theme.groupFill : taskColor);
+      // Deleted tasks: rendered with completion=0 (white bg + border, matching PlantUML)
       const displayLabel = buildTaskDisplayLabel(t, model.config.hideResourcesNames);
-      const r = createRenderer('gantt-bar', { id: t.id, label: displayLabel, color: taskColor, theme, completion: isUnstarted ? 0 : t.completion, strokeColor: t.color?.fg || borderColor, undoneColor } as any);
+      const effCompletion = isDeleted ? 0 : (isUnstarted ? 0 : t.completion);
+      const r = createRenderer('gantt-bar', { id: t.id, label: displayLabel, color: taskColor, theme, completion: effCompletion, strokeColor: t.color?.fg || borderColor, undoneColor } as any);
       renderers.set(t.id, r);
       const m = r.measure();
-      const barY = headerH + (t.row || 0) * rowH + Math.floor((rowH - m.height) / 2);
+      const barY = titleOffset + headerH + (t.row || 0) * rowH + Math.floor((rowH - m.height) / 2);
       nodes[t.id] = { id: t.id, x: Math.round(barX), y: Math.round(barY), width: Math.round(barW), height: m.height };
     } else if (el.type === 'sep') {
       const id = `sep_${row}`;
       const r = createRenderer('gantt-separator', { id, label: el.data.label, theme } as any);
       renderers.set(id, r);
       const m = r.measure();
-      nodes[id] = { id, x: timelineX, y: Math.round(headerH + row * rowH), width: Math.round((effectiveMaxOff - printFromOff) * dayW), height: m.height };
+      nodes[id] = { id, x: timelineX, y: Math.round(titleOffset + headerH + row * rowH), width: Math.round((effectiveMaxOff - printFromOff) * dayW), height: m.height };
       row++;
     } else if (el.type === 'ms') {
       const ms = el.data;
@@ -158,7 +177,7 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
         renderers.set(ms.id, r);
         const m = r.measure();
         const msX = anchorX(dayToX(d + 0.5), m.width / 2);
-        nodes[ms.id] = { id: ms.id, x: Math.round(msX), y: Math.round(headerH + msRow * rowH + (rowH - m.height) / 2), width: m.width, height: m.height };
+        nodes[ms.id] = { id: ms.id, x: Math.round(msX), y: Math.round(titleOffset + headerH + msRow * rowH + (rowH - m.height) / 2), width: m.width, height: m.height };
         _msByLabel[label] = { ms, d, row: msRow };
         if (!existing) row++;
       }
@@ -187,9 +206,9 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   }
 
   const totalW = timelineX + (effectiveMaxOff - printFromOff) * dayW + margin;
-  const totalH = headerH + row * rowH + margin;
+  const totalH = titleOffset + headerH + row * rowH + margin;
   const maxDate = new Date(resolved.minDay); maxDate.setDate(maxDate.getDate() + effectiveMaxOff);
-  return { renderers, layout: { nodes, edges, width: totalW, height: totalH, timelineConfig: { minDate: resolved.minDay, maxDate, dayWidth: dayW, scale: effectiveScale, headerHeight: headerH, taskListWidth: 0, rowHeight: rowH, printFromOff: printFromOff || undefined }, rowCount: row } };
+  return { renderers, layout: { nodes, edges, width: totalW, height: totalH, timelineConfig: { minDate: resolved.minDay, maxDate, dayWidth: dayW, scale: effectiveScale, headerHeight: headerH, taskListWidth: 0, rowHeight: rowH, printFromOff: printFromOff || undefined, titleOffset }, rowCount: row } };
 }
 
 // ═══ Date Resolution ══════════════════════════════════════════════════════════
@@ -280,7 +299,7 @@ function resolveModel(model: GanttModel): ResolvedModel {
   for (let pass = 0; pass < 5; pass++) {
     let changed = false;
     for (const t of model.tasks) {
-      if (t.deleted) continue;
+      // Resolve even deleted tasks — "then" tasks may depend on their dates
       const s = resolveOffset(t.start, model, minDay, r, model.config.closedDays, closedDateRanges);
       let e = resolveOffset(t.end, model, minDay, r, model.config.closedDays, closedDateRanges);
       if (t.end) e! += 1;
@@ -310,7 +329,7 @@ function resolveModel(model: GanttModel): ResolvedModel {
     if (ms.at?.type === 'relative_to_task' && ms.at.anchor === 'end' && d != null && isTaskRef) d -= 1;
     r.msDays[ms.id] = d ?? 0;
   }
-  for (const td of Object.values(r.taskDays)) { if (td.end > r.maxDayOffset) r.maxDayOffset = td.end; }
+  for (const t of model.tasks) { if (t.deleted) continue; const td = r.taskDays[t.id]; if (td && td.end > r.maxDayOffset) r.maxDayOffset = td.end; }
   for (const d of Object.values(r.msDays)) { if (d >= r.maxDayOffset) r.maxDayOffset = d + 1; } // +1: milestone is a point, need interval after it
   // Date ranges may extend beyond tasks/milestones
   for (const dr of model.dateRanges) {
@@ -322,7 +341,14 @@ function resolveModel(model: GanttModel): ResolvedModel {
 
 function resolveOffset(expr: GanttDateExpr | undefined, model: GanttModel, minDay: Date, resolved: ResolvedModel, closedDays?: number[], closedDateRanges?: { from: number; to: number }[]): number | null {
   if (!expr) return null;
-  if (expr.type === 'absolute') return dateOff(parseDate(expr.date), minDay);
+  if (expr.type === 'absolute') {
+    let off = dateOff(parseDate(expr.date), minDay);
+    // Snap to next open day if start falls on a closed day (PlantUML behavior)
+    if (closedDays || (closedDateRanges && closedDateRanges.length > 0)) {
+      while (isClosedDay(off, minDay, closedDays, closedDateRanges)) off++;
+    }
+    return off;
+  }
   if (expr.type === 'offset_from_start') return expr.days;
   if (expr.type === 'today') return dateOff(new Date(), minDay);
   if (expr.type === 'relative_to_task') {
@@ -472,15 +498,32 @@ function hslToHex(h: number, s: number, l: number): string {
   return '#' + toHex(r) + toHex(g) + toHex(b);
 }
 
+/** Month name → 0-based index. Supports full names and 3-letter abbreviations. */
+function monthIndex(name: string): number | undefined {
+  const months: Record<string, number> = {
+    january:0,february:1,march:2,april:3,may:4,june:5,july:6,
+    august:7,september:8,october:9,november:10,december:11,
+    jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11,
+  };
+  return months[(name || '').toLowerCase()];
+}
+
 function parseDate(s: string): Date {
-  const c = s.replace(/^the\s+/i, '').replace(/^at\s+/i, '').trim();
-  const iso = c.match(/(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+  const c = s.replace(/^the\s+/i, '').replace(/^(?:at|on)\s+/i, '').trim();
+  // ISO format: YYYY-MM-DD, YYYY/MM/DD, YY.M.D
+  const iso = c.match(/^(\d{2,4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/);
   if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
-  const nl = c.match(/(\d+)(?:st|nd|rd|th)?\s+of\s+(\w+)\s+(\d{4})/i);
+  // Format A: DD MONTH YYYY — "1st of january 2026", "15 January 2024"
+  const nl = c.match(/^(\d+)(?:st|nd|rd|th)?\s+(?:of\s+)?(\w+)\s+(\d{2,4})$/i);
   if (nl) {
-    const m: Record<string, number> = { january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11 };
-    const mi = m[(nl[2] || '').toLowerCase()];
+    const mi = monthIndex(nl[2]);
     if (mi !== undefined) return new Date(parseInt(nl[3]), mi, parseInt(nl[1]));
+  }
+  // Format C: MONTH DD YYYY — "January 15 2024", "Feb 1 2025"
+  const mc = c.match(/^(\w+)\s+(\d+)(?:st|nd|rd|th)?,?\s+(\d{2,4})$/i);
+  if (mc) {
+    const mi = monthIndex(mc[1]);
+    if (mi !== undefined) return new Date(parseInt(mc[3]), mi, parseInt(mc[2]));
   }
   return new Date(c);
 }
@@ -489,7 +532,7 @@ function parseDate(s: string): Date {
 interface RowElement { type: string; data: any; _so: number; }
 function collectElements(model: GanttModel): RowElement[] {
   const out: RowElement[] = [];
-  for (const t of model.tasks) if (!t.deleted) out.push({ type: 'task', data: t, _so: (t as any)._so ?? 0 });
+  for (const t of model.tasks) out.push({ type: 'task', data: t, _so: (t as any)._so ?? 0 });
   for (const s of model.separators) out.push({ type: 'sep', data: s, _so: (s as any)._so ?? 999 });
   for (const m of model.milestones) out.push({ type: 'ms', data: m, _so: (m as any)._so ?? 999 });
   return out;

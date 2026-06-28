@@ -46,7 +46,7 @@ function renderScaleHeader(
   layout: PacketdiagLayoutResult,
   theme: Theme,
 ): void {
-  const { colwidth, maxBitsPerRow, scaleDirection } = layout;
+  const { colwidth, maxBitsPerRow, scaleDirection, totalWidth } = layout;
   const t = theme;
   const scaleH = t.sizeL;
   const tickShort = t.sizeXS;
@@ -55,11 +55,13 @@ function renderScaleHeader(
   const labelH = scaleH - tickLong;
   const lineW = t.strokeWidth;
   const rtl = scaleDirection === 'rtl';
-  const labelEvery = maxBitsPerRow > 16 ? 16 : 8;
+  // Actual bits rendered = totalWidth / colwidth (may be less than maxBitsPerRow when data is sparse)
+  const actualBits = Math.round(totalWidth / colwidth);
+  const labelEvery = actualBits > 16 ? 16 : 8;
   const labelW = Math.round(t.fontSize * 1.75);
   const labelXOff = Math.round(labelW / 2);
 
-  for (let bit = 0; bit <= maxBitsPerRow; bit++) {
+  for (let bit = 0; bit <= actualBits; bit++) {
     const x = bit * colwidth;
 
     let tickH: number;
@@ -87,7 +89,7 @@ function renderScaleHeader(
     // Bit number label (only at labelEvery multiples)
     if (bit % labelEvery === 0) {
       // rtl: reverse label numbers (16,8,0 instead of 0,8,16)
-      const labelBit = rtl ? maxBitsPerRow - bit : bit;
+      const labelBit = rtl ? actualBits - bit : bit;
       cells.push(mxVertex({
         id: `pkt-tick-lbl-${bit}`,
         value: String(labelBit),

@@ -14,6 +14,7 @@ import { TextBlock } from '../../shared/text-block.ts';
 
 class GanttBarRenderer extends Renderer {
   private _label: string;
+  private _labelHtml: string;    // Creole-processed HTML label
   private _completion: number;
   private _undoneColor: string;   // bar background (undone portion)
   private _taskColor: string;     // completed progress fill
@@ -27,6 +28,9 @@ class GanttBarRenderer extends Renderer {
     this._taskColor = desc.color || this.theme.defaultFill;
     this._undoneColor = (desc as any).undoneColor || this._taskColor;
     this._strokeColor = desc.strokeColor || this.theme.colorDark;
+    // Process label through Creole pipeline for HTML rendering
+    const font = { size: this.theme.fontSize, family: this.theme.fontFamily };
+    this._labelHtml = this._label ? TextBlock.inline(this._label, font).html : '';
   }
 
   doMeasure(): { width: number; height: number } {
@@ -98,7 +102,7 @@ class GanttBarRenderer extends Renderer {
       cells.push(mxVertex({
         id: `${this.id}_label`,
         parent: this.parentId || '1',
-        value: this._label,
+        value: this._labelHtml,
         style: [
           `text`, `html=1`, `fillColor=none`, `strokeColor=none`,
           `fontSize=${this.theme.fontSize}`,
