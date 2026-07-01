@@ -12,7 +12,7 @@ import { createTheme } from '../shared/theme.ts';
 export interface GanttLayoutNode { id: string; x: number; y: number; width: number; height: number; }
 export interface GanttLayoutEdge { fromId: string; toId: string; waypoints?: { x: number; y: number }[]; }
 export interface GanttLayoutResult { nodes: Record<string, GanttLayoutNode>; edges: GanttLayoutEdge[]; width: number; height: number; timelineConfig: GanttTimelineConfig; rowCount: number; }
-export interface GanttTimelineConfig { minDate: Date; maxDate: Date; dayWidth: number; scale: string; headerHeight: number; taskListWidth: number; rowHeight: number; printFromOff?: number; titleOffset: number; }
+export interface GanttTimelineConfig { minDate: Date; maxDate: Date; dayWidth: number; scale: string; printScale?: string; headerHeight: number; taskListWidth: number; rowHeight: number; printFromOff?: number; titleOffset: number; }
 export interface GanttLayoutOptions { theme?: Theme; renderers?: Map<string, Renderer>; }
 
 /** Build display label with resource info: "Task1 {Alice}" or "Task2 {Bob:50%}".
@@ -40,6 +40,21 @@ function scaleDurationByResourceLoad(task: GanttTask): number {
   return Math.round((task.duration?.value ?? 0) * 100 / effectiveLoad);
 }
 
+/** Throw if absolute dates are used without a Project starts declaration. */
+function validateProjectStart(model: GanttModel): void {
+  const hasAbsolute = model.tasks.some(t =>
+    t.start?.type === 'absolute' || t.end?.type === 'absolute'
+  ) || model.milestones.some(ms =>
+    ms.at?.type === 'absolute'
+  );
+  if (hasAbsolute && !model.projectStart) {
+    throw new Error(
+      'Gantt: absolute dates (e.g. "starts 2026-07-01") require a "Project starts" declaration.\n' +
+      'Add: Project starts YYYY-MM-DD'
+    );
+  }
+}
+
 export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {}): { renderers: Map<string, Renderer>; layout: GanttLayoutResult } {
   const theme = options.theme || createTheme();
   const renderers = options.renderers || new Map();
@@ -55,6 +70,9 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   // PlantUML ref: task bar fill — use style block, then gantt task fill, then dark-mode-aware fill
   const taskFill = st.task?.backgroundColor || theme.ganttTaskFill;
   const taskStroke = st.task?.lineColor || theme.colorDark;
+
+  // Validate: absolute dates require Project starts declaration
+  validateProjectStart(model);
 
   const resolved = resolveModel(model);
   const margin = theme.padS;
@@ -208,7 +226,9 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   const totalW = timelineX + (effectiveMaxOff - printFromOff) * dayW + margin;
   const totalH = titleOffset + headerH + row * rowH + margin;
   const maxDate = new Date(resolved.minDay); maxDate.setDate(maxDate.getDate() + effectiveMaxOff);
-  return { renderers, layout: { nodes, edges, width: totalW, height: totalH, timelineConfig: { minDate: resolved.minDay, maxDate, dayWidth: dayW, scale: effectiveScale, headerHeight: headerH, taskListWidth: 0, rowHeight: rowH, printFromOff: printFromOff || undefined, titleOffset }, rowCount: row } };
+  // Pass printScale separately so gantt-gen can add subdivision grid lines
+  const printScaleUnit = model.config.printScale?.unit?.toLowerCase();
+  return { renderers, layout: { nodes, edges, width: totalW, height: totalH, timelineConfig: { minDate: resolved.minDay, maxDate, dayWidth: dayW, scale: effectiveScale, printScale: printScaleUnit, headerHeight: headerH, taskListWidth: 0, rowHeight: rowH, printFromOff: printFromOff || undefined, titleOffset }, rowCount: row } };
 }
 
 // ═══ Date Resolution ══════════════════════════════════════════════════════════
@@ -220,15 +240,18 @@ interface ResolvedModel { minDay: Date; maxDayOffset: number; taskDays: Record<s
 const SCALE_DAYS: Record<string, number> = { daily: 1, weekly: 7, monthly: 30, quarterly: 90, yearly: 365 };
 
 function getEffectiveScale(model: GanttModel, theme: Theme): { effectiveScale: string; scaleCompress: number } {
+  // projectscale (config.scale) takes priority over printscale for grid/header scale.
+  // printscale only adds finer-grained bottom labels when it differs from projectscale.
+  const projectScale = model.config.scale;
   const printUnit = model.config.printScale?.unit?.toLowerCase();
   let scale = 'daily';
-  if (printUnit) {
+  if (projectScale) {
+    scale = projectScale;
+  } else if (printUnit) {
     if (printUnit.startsWith('w')) scale = 'weekly';
     else if (printUnit.startsWith('m')) scale = 'monthly';
     else if (printUnit.startsWith('q')) scale = 'quarterly';
     else if (printUnit.startsWith('y')) scale = 'yearly';
-  } else if (model.config.scale) {
-    scale = model.config.scale;
   }
   // Target cell width per period, mapped to theme size tiers
   const targetSizes: Record<string, number> = {

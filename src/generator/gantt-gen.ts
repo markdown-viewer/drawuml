@@ -114,7 +114,7 @@ export function ganttToDrawioXml(
     }
   } else {
     // ── Non-daily header: weekly / monthly / quarterly ──
-    renderScaleHeader(cells, gMinDate, gMaxDate, dayW, timelineX, headerH, gridBottom, effectiveScale, hasProjectStart, theme, monthNames, startD, y0, model.config.printScale?.weekNumberingFrom, model.config.printScale?.calendarDate, model.config.weekStartsOn, model.config.weekMinDays);
+    renderScaleHeader(cells, gMinDate, gMaxDate, dayW, timelineX, headerH, gridBottom, effectiveScale, hasProjectStart, theme, monthNames, startD, y0, model.config.printScale?.weekNumberingFrom, model.config.printScale?.calendarDate, model.config.weekStartsOn, model.config.weekMinDays, tc.printScale);
   }
 
   // Date range backgrounds — rendered BEFORE task bars so they appear behind
@@ -724,6 +724,7 @@ function renderScaleHeader(
   calendarDate?: boolean,
   weekStartsOn?: number,
   weekMinDays?: number,
+  printScale?: string,
 ): void {
   const labelStyle = `shape=rect;fillColor=none;strokeColor=none;html=1;fontSize=${theme.fontSize - 2};fontFamily=${theme.fontFamily};fontColor=${theme.fontColor};align=center;verticalAlign=middle;`;
 
@@ -754,6 +755,22 @@ function renderScaleHeader(
   };
 
   const totalDays = dayOffset(gMaxDate, gMinDate);
+
+  // Draw weekly subdivision grid lines when printScale differs from the main scale.
+  // PlantUML: printscale daily + projectscale monthly → weekly grid lines between month boundaries.
+  const drawWeekSubdivisions = () => {
+    if (!printScale) return;
+    // Only add subdivisions when the main scale is coarser than weekly
+    if (scale === 'weekly' || scale === 'daily') return;
+    const gMin = new Date(gMinDate); gMin.setHours(0, 0, 0, 0);
+    const startDow = gMin.getDay();
+    const wsDay = weekStartsOn ?? 1; // default Monday
+    const daysToFirstWeek = (7 + wsDay - startDow) % 7;
+    // Draw grid lines at each week boundary
+    for (let wd = daysToFirstWeek > 0 ? daysToFirstWeek : 7; wd < totalDays; wd += 7) {
+      drawGrid(wd, `grid_wsub_${wd}`);
+    }
+  };
 
   if (scale === 'weekly') {
     // Align to configured week-start day (default Monday=1).
@@ -856,6 +873,8 @@ function renderScaleHeader(
     let d = 0;
     let prevYear = -1, yearStartD = 0;
 
+    drawWeekSubdivisions();
+
     while (d < totalDays) {
       const cur = new Date(gMinDate); cur.setDate(cur.getDate() + d);
       const nextMonth = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
@@ -893,6 +912,8 @@ function renderScaleHeader(
     let prevYear = -1, yearStartD = 0;
     const qNames = ['Q1','Q2','Q3','Q4'];
 
+    drawWeekSubdivisions();
+
     while (d < totalDays) {
       const cur = new Date(gMinDate); cur.setDate(cur.getDate() + d);
       const q = Math.floor(cur.getMonth() / 3);
@@ -928,6 +949,8 @@ function renderScaleHeader(
   } else if (scale === 'yearly') {
     // Yearly: grid lines at year boundaries (Jan 1), year labels in full header
     drawGrid(0, 'grid_yStart');
+
+    drawWeekSubdivisions();
 
     // Find first Jan 1 on or after project start
     const startDate = new Date(gMinDate);
