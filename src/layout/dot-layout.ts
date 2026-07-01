@@ -161,7 +161,7 @@ function extractLayout(
       const rawPos: string = vizEdge.pos || '';
 
       if ((globalThis as any).__EDGE_DEBUG__) {
-        console.log(`[edge] ${fromName} -> ${toName} pos=${rawPos}`);
+        (globalThis as any).console.log(`[edge] ${fromName} -> ${toName} pos=${rawPos}`);
       }
 
       // For group self-connections, keep only start/end points — Graphviz

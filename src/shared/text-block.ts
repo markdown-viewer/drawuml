@@ -798,9 +798,9 @@ function finalizeHtml(html: string): string {
   }
 
   // Normalize via DOMParser → well-formed XHTML
-  const doc = new DOMParser().parseFromString(s, 'text/html');
+  const doc = new (globalThis as any).DOMParser().parseFromString(s, 'text/html');
   const body = doc.getElementsByTagName('body')[0];
-  const serializer = new XMLSerializer();
+  const serializer = new (globalThis as any).XMLSerializer();
   let xhtml = serializer.serializeToString(body);
   const idx = xhtml.indexOf('>');
   if (idx !== -1) xhtml = xhtml.slice(idx + 1);

@@ -754,7 +754,7 @@ export function parseActivityDiagram(
           ctx.branchLabels.push(null);
           ctx.branchColors.push(null);
         }
-        const allEnds = ctx.branchEnds.flat().filter(c => c);
+        const allEnds = ([] as string[]).concat(...ctx.branchEnds).filter(c => c);
         if (allEnds.length > 1) {
           // Create merge diamond in the swimlane where the if started
           const savedSwimlane = currentSwimlane;
@@ -1063,7 +1063,7 @@ export function parseActivityDiagram(
       const ctx = controlStack.pop();
       if (ctx && ctx.type === 'switch') {
         ctx.branchEnds.push([...cursors]);
-        const allEnds = ctx.branchEnds.flat().filter(c => c);
+        const allEnds = ([] as string[]).concat(...ctx.branchEnds).filter(c => c);
         if (allEnds.length > 1) {
           const mergeId = createMergeDiamond();
           for (const c of allEnds) { addEdge(c, mergeId); }

@@ -46094,7 +46094,7 @@ function peg$parse(input: string, options?: ParseOptions) {
 
     /** Build from/fromPort/to/toPort fields from PortedEndpoint results. */
     function portedRelation(fromEp, toEp) {
-      const r = {};
+      const r: Record<string, any> = {};
       if (typeof fromEp === 'object' && fromEp !== null && fromEp._ported) {
         r.from = fromEp.name;
         r.fromPort = fromEp.port;

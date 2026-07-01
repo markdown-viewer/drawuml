@@ -499,9 +499,9 @@ export function rearrangeSwimlanes(layout: LayoutResult, model: SemanticModel, t
     if (!containerPos) continue;
 
     if (model.rankdir === 'LR') {
-      _rearrangeSwimlaneDotLR(layout, group, containerPos, theme);
+      _rearrangeSwimlaneDotLR(layout, group as { id: string; concurrentRegions: string[][]; children: string[] }, containerPos, theme);
     } else {
-      _rearrangeSwimlaneDot(layout, group, containerPos);
+      _rearrangeSwimlaneDot(layout, group as { id: string; concurrentRegions: string[][]; children: string[] }, containerPos);
     }
   }
 }

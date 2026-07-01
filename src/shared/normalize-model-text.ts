@@ -119,7 +119,7 @@ function normalizeRichBlocks(text?: string | null, theme?: Theme): NormalizedRic
 function normalizeClassNode(node: SemanticNode, theme?: Theme, defaultVisibilityIcons?: boolean): SemanticNode {
   const entityType = node.stereotype || node.type || '';
   const autoSeparator = entityType !== 'object' && node.type !== 'state';
-  const visibilityIcons = node.visibilityIcons ?? defaultVisibilityIcons;
+  const visibilityIcons = (node as any).visibilityIcons ?? defaultVisibilityIcons;
   const textColor = parseNodeStyle(node.style)?.textColor;
   return {
     ...node,

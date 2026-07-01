@@ -35,7 +35,7 @@ export function parseGanttStatements(statements: any[], pragmas: Record<string, 
   return ctx.model;
 }
 
-interface ParseContext { model: GanttModel; lastTaskId: string | null; taskIndex: number; msIdx: number; sepIdx: number; noteBuf: { lines: string[]; position?: string } | null; _styleSelector?: string; _styleDepth?: number; _legendLines?: string[]; _order: number; }
+interface ParseContext { model: GanttModel; lastTaskId: string | null; taskIndex: number; msIdx: number; sepIdx: number; noteBuf: { lines: string[]; position?: 'bottom' | 'left' } | null; _styleSelector?: string; _styleDepth?: number; _legendLines?: string[]; _order: number; }
 
 // ── Task rest parsing ────────────────────────────────────────────────────────
 
@@ -313,9 +313,9 @@ function t_cfg(ctx: ParseContext, st: any): void {
   // Zoom: projectscale monthly zoom 3 / printscale weekly zoom 4
   else if (/(?:projectscale|printscale)\s+.+\bzoom\s+(\d+)/i.test(raw)) ctx.model.config.zoom = parseInt(RegExp.$1!, 10);
   // Week numbering: printscale weekly with week numbering from N
-  else if (/with\s+week\s+numbering\s+from\s+(-?\d+)/i.test(raw)) { if (!ctx.model.config.printScale) ctx.model.config.printScale = {}; ctx.model.config.printScale.weekNumberingFrom = parseInt(RegExp.$1!, 10); }
+  else if (/with\s+week\s+numbering\s+from\s+(-?\d+)/i.test(raw)) { if (!ctx.model.config.printScale) ctx.model.config.printScale = { unit: 'weekly' }; ctx.model.config.printScale.weekNumberingFrom = parseInt(RegExp.$1!, 10); }
   // Calendar date: printscale weekly with calendar date
-  else if (/with\s+calendar\s+date/i.test(raw)) { if (!ctx.model.config.printScale) ctx.model.config.printScale = {}; ctx.model.config.printScale.calendarDate = true; }
+  else if (/with\s+calendar\s+date/i.test(raw)) { if (!ctx.model.config.printScale) ctx.model.config.printScale = { unit: 'weekly' }; ctx.model.config.printScale.calendarDate = true; }
   // Closed dates: YYYY-MM-DD is closed / YYYY-MM-DD to YYYY-MM-DD is closed
   else if (/^(\d{4}[-\/]\d{2}[-\/]\d{2})\s+to\s+(\d{4}[-\/]\d{2}[-\/]\d{2})\s+is\s+closed/i.test(raw)) { if (!ctx.model.config.closedDates) ctx.model.config.closedDates = []; ctx.model.config.closedDates.push({ from: { type: 'absolute', date: RegExp.$1!.trim() }, to: { type: 'absolute', date: RegExp.$2!.trim() } }); }
   else if (/^(\d{4}[-\/]\d{2}[-\/]\d{2})\s+is\s+closed/i.test(raw)) { if (!ctx.model.config.closedDates) ctx.model.config.closedDates = []; const d = RegExp.$1!.trim(); ctx.model.config.closedDates.push({ from: { type: 'absolute', date: d }, to: { type: 'absolute', date: d } }); }

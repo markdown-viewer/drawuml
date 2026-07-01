@@ -100,9 +100,9 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   }
   // Print range clipping: shift timeline to start at printRange.from
   const printFromOff = model.config.printRange?.from
-    ? dateOff(parseDate(model.config.printRange.from.date), resolved.minDay) : 0;
+    ? dateOff(parseDate((model.config.printRange.from as { type: 'absolute'; date: string }).date), resolved.minDay) : 0;
   const printToOff = model.config.printRange?.to
-    ? dateOff(parseDate(model.config.printRange.to.date), resolved.minDay) + 1 : resolved.maxDayOffset; // +1: inclusive→exclusive
+    ? dateOff(parseDate((model.config.printRange.to as { type: 'absolute'; date: string }).date), resolved.minDay) + 1 : resolved.maxDayOffset; // +1: inclusive→exclusive
   const effectiveMaxOff = model.config.printRange
     ? Math.min(resolved.maxDayOffset, printToOff) : resolved.maxDayOffset;
   // Use print-relative coordinates (shifted so printRange.from starts at timelineX)
@@ -312,7 +312,7 @@ function mergeClosedRanges(a: { from: number; to: number }[], b: { from: number;
 }
 
 function resolveModel(model: GanttModel): ResolvedModel {
-  const minDay = model.projectStart ? parseDate(model.projectStart.date) : new Date(2000, 0, 1);
+  const minDay = model.projectStart ? parseDate((model.projectStart as { type: 'absolute'; date: string }).date) : new Date(2000, 0, 1);
   const r: ResolvedModel = { minDay, maxDayOffset: 0, taskDays: {}, msDays: {} };
   const closedDateRanges = resolveClosedDateRanges(model, minDay);
   // Resource off days: map resource name → off-day offset ranges
@@ -348,8 +348,9 @@ function resolveModel(model: GanttModel): ResolvedModel {
     let d = resolveOffset(ms.at, model, minDay, r, model.config.closedDays, closedDateRanges);
     // If milestone at task's end, the end is exclusive → use last actual day
     // Skip for milestone references (milestones have no exclusive end)
-    const isTaskRef = ms.at?.type === 'relative_to_task' && model.tasks.some(t => t.label === ms.at!.taskId || t.aliasId === ms.at!.taskId);
-    if (ms.at?.type === 'relative_to_task' && ms.at.anchor === 'end' && d != null && isTaskRef) d -= 1;
+    const at = ms.at;
+    const isTaskRef = at?.type === 'relative_to_task' && model.tasks.some(t => t.label === at.taskId || t.aliasId === at.taskId);
+    if (at?.type === 'relative_to_task' && at.anchor === 'end' && d != null && isTaskRef) d -= 1;
     r.msDays[ms.id] = d ?? 0;
   }
   for (const t of model.tasks) { if (t.deleted) continue; const td = r.taskDays[t.id]; if (td && td.end > r.maxDayOffset) r.maxDayOffset = td.end; }
@@ -526,7 +527,7 @@ function monthIndex(name: string): number | undefined {
   const months: Record<string, number> = {
     january:0,february:1,march:2,april:3,may:4,june:5,july:6,
     august:7,september:8,october:9,november:10,december:11,
-    jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11,
+    jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11,
   };
   return months[(name || '').toLowerCase()];
 }

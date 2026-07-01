@@ -751,6 +751,6 @@ ${rankLines.join('\n')}
 ${spineLines.join('\n')}
 }`;
 
-  if ((globalThis as any).__DOT_DEBUG__) console.log(dotStr);
+  if ((globalThis as any).__DOT_DEBUG__) (globalThis as any).console.log(dotStr);
   return { dot: dotStr, groupIds };
 }

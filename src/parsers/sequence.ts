@@ -236,7 +236,7 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
   // Inline activation stack: tracks ++ decor activations for LIFO return matching
   // endDecorator: if the triggering message had a target decorator (e.g. ->o), carry it to the return
   // endHeadToken: if the triggering message had a non-default arrowhead (e.g. \\), carry it to the return
-  const inlineActivateStack: { caller: string; target: string; endDecorator?: string; endHeadToken?: string }[] = [];
+  const inlineActivateStack: { caller: string; target: string; endDecorator?: string; endHeadToken?: string; bidirectional?: boolean }[] = [];
 
   // Participants pending creation via 'create' statement (will set createdAtRow on next message)
   const pendingCreate = new Set<string>();

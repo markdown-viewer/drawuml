@@ -7,6 +7,7 @@ import type { MindmapNode } from './parsers/mindmap.ts';
 import { parsePlantUml } from './parsers/puml.ts';
 import { preprocess } from './shared/preprocessor.ts';
 import { normalizeClassModelText, normalizeSequenceModelText } from './shared/normalize-model-text.ts';
+import type { SequenceModel } from './model/sequence-model.ts';
 import { dotLayout } from './layout/dot-layout.ts';
 import { elkLayout } from './layout/elk/elk-engine.ts';
 import { sequenceTableLayout } from './layout/table-layout.ts';
@@ -53,7 +54,7 @@ export async function textToDrawioXml(dsl: string, options?: ConvertOptions): Pr
   if (diagramType === DiagramType.Sequence) {
     const rawModel = parseSequenceDiagram(source, { strict: true });
     const theme = createThemeFromSkinparams(rawModel.skinparams, options?.theme);
-    const model = normalizeSequenceModelText(rawModel, theme);
+    const model = normalizeSequenceModelText(rawModel as SequenceModel, theme);
     const { renderers, ...layout } = sequenceTableLayout(model, { theme });
     return sequenceToDrawioXml(model, layout, renderers, theme);
   }

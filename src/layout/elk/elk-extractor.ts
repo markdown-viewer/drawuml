@@ -208,7 +208,7 @@ function extractEdges(
 
     // Extract waypoints from sections
     const points: Array<{ x: number; y: number }> = [];
-    if (elkEdge.sections) {
+    if ((elkEdge as any).sections) {
       for (const section of (elkEdge as any).sections) {
         if (section.startPoint) {
           points.push({
