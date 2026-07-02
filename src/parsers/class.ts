@@ -166,9 +166,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   };
 
   /** Ensure an activity node exists; node type resolved by PEG endpoint classification. */
-  function ensureActivityNode(rawId: string, aliasId?: string | null, endpointType?: string): string {
+  function ensureActivityNode(rawId: string, aliasId?: string | null, endpointType?: string, color?: string | null): string {
     const id = aliasId || rawId;
-    if (nodesById[id]) return id;
+    if (nodesById[id]) {
+      if (color) nodesById[id].color = color;
+      return id;
+    }
 
     const type = ENDPOINT_NODE_MAP[endpointType!] || (rawId === '(*)' ? NodeType.StateStart : NodeType.Class);
     const label = type === NodeType.Class ? rawId : '';
@@ -182,6 +185,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       stereotype: type === NodeType.Class ? 'activity' : null,
       stereotypeLabel: '',
       bodyLines: [],
+      color: color || undefined,
     };
     nodeOrder.push(id);
     registerNodeInGroup(id);
@@ -191,6 +195,11 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   /** Create a decision diamond node for if/else branching */
   function createDecisionNode(cond: string): string {
     const id = `__decision_${edges.length}__`;
+    const fill = skinparams.activityDiamondBackgroundColor || null;
+    const stroke = skinparams.activityDiamondBorderColor || null;
+    const styleParts: string[] = [];
+    if (fill) styleParts.push(`back:${fill}`);
+    if (stroke) styleParts.push(`line:${stroke}`);
     nodesById[id] = {
       id,
       type: NodeType.StateChoice as any,
@@ -198,6 +207,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       stereotype: null,
       stereotypeLabel: '',
       bodyLines: [],
+      style: styleParts.length ? '#' + styleParts.join(';') : undefined,
     };
     nodeOrder.push(id);
     registerNodeInGroup(id);
@@ -1770,7 +1780,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
         // Explicit from: clear pending merge (user chose a specific source)
         pendingMergeTargets = [];
 
-        const fromId = ensureActivityNode(rawFrom, null, st.fromType);
+        const fromId = ensureActivityNode(rawFrom, null, st.fromType, st.fromColor || null);
         if (rawFrom === '(*)') starAsSourceCount++;
 
         // Inline if...then in target — detected by PEG as toType='if_inline'
@@ -1787,7 +1797,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           continue;
         }
 
-        const toId = ensureActivityNode(rawTo, alias, st.toType);
+        const toId = ensureActivityNode(rawTo, alias, st.toType, st.toColor || null);
         if (rawTo === '(*)') starAsTargetCount++;
 
         // Check stereotypes on the arrow target for port node types (e.g. <<exitPoint>>)
@@ -1841,7 +1851,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
           continue;
         }
 
-        const toId = ensureActivityNode(rawTo, alias, st.toType);
+        const toId = ensureActivityNode(rawTo, alias, st.toType, st.toColor || null);
         if (rawTo === '(*)') starAsTargetCount++;
 
         addActivityEdge(from, toId, label, st.arrow);
@@ -2753,6 +2763,15 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     }
     const bg = getStereotypeSkinparamValue(ntype, 'BackgroundColor', customStereos);
     const border = getStereotypeSkinparamValue(ntype, 'BorderColor', customStereos);
+    if (ntype === 'activity') {
+      const parts: string[] = [];
+      const fill = node.color || bg;
+      if (fill) parts.push(`back:${fill}`);
+      if (!node.color && border) parts.push(`line:${border}`);
+      if (fc) parts.push(`text:${fc}`);
+      if (parts.length > 0) node.style = '#' + parts.join(';');
+      continue;
+    }
     if (bg || border || fc) {
       const parts: string[] = [];
       if (bg) parts.push(`back:${bg}`);
