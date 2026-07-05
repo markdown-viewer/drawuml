@@ -711,7 +711,7 @@ export function layoutGraphToDot(
   const hasNoteRankSameInCluster = (model.notes || []).some(note => {
     if (note.onLink || !note.target) return false;
     const pos = (note.position || '').toLowerCase();
-    return (pos === 'left' || pos === 'right') && parentIdMap.has(note.target);
+    return (pos === 'left' || pos === 'right') && (parentIdMap.has(note.target) || groupIds.has(note.target));
   });
 
   const needNewrank = hasSwimlanes || hasNoteRankSameInCluster;
@@ -740,7 +740,7 @@ export function layoutGraphToDot(
   rankdir=${rankdir}
   nodesep=${nodesepInch}
   ranksep=${ranksepInch}
-  remincross=true
+  remincross=false
   searchsize=500${needNewrank ? '\n  newrank=true' : ''}
   edge [fontsize=${layoutFontSize},labelfontsize=${layoutFontSize}]
   node [fontsize=${layoutFontSize},height=${dotMinH},width=${dotMinW}]

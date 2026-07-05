@@ -364,6 +364,12 @@ export function detectDiagramContext(parsed): DiagramContext {
       const left = String(st.left || '').toLowerCase();
       if (DEPLOYMENT_COMPONENT_KEYWORDS.has(left)) hasDeployment = true;
     }
+    // ── Gantt task that looks like state transition ([*] --> ...) ──
+    if (kind === 'gantt_task' && /^\s*\[?\*\]?\s*-/.test(String(st.raw || ''))) {
+      hasNonSequence = true;
+      hasState = true;
+    }
+
   }
 
   // Priority: sequence (if eligible) > state > activity > deployment > usecase > description > class

@@ -16234,6 +16234,15 @@ function peg$parse(input: string, options?: ParseOptions) {
                                 s8 = peg$FAILED;
                                 if (peg$silentFails === 0) { peg$fail(peg$c415); }
                               }
+                              if (s8 as any === peg$FAILED) {
+                                if (input.substr(peg$currPos, 4).toLowerCase() === peg$c346) {
+                                  s8 = input.substr(peg$currPos, 4);
+                                  peg$currPos += 4;
+                                } else {
+                                  s8 = peg$FAILED;
+                                  if (peg$silentFails === 0) { peg$fail(peg$c347); }
+                                }
+                              }
                             }
                           }
                           if (s8 as any !== peg$FAILED) {
