@@ -6,6 +6,29 @@
  */
 
 import { instance } from '@viz-js/viz';
+
+// Polyfill crypto.getRandomValues for fibjs environments where
+// the native implementation may throw "Value is out of range" on
+// certain TypedArray sizes (fibjs error code 20006).
+// viz.js (GraphViz WASM) calls randomFill which internally uses
+// crypto.getRandomValues during stochastic crossing minimization.
+const _origGetRandomValues = (typeof crypto !== 'undefined' && (crypto as any).getRandomValues)
+  ? (crypto as any).getRandomValues.bind(crypto) : null;
+(crypto as any).getRandomValues = function(array: any): any {
+  if (_origGetRandomValues) {
+    try {
+      return _origGetRandomValues(array);
+    } catch (_e) { /* fall through */ }
+  }
+  // Fallback: fill with deterministic pseudo-random values.
+  // Quality is not critical — this only affects secondary
+  // stochastic optimisation passes in GraphViz layout.
+  const view = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
+  for (let i = 0; i < view.length; i++) {
+    view[i] = (Math.random() * 256) | 0;
+  }
+  return array;
+};
 import { parseEdgePos } from './edge-routing.ts';
 import type { LayoutResult, LayoutNode, LayoutEdge, LayoutGroup } from '../model/index.ts';
 import type { SemanticModel, SemanticEdge, SemanticGroup, SemanticNode } from '../model/index.ts';

@@ -533,8 +533,8 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
     let arrowStyle;
     try {
       arrowStyle = resolveSequenceArrowStyle(arrowToken, arrowMeta);
-    } catch (error) {
-      if (strict) {
+      } catch (error) {
+        if (strict) {
         throw new Error(`Unsupported sequence statement: ${normalizedFromToken} ${arrowToken} ${normalizedToToken}`);
       }
       return;
@@ -891,6 +891,10 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
       if (kw === 'newpage') {
         // Only render the first page; stop processing further statements
         break;
+      }
+      // header / footer / caption: no-op for layout (metadata only)
+      if (kw === 'header' || kw === 'footer' || kw === 'caption') {
+        continue;
       }
       continue;
     }
@@ -1431,6 +1435,11 @@ export function parseSequenceDiagram(body, options: ParseSequenceDiagramOptions 
         pushMessage(st.from, st.to, st.label || '', st.arrow);
         continue;
       }
+    }
+
+    // Gantt-specific statements that may leak from keyword misparse — silently ignore
+    if (st.kind && String(st.kind).startsWith('gantt_')) {
+      continue;
     }
 
     if (strict) {

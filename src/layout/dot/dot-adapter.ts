@@ -741,7 +741,7 @@ export function layoutGraphToDot(
   nodesep=${nodesepInch}
   ranksep=${ranksepInch}
   remincross=false
-  searchsize=500${needNewrank ? '\n  newrank=true' : ''}
+  ${needNewrank ? '\n  newrank=true' : ''}
   edge [fontsize=${layoutFontSize},labelfontsize=${layoutFontSize}]
   node [fontsize=${layoutFontSize},height=${dotMinH},width=${dotMinW}]
 ${nodeGroupLines.join('\n')}
