@@ -1,6 +1,7 @@
 import { parseClassDiagram } from './class.ts';
 import { lookupC4BoundaryMacro } from './c4-macros.ts';
 import { PeggySyntaxError, parse as parsePeggy } from './puml-peggy.ts';
+import { detectDiagramContext } from '../detect-context.ts';
 
 function safeMessage(error) {
   if (!error) return 'Unknown error';
@@ -868,7 +869,8 @@ export function parsePlantUml(text) {
 
   let classModel = { nodes: [], edges: [], groups: [], errors: [] } as any;
   if (directiveLower === '@startuml' && parseMode === 'default') {
-    classModel = parseClassDiagram(statements);
+    const diagramContext = detectDiagramContext({ statements, startDirective });
+    classModel = parseClassDiagram(statements, { diagramContext });
   }
   if (Array.isArray(classModel.errors) && classModel.errors.length > 0) {
     errors.push(...classModel.errors);
