@@ -264,7 +264,7 @@ export class ConcurrentRegionRenderer extends Renderer {
   /** Height of the region title bar (startSize in DrawIO swimlane). */
   private get titleBarHeight(): number {
     if (!this.regionLabel) return 0;
-    const m = TextBlock.inline(this.regionLabel, { size: this.theme.smallFontSize, family: this.theme.fontFamily }).measure();
+    const m = TextBlock.inline(this.regionLabel, { size: this.theme.fontSize, family: this.theme.fontFamily }).measure();
     return Math.ceil(m.height) + this.theme.titlePadY;
   }
 
@@ -302,7 +302,7 @@ export class ConcurrentRegionRenderer extends Renderer {
     const style = `swimlane;html=1;startSize=${startSize};${horizontalAttr}`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=${this.theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${this.theme.colorDark};`
-      + `fontStyle=0;fontSize=${this.theme.smallFontSize};fontColor=${this.theme.fontColor};${fontFamilyStyle(this.theme)}`;
+      + `fontStyle=0;fontSize=${this.theme.fontSize};fontColor=${this.theme.fontColor};${fontFamilyStyle(this.theme)}`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
       `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`

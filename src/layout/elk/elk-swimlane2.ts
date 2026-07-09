@@ -511,7 +511,7 @@ export async function elkSwimlaneLayout2(
   // both sides regardless of where ELK placed own nodes internally.
   const pad = theme.groupPad;
   // Measure lane title widths — title must fit within the lane
-  const titleFont = { family: theme.fontFamily, size: theme.smallFontSize };
+  const titleFont = { family: theme.fontFamily, size: theme.fontSize };
   const titleMinWidths = regions.map((_r, li) => {
     const label = swimContainer.concurrentRegionLabels?.[li] || '';
     if (!label) return 0;
@@ -658,7 +658,7 @@ export async function elkSwimlaneLayout2(
     const style = `swimlane;html=1;startSize=${startSize};`
       + `collapsible=0;rounded=0;`
       + `strokeWidth=${theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${theme.colorDark};`
-      + `fontStyle=0;fontSize=${theme.smallFontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
+      + `fontStyle=0;fontSize=${theme.fontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
     prefixCells.push(
       `<mxCell id="${escapeXml(cellId(rid))}" value="${escapeXml(label)}" style="${style}" `
       + `vertex="1" parent="${escapeXml(cellId(swimContainer.id))}">`

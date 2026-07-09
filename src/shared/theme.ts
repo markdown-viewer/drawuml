@@ -267,7 +267,7 @@ export function createTheme(config?: ThemeConfig): Theme {
 
     // ── Semantic aliases ──
     // Heights
-    rowH: sizeS,       titleBarH: sizeS,     tabH: sizeS,
+    rowH: sizeS,       titleBarH: sizeM,     tabH: sizeS,
     // Element sizes
     arcSize: sizeXS,   iconSize: sizeM,   spotSize: sizeS,   portSize: sizeXS,
     // Minimum widths
