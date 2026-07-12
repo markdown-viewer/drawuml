@@ -1,6 +1,6 @@
 {
   "name": "@markdown-viewer/draw-uml",
-  "version": "1.3.3",
+  "version": "1.4.0",
   "description": "Convert PlantUML text diagrams into DrawIO XML — supports class, sequence, activity, state, deployment and more",
   "type": "module",
   "main": "src/index.ts",
