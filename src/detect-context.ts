@@ -311,7 +311,22 @@ export function detectDiagramContext(parsed): DiagramContext {
       } else {
         const arrow = String(st.arrow || '');
         const arrowNoColor = arrow.replace(/\[#[^\]]*\]/g, '');
-        if (/[|*#{}+^]/.test(arrowNoColor) || /-(?:left|right|up|down)-/i.test(arrowNoColor)) {
+        // ER crowfoot cardinality markers (entity-relationship diagrams):
+        //   ||  mandatory one        |o  zero or one
+        //   o{  zero or many         |{  one or many
+        //   }|  mandatory one (end)  }o  zero or many (end)
+        // These are class-diagram relations (rendered as entity tables),
+        // not deployment routing — must not set hasBareRouting/hasDeployment
+        // or the diagram is misclassified as deployment and entity blocks
+        // lose their attribute body.
+        const isErCrowfoot = /[{}]/.test(arrowNoColor)
+          || /\|o/.test(arrowNoColor)
+          || /o\{/.test(arrowNoColor)
+          || /\|\|/.test(arrowNoColor);
+        if (isErCrowfoot) {
+          hasNonSequence = true;
+          // Treat as class diagram relation — no hasBareRouting/hasDeployment
+        } else if (/[|*#{}+^]/.test(arrowNoColor) || /-(?:left|right|up|down)-/i.test(arrowNoColor)) {
           hasNonSequence = true;
           hasBareRouting = true;
         } else if (/^[~.=\-]{2,}$/.test(arrowNoColor)) {
