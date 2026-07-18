@@ -175,7 +175,9 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
   const actExtend = pList.map((p) => {
     const maxDepth = maxActDepthByParticipant[p.id] || 0;
     if (maxDepth === 0 && !(model.activations || []).some(a => a.participant === p.id)) return 0;
-    return maxDepth * smallPad + actBarWidth / 2;
+    // PlantUML nests activation bars with half-width offset (overlapping stack),
+    // so the outermost edge extends by depth * (actBarWidth/2) + actBarWidth/2.
+    return maxDepth * actBarWidth / 2 + actBarWidth / 2;
   });
 
   // Track which created participants have had their create-message processed.
@@ -689,7 +691,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const participant = participants[a.participant];
     if (!participant) return null;
     const depth = nestingDepth.get(idx) || 0;
-    const x = participant.centerX - actBarWidth / 2 + depth * smallPad;
+    const x = participant.centerX - actBarWidth / 2 + depth * actBarWidth / 2;
     return { id: `act${idx + 1}`, participant: a.participant, startRow: a.startRow, endRow: a.endRow, x, width: actBarWidth, depth };
   }).filter(Boolean);
   // Find the active activation for a participant at a given row.
@@ -959,7 +961,7 @@ export function sequenceTableLayout(model, options?: { theme?: Theme }) {
     const participant = participants[a.participant];
     if (!participant) return null;
     const depth = nestingDepth.get(idx) || 0;
-    const x = participant.centerX - actBarWidth / 2 + depth * smallPad;
+    const x = participant.centerX - actBarWidth / 2 + depth * actBarWidth / 2;
     // When an activation starts at a self-reference row (creating self-ref),
     // offset its start Y to the bottom of the self-ref loop (rowY + selfRefDrop).
     let y = rowY(a.startRow);
