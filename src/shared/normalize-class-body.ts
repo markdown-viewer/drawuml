@@ -65,9 +65,15 @@ const VIS_PUBLIC_METHOD =
   '<span style="display:inline-block;width:0.5em;height:0.5em;border-radius:50%;box-sizing:border-box;' +
   'background:#84BE84;border:1px solid #038048;vertical-align:-0.41em;">' +
   '\u200b</span>';
-const VIS_DOT_ICON =
+const VIS_DOT_ICON_FILLED =
   '<span style="display:inline-block;width:0.5em;height:0.5em;border-radius:50%;' +
   'background:#000000;vertical-align:-0.41em;">' +
+  '\u200b</span>';
+// PlantUML `plain` theme renders IE_MANDATORY (*) as a hollow circle:
+// white background + black border (root style cascade: BackgroundColor=white, LineColor=black).
+const VIS_DOT_ICON_HOLLOW =
+  '<span style="display:inline-block;width:0.5em;height:0.5em;border-radius:50%;box-sizing:border-box;' +
+  'background:#FFFFFF;border:1px solid #000000;vertical-align:-0.41em;">' +
   '\u200b</span>';
 
 function isMethodLine(body: string, tag?: string): boolean {
@@ -76,13 +82,25 @@ function isMethodLine(body: string, tag?: string): boolean {
   return body.includes('(') || body.includes(')');
 }
 
-const VIS_RULES: Array<{ re: RegExp; fieldIcon: string; methodIcon: string; extraSpace?: boolean }> = [
-  { re: RE_VIS_PRIVATE, fieldIcon: VIS_PRIVATE_FIELD, methodIcon: VIS_PRIVATE_METHOD, extraSpace: true },
-  { re: RE_VIS_PROTECTED, fieldIcon: VIS_PROTECTED_FIELD, methodIcon: VIS_PROTECTED_METHOD, extraSpace: true },
-  { re: RE_VIS_PACKAGE, fieldIcon: VIS_PACKAGE_FIELD, methodIcon: VIS_PACKAGE_METHOD, extraSpace: true },
-  { re: RE_VIS_PUBLIC, fieldIcon: VIS_PUBLIC_FIELD, methodIcon: VIS_PUBLIC_METHOD, extraSpace: true },
-  { re: RE_VIS_DOT, fieldIcon: VIS_DOT_ICON, methodIcon: VIS_DOT_ICON, extraSpace: true },
-];
+interface VisRule {
+  re: RegExp;
+  fieldIcon: string;
+  methodIcon: string;
+  extraSpace?: boolean;
+}
+
+/** Build visibility-icon rule set. `ieMandatoryFilled` selects the IE_MANDATORY
+ *  dot style (true: filled black dot default; false: hollow dot for plain theme). */
+function buildVisRules(ieMandatoryFilled: boolean): VisRule[] {
+  const dotIcon = ieMandatoryFilled ? VIS_DOT_ICON_FILLED : VIS_DOT_ICON_HOLLOW;
+  return [
+    { re: RE_VIS_PRIVATE, fieldIcon: VIS_PRIVATE_FIELD, methodIcon: VIS_PRIVATE_METHOD, extraSpace: true },
+    { re: RE_VIS_PROTECTED, fieldIcon: VIS_PROTECTED_FIELD, methodIcon: VIS_PROTECTED_METHOD, extraSpace: true },
+    { re: RE_VIS_PACKAGE, fieldIcon: VIS_PACKAGE_FIELD, methodIcon: VIS_PACKAGE_METHOD, extraSpace: true },
+    { re: RE_VIS_PUBLIC, fieldIcon: VIS_PUBLIC_FIELD, methodIcon: VIS_PUBLIC_METHOD, extraSpace: true },
+    { re: RE_VIS_DOT, fieldIcon: dotIcon, methodIcon: dotIcon, extraSpace: true },
+  ];
+}
 
 function applyMemberModifierStyle(html: string, tag?: string): string {
   if (tag === 'static') return `<u>${html}</u>`;
@@ -90,9 +108,9 @@ function applyMemberModifierStyle(html: string, tag?: string): string {
   return html;
 }
 
-function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean, font: FontSpec, tag?: string): string {
+function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean, font: FontSpec, visRules: VisRule[], tag?: string): string {
   if (showIcons) {
-    for (const rule of VIS_RULES) {
+    for (const rule of visRules) {
       const m = raw.match(rule.re);
       if (!m) continue;
       const space = rule.extraSpace ? ' ' : '';
@@ -102,7 +120,7 @@ function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean,
       return iconSlot(icon) + space + bodyHtml;
     }
   } else {
-    for (const rule of VIS_RULES) {
+    for (const rule of visRules) {
       const m = raw.match(rule.re);
       if (!m) continue;
       const visChar = raw[0];
@@ -150,6 +168,8 @@ export function normalizeClassBodyBlocks(opts: {
   hideMethods?: boolean;
   autoSeparator?: boolean;
   font?: FontSpec;
+  /** IE_MANDATORY (*) dot fill: true=filled black (default), false=hollow (plain theme). */
+  ieMandatoryFilled?: boolean;
 }): NormalizedBodyBlock[] | undefined {
   const allLines = opts.bodyLines || [];
   if (allLines.length === 0) return undefined;
@@ -159,6 +179,7 @@ export function normalizeClassBodyBlocks(opts: {
   const hideFields = opts.hideFields === true;
   const hideMethods = opts.hideMethods === true;
   const autoSeparator = opts.autoSeparator !== false;
+  const visRules = buildVisRules(opts.ieMandatoryFilled !== false);
 
   const lines = (hideFields || hideMethods)
     ? allLines.filter((line) => {
@@ -174,7 +195,7 @@ export function normalizeClassBodyBlocks(opts: {
 
   const hasVisIcons = showIcons && lines.some((line) => {
     const text = bodyLineText(line).trim();
-    return VIS_RULES.some((rule) => rule.re.test(text));
+    return visRules.some((rule) => rule.re.test(text));
   });
 
   const blocks: NormalizedBodyBlock[] = [];
@@ -192,7 +213,7 @@ export function normalizeClassBodyBlocks(opts: {
       blocks.push({
         kind: 'separator',
         variant: sep.variant,
-        titleHtml: sep.title ? processBodyLine(sep.title, false, showIcons, font) : undefined,
+        titleHtml: sep.title ? processBodyLine(sep.title, false, showIcons, font, visRules) : undefined,
       });
       hasSeparator = true;
       index += 1;
@@ -226,7 +247,7 @@ export function normalizeClassBodyBlocks(opts: {
       rowId = `${rowId}_${suffix}`;
     }
     if (rowId) seenRowIds.add(rowId);
-    blocks.push({ kind: 'row', html: processBodyLine(line, hasVisIcons, showIcons, font, tag), id: rowId });
+    blocks.push({ kind: 'row', html: processBodyLine(line, hasVisIcons, showIcons, font, visRules, tag), id: rowId });
     index += 1;
   }
 

@@ -499,6 +499,17 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
     }
   }
 
+  // Pre-scan: capture !theme <name> directive so theme-specific style overrides
+  // (e.g. plain theme: white node fill, hollow IE_MANDATORY dot) can be applied.
+  // Stored under the reserved __theme key, read by createThemeFromSkinparams.
+  for (const st0 of statements) {
+    if (!st0 || typeof st0 !== 'object') continue;
+    if (st0.kind === 'preprocessor_statement' && st0.cmd === 'theme') {
+      const name = String(st0.text || '').trim().toLowerCase();
+      if (name) skinparams['__theme'] = name;
+    }
+  }
+
   for (let i = 0; i < statements.length; i++) {
     const st = statements[i];
     if (!st || typeof st !== 'object') continue;

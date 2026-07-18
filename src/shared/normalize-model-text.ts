@@ -132,6 +132,7 @@ function normalizeClassNode(node: SemanticNode, theme?: Theme, defaultVisibility
       hideMethods: node.hideMethods,
       autoSeparator,
       font: fontFromTheme(theme),
+      ieMandatoryFilled: theme?.ieMandatoryFilled,
     }),
   };
 }

@@ -15,6 +15,8 @@ import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-me
 export interface ThemeConfig {
   /** Theme mode preset. Default: 'light'. */
   mode?: 'light' | 'dark';
+  /** PlantUML theme name (e.g. 'plain'), used to apply theme-specific overrides. */
+  themeName?: string;
   /** Base font size (default: 12). All sizing derives from this. */
   fontSize?: number;
   /** Font family (default: DEFAULT_FONT_FAMILY from text-measure). */
@@ -88,6 +90,12 @@ export interface Theme {
   readonly arrowColor: string;
   readonly arrowFontColor: string;
   readonly frameStrokeColor: string;
+
+  /** PlantUML theme name applied (e.g. 'plain'), or undefined for default. */
+  readonly themeName?: string;
+  /** IE_MANDATORY visibility dot fill style — true: filled black dot (default),
+   *  false: hollow white dot with black border (plain theme). */
+  readonly ieMandatoryFilled: boolean;
 
   // ── Gantt-specific colors ────────────────────────────────────────────────
   readonly ganttTaskFill: string;         // default task bar fill (no completion, or 100% completed)
@@ -177,6 +185,10 @@ function stripOptionalQuotes(value?: string): string | undefined {
 /** Create a fully computed Theme from minimal config. */
 export function createTheme(config?: ThemeConfig): Theme {
   const mode = config?.mode === 'dark' ? 'dark' : 'light';
+  const themeName = config?.themeName;
+  // PlantUML `plain` theme: white node background, hollow IE_MANDATORY dot,
+  // black stroke. Matches puml-theme-plain.puml (BackgroundColor $BGCOLOR=white).
+  const isPlainTheme = themeName === 'plain';
   const fontSize = config?.fontSize ?? DEFAULT_FONT_SIZE;
   const fontFamily = stripOptionalQuotes(config?.fontFamily) ?? DEFAULT_FONT_FAMILY;
   const strokeWidth = r4(fontSize / 12);
@@ -217,6 +229,7 @@ export function createTheme(config?: ThemeConfig): Theme {
 
   return {
     mode,
+    themeName,
     // ── Typography ──
     fontSize,
     fontFamily,
@@ -227,7 +240,7 @@ export function createTheme(config?: ThemeConfig): Theme {
     // ── Colors & fills ──
   colorDark: mode === 'dark' ? '#E7E7E7' : '#181818',
     fontColor,
-  defaultFill: mode === 'dark' ? '#313139' : '#F1F1F1',
+  defaultFill: isPlainTheme ? '#FFFFFF' : (mode === 'dark' ? '#313139' : '#F1F1F1'),
   groupFill: mode === 'dark' ? '#1F1F23' : '#FFFFFF',
     participantFill,
     participantBorderColor,
@@ -245,6 +258,11 @@ export function createTheme(config?: ThemeConfig): Theme {
     arrowColor,
     arrowFontColor,
     frameStrokeColor,
+
+    // ── Visibility icon fills ──
+    // plain theme renders IE_MANDATORY (*) as hollow (white fill + black border)
+    // because the root style cascade sets BackgroundColor=white, LineColor=black.
+    ieMandatoryFilled: !isPlainTheme,
 
     // ── Gantt-specific colors (only where base theme colors don't match) ──
     ganttTaskFill: mode === 'dark' ? '#555555' : '#E2E2F0',
@@ -291,9 +309,12 @@ export function createThemeFromSkinparams(
   skinparams?: Record<string, string>,
   baseConfig?: ThemeConfig,
 ): Theme {
+  // !theme <name> directive is stored as skinparams.__theme by the parser.
+  const themeName = getSkinparamValue(skinparams, '__theme') || baseConfig?.themeName;
   return createTheme({
     ...baseConfig,
     mode: baseConfig?.mode,
+    themeName,
     fontFamily: stripOptionalQuotes(getSkinparamValue(skinparams, 'defaultFontName')) || baseConfig?.fontFamily,
     fontColor: getSkinparamValue(skinparams, 'defaultFontColor') || baseConfig?.fontColor,
     noteFill: getSkinparamValue(skinparams, 'NoteBackgroundColor') || baseConfig?.noteFill,

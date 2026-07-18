@@ -269,10 +269,16 @@ const VIS_PUBLIC_METHOD =
   'background:#84BE84;border:1px solid #038048;vertical-align:-0.41em;">' +
   '\u200b</span>';
 
-// * IE_MANDATORY: black filled circle (always filled)
-const VIS_DOT_ICON =
+// * IE_MANDATORY: black filled circle (default)
+const VIS_DOT_ICON_FILLED =
   '<span style="display:inline-block;width:0.5em;height:0.5em;border-radius:50%;' +
   'background:#000000;vertical-align:-0.41em;">' +
+  '\u200b</span>';
+// * IE_MANDATORY under PlantUML `plain` theme: hollow circle
+// (root style cascade: BackgroundColor=white, LineColor=black)
+const VIS_DOT_ICON_HOLLOW =
+  '<span style="display:inline-block;width:0.5em;height:0.5em;border-radius:50%;box-sizing:border-box;' +
+  'background:#FFFFFF;border:1px solid #000000;vertical-align:-0.41em;">' +
   '\u200b</span>';
 
 /**
@@ -286,14 +292,28 @@ function isMethodLine(body: string, tag?: string): boolean {
   return body.includes('(') || body.includes(')');
 }
 
-/** All single-char visibility regex + icon pairs, checked in order. */
-const VIS_RULES: Array<{ re: RegExp; fieldIcon: string; methodIcon: string; extraSpace?: boolean }> = [
-  { re: RE_VIS_PRIVATE,   fieldIcon: VIS_PRIVATE_FIELD,   methodIcon: VIS_PRIVATE_METHOD,   extraSpace: true },
-  { re: RE_VIS_PROTECTED, fieldIcon: VIS_PROTECTED_FIELD, methodIcon: VIS_PROTECTED_METHOD, extraSpace: true },
-  { re: RE_VIS_PACKAGE,   fieldIcon: VIS_PACKAGE_FIELD,   methodIcon: VIS_PACKAGE_METHOD,   extraSpace: true },
-  { re: RE_VIS_PUBLIC,    fieldIcon: VIS_PUBLIC_FIELD,     methodIcon: VIS_PUBLIC_METHOD,    extraSpace: true },
-  { re: RE_VIS_DOT,       fieldIcon: VIS_DOT_ICON,        methodIcon: VIS_DOT_ICON,         extraSpace: true },
-];
+interface VisRule {
+  re: RegExp;
+  fieldIcon: string;
+  methodIcon: string;
+  extraSpace?: boolean;
+}
+
+/** Build visibility-icon rule set. `ieMandatoryFilled` selects the IE_MANDATORY
+ *  dot style (true: filled black dot default; false: hollow dot for plain theme). */
+function buildVisRules(ieMandatoryFilled: boolean): VisRule[] {
+  const dotIcon = ieMandatoryFilled ? VIS_DOT_ICON_FILLED : VIS_DOT_ICON_HOLLOW;
+  return [
+    { re: RE_VIS_PRIVATE,   fieldIcon: VIS_PRIVATE_FIELD,   methodIcon: VIS_PRIVATE_METHOD,   extraSpace: true },
+    { re: RE_VIS_PROTECTED, fieldIcon: VIS_PROTECTED_FIELD, methodIcon: VIS_PROTECTED_METHOD, extraSpace: true },
+    { re: RE_VIS_PACKAGE,   fieldIcon: VIS_PACKAGE_FIELD,   methodIcon: VIS_PACKAGE_METHOD,   extraSpace: true },
+    { re: RE_VIS_PUBLIC,    fieldIcon: VIS_PUBLIC_FIELD,     methodIcon: VIS_PUBLIC_METHOD,    extraSpace: true },
+    { re: RE_VIS_DOT,       fieldIcon: dotIcon,              methodIcon: dotIcon,              extraSpace: true },
+  ];
+}
+
+// Default visibility rules (filled IE_MANDATORY dot) — used when no theme provided.
+const DEFAULT_VIS_RULES = buildVisRules(true);
 
 /**
  * Process a single member line with inline Creole (SIMPLE_LINE mode — no block-level).
@@ -303,9 +323,9 @@ const VIS_RULES: Array<{ re: RegExp; fieldIcon: string; methodIcon: string; extr
  * Optional `tag` (from PEG-parsed {field}/{method}/{static}/{abstract}) overrides the parenthesis heuristic.
  * {static} → underline, {abstract} → italic (matching PlantUML rendering).
  */
-function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean, font: FontSpec, tag?: string): TextBlock {
+function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean, font: FontSpec, tag?: string, visRules: VisRule[] = DEFAULT_VIS_RULES): TextBlock {
   if (showIcons) {
-    for (const rule of VIS_RULES) {
+    for (const rule of visRules) {
       const m = raw.match(rule.re);
       if (m) {
         const space = rule.extraSpace ? ' ' : '';
@@ -320,7 +340,7 @@ function processBodyLine(raw: string, withIconSlot: boolean, showIcons: boolean,
     // classAttributeIconSize 0: no icons, but keep the visibility char as literal text.
     // We still must strip it from `raw` before creoleInline() to prevent Creole from
     // treating `~` as an escape character (which would silently swallow it).
-    for (const rule of VIS_RULES) {
+    for (const rule of visRules) {
       const m = raw.match(rule.re);
       if (m) {
         const visChar = raw[0];
@@ -541,11 +561,15 @@ export class BlockLayout {
     let hasSeparator = false;
     const seenRowIds = new Set<string>(); // track row ids to deduplicate
 
+    // Visibility-icon rules — IE_MANDATORY dot style follows the active theme
+    // (plain theme → hollow dot; default → filled dot).
+    const visRules = opts.theme ? buildVisRules(opts.theme.ieMandatoryFilled !== false) : DEFAULT_VIS_RULES;
+
     // Pre-scan: detect if any body lines have a single-char visibility prefix.
     // When true AND icons are enabled, ALL body lines get a fixed-width icon slot.
     const hasVisIcons = showIcons && lines.some(l => {
       const t = bodyLineText(l).trim();
-      return VIS_RULES.some(r => r.re.test(t));
+      return visRules.some(r => r.re.test(t));
     });
 
     while (i < lines.length) {
@@ -556,7 +580,7 @@ export class BlockLayout {
       // --- Separator (bare or titled) ---
       const sep = classifySeparator(line);
       if (sep) {
-        const titleText = sep.title ? processBodyLine(sep.title, false, showIcons, bodyFont) : undefined;
+        const titleText = sep.title ? processBodyLine(sep.title, false, showIcons, bodyFont, undefined, visRules) : undefined;
         blocks.push({ kind: 'separator', variant: sep.variant, titleText });
         hasSeparator = true;
         i++;
@@ -588,7 +612,7 @@ export class BlockLayout {
       }
 
       // --- Regular member line: inline Creole only ---
-      const text = processBodyLine(line, hasVisIcons, showIcons, bodyFont, tag);
+      const text = processBodyLine(line, hasVisIcons, showIcons, bodyFont, tag, visRules);
       let rowId = deriveRowId(opts.nodeId, line);
       // Deduplicate: append numeric suffix when id already used
       if (rowId && seenRowIds.has(rowId)) {
