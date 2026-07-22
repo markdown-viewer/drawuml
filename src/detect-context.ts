@@ -258,7 +258,9 @@ export function detectDiagramContext(parsed): DiagramContext {
         // actor/boundary/control/entity/database/collections/queue are
         // neutral for sequence detection — they appear in both sequence
         // and non-sequence diagrams
-      } else if (DEPLOYMENT_COMPONENT_KEYWORDS.has(ct)) {
+      } else if (DEPLOYMENT_COMPONENT_KEYWORDS.has(ct) || ct === 'component_ref') {
+        // component_ref is the [Name] bracket shorthand — belongs to the
+        // deployment/component (Description) diagram family in PlantUML.
         hasNonSequence = true;
         hasDeployment = true;
       } else if (ct) {
