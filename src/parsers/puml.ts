@@ -850,6 +850,46 @@ export function parsePlantUml(text) {
           // fall through to normal error recording below
         }
       }
+
+      // Recovery for note block starts whose target reference cannot be
+      // parsed by the strict PEG grammar (e.g. state names with parenthesised
+      // suffixes like "审核中(1)"). Recognise the shape
+      //   note <dir> of <target> [: <text>]
+      // and synthesise a note_start / note_statement so the subsequent lines
+      // are treated as note text instead of leaking into the diagram body
+      // (which previously caused misparsed state nodes and id collisions).
+      const noteMatch = trimmed.match(/^note\s+(left|right|top|bottom)\s+of\s+(\S.*?)(?:\s*:\s*(.*))?$/i);
+      if (noteMatch) {
+        const pos = noteMatch[1].toLowerCase();
+        const target = noteMatch[2].trim();
+        const inlineText = noteMatch[3] != null ? noteMatch[3].trim() : '';
+        if (inlineText.length > 0) {
+          // Single-line note: "note right of X : text"
+          const st: any = {
+            kind: 'note_start', line: lineNumber, raw: rawLine,
+            pos, target, color: null, text: inlineText,
+          };
+          statements.push(st);
+        } else {
+          // Multi-line note block: "note right of X" — enter note block mode
+          const st: any = {
+            kind: 'note_start', line: lineNumber, raw: rawLine,
+            pos, target, color: null, text: '',
+          };
+          inNoteBlock = true;
+          noteBlockStartSt = st;
+          noteBlockTextLines = [];
+        }
+        // Still record the syntax error so the user is aware of the malformed input
+        errors.push({
+          line: lineNumber,
+          code: error instanceof PeggySyntaxError ? 'PEGGY_SYNTAX_ERROR' : 'STRICT_PARSE_ERROR',
+          message: safeMessage(error),
+          content: trimmed,
+        });
+        continue;
+      }
+
       const code = error instanceof PeggySyntaxError ? 'PEGGY_SYNTAX_ERROR' : 'STRICT_PARSE_ERROR';
       errors.push({
         line: lineNumber,

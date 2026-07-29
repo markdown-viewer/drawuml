@@ -122,6 +122,12 @@ function rewriteNotesForElk(model: SemanticModel, theme?: Theme): void {
     for (const childId of g.children) nodeToGroup.set(childId, g.id);
   }
 
+  // Build a set of all known node ids so we can detect dangling note targets
+  // (e.g. malformed input where the target name doesn't match any real node).
+  // ELK throws "Referenced shape does not exist" for such edges; we drop the
+  // connection and render the note as floating instead of failing the layout.
+  const nodeIdSet = new Set<string>(model.nodes.map(n => n.id));
+
   for (const note of model.notes) {
     // Convert note to SemanticNode
     model.nodes.push({
@@ -135,6 +141,14 @@ function rewriteNotesForElk(model: SemanticModel, theme?: Theme): void {
       richBlocks: note.richBlocks as any,
       color: note.color,
     } as SemanticNode & { lines: string[]; textHtml?: string; richBlocks?: any; color?: string });
+
+    if (note.target && !note.onLink) {
+      // Drop the edge if the target doesn't refer to any existing node or
+      // group — otherwise ELK fails with "Referenced shape does not exist".
+      if (!nodeIdSet.has(note.target) && !groupIdSet.has(note.target)) {
+        note.target = undefined;
+      }
+    }
 
     if (note.target && !note.onLink) {
       // Add note to same group as its target (when target is a regular node)
