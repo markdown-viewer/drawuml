@@ -1,5 +1,6 @@
 import type { NormalizedText, NormalizedTextSourceHint } from './normalized-text.ts';
 import { normalizedHtml } from './normalized-text.ts';
+import { escapeHtmlTextPreserveSpaces } from './html-text.ts';
 
 /**
  * PlantUML preprocessor directive isolation.
@@ -65,8 +66,5 @@ export function preprocess(source: string): PreprocessResult {
 }
 
 function escapeHtmlText(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return escapeHtmlTextPreserveSpaces(s);
 }

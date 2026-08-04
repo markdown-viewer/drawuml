@@ -144,6 +144,20 @@ export abstract class RichRenderer extends Renderer {
    */
   protected get labelSpacingTop(): number { return this.theme.spacingTop; }
 
+  protected getHorizontalAlign(style?: string): string {
+    const source = style ?? this.buildStyle();
+    return source.match(/(?:^|;)align=([^;]+)/)?.[1] || 'center';
+  }
+
+  protected isMultilineBodyHtml(bodyHtml: string): boolean {
+    return /<br\s*\/?>/i.test(bodyHtml);
+  }
+
+  protected formatBodyHtmlForLabel(bodyHtml: string): string {
+    if (!this.isMultilineBodyHtml(bodyHtml)) return bodyHtml;
+    return `<div style="display:inline-block;text-align:left;min-width:100%;">${bodyHtml}</div>`;
+  }
+
   // Three container categories:
   //   Cat 1 — hasTitlebar (folder/frame/card): title container bottom + groupPad
   //   Cat 2 — hasIconTitleArea (archimate/artifact/component): override in subclass
@@ -403,8 +417,9 @@ export abstract class RichRenderer extends Renderer {
       // Content label as child cell
       const labelStyle = `fontSize=${this.theme.fontSize};${fontColorOverride || `fontColor=${this.theme.colorDark};`}${fontFamilyStyle(this.theme)}`;
       const pad = this.shapePadding(this.computeContentRect());
+      const labelHtml = this.formatBodyHtmlForLabel(bodyHtml);
       cells.push(mxContentLabel(
-        this.id, bodyHtml,
+        this.id, labelHtml,
         fb.width, fb.height,
         labelStyle,
         this.resolvedTopPad, pad.left ?? 0,

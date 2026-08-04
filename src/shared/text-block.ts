@@ -14,6 +14,7 @@
  */
 
 import { measureText, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE } from '@markdown-viewer/text-measure';
+import { escapeHtmlTextPreserveSpaces, preserveTextNodeSpaces } from './html-text.ts';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Public types
@@ -178,7 +179,7 @@ function unescapePlantUml(text: string): string {
 
 /** Escape text so it renders as literal content in HTML. */
 function escapeHtmlText(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escapeHtmlTextPreserveSpaces(s);
 }
 
 const EMOJI_MAP: Record<string, number> = {
@@ -800,6 +801,7 @@ function finalizeHtml(html: string): string {
   // Normalize via DOMParser → well-formed XHTML
   const doc = new (globalThis as any).DOMParser().parseFromString(s, 'text/html');
   const body = doc.getElementsByTagName('body')[0];
+  preserveWhitespaceInTextNodes(body);
   const serializer = new (globalThis as any).XMLSerializer();
   let xhtml = serializer.serializeToString(body);
   const idx = xhtml.indexOf('>');
@@ -807,4 +809,21 @@ function finalizeHtml(html: string): string {
   if (xhtml.endsWith('</body>')) xhtml = xhtml.slice(0, -7);
   xhtml = xhtml.replace(/ xmlns="[^"]*"/g, '');
   return xhtml;
+}
+
+function preserveWhitespaceInTextNodes(node: any): void {
+  if (!node) return;
+  const childNodes = node.childNodes || [];
+  for (let i = 0; i < childNodes.length; i++) {
+    const child = childNodes[i];
+    if (!child) continue;
+    if (child.nodeType === 3) {
+      child.nodeValue = preserveTextNodeSpaces(child.nodeValue || '');
+      continue;
+    }
+    if (child.nodeType !== 1) continue;
+    const tag = String(child.nodeName || '').toLowerCase();
+    if (tag === 'pre') continue;
+    preserveWhitespaceInTextNodes(child);
+  }
 }
