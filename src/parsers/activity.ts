@@ -401,6 +401,12 @@ export function parseActivityDiagram(
     // ── Skinparam ──
     if (kind === 'directive_statement' && String(st.keyword || '').toLowerCase() === 'skinparam') {
       if (st.key && st.value) skinparams[st.key] = st.value;
+      else if (st.text) {
+        // Fallback: PEG may emit text="key value" without separate key/value fields
+        const txt = String(st.text).trim();
+        const spIdx = txt.indexOf(' ');
+        if (spIdx > 0) skinparams[txt.slice(0, spIdx)] = txt.slice(spIdx + 1).trim();
+      }
       if (st.block === true) {
         // Block form: `skinparam activity { ... }` — collect child style_text_lines
         const prefix = String(st.text || '').trim();
