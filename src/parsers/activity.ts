@@ -861,19 +861,24 @@ export function parseActivityDiagram(
         const noLabel = outParen ? outParen.content : 'no';
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'while') {
-          // Loop back edge: current → diamond (via backward node if present)
+          // Loop back edge: current → diamond (via backward node if present).
+          // The pending branch label (e.g. "no" from `else (no)`) is attached
+          // to the backward edge, matching PlantUML output; it must not leak
+          // onto the following exit edges.
           if (ctx.backwardLabel) {
             const bwId = createActionNode(ctx.backwardLabel);
-            for (const c of cursors) { addEdge(c, bwId); }
+            for (const c of cursors) { addEdge(c, bwId, pendingArrowLabel || ''); }
+            pendingArrowLabel = null;
             addEdge(bwId, ctx.condId);
           } else {
             for (const c of cursors) { addEdge(c, ctx.condId); }
           }
 
           if (ctx.breakPoints.length > 0) {
-            // Create merge junction for break exits + normal while exit
+            // Create merge junction for break exits + normal while exit.
+            // PlantUML renders these exit edges without labels.
             const mergeId = createMergeDiamond();
-            addEdge(ctx.condId, mergeId, noLabel);
+            addEdge(ctx.condId, mergeId);
             for (const bp of ctx.breakPoints) {
               addEdge(bp.cursor, mergeId, bp.label);
             }
