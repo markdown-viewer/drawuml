@@ -665,12 +665,13 @@ export function parseActivityDiagram(
     // ── Colored activity via declaration_statement (#color:text;) ──
     if (kind === 'declaration_statement' && st.visibility === '#') {
       const raw = String(st.text || '');
-      // Parse "color:text;" pattern
-      const m = raw.match(/^(\w+):(.+?)(?:;)?$/);
+      // Parse "color:text;" pattern, with optional "; <<stereotype>>" suffix
+      const m = raw.match(/^(\w+):(.+?);?\s*(?:<<(.*?)>>)?\s*$/);
       if (m) {
         const color = '#' + m[1];
         const label = m[2].trim();
-        const nodeId = createActionNode(label, color);
+        const stereo = m[3] ? m[3].trim() : null;
+        const nodeId = createActionNode(label, color, stereo);
         connectCursorsTo(nodeId);
         cursors = [nodeId];
         continue;
