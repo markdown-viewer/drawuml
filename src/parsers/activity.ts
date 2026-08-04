@@ -30,6 +30,21 @@ function resetIds(): void {
   idCounter = 0;
 }
 
+/** Extract content between balanced parentheses starting at `start`.
+ *  Returns `{ content, end }` where `end` is the position after the closing `)`, or `null`. */
+function extractBalancedParen(s: string, start: number): { content: string; end: number } | null {
+  if (start >= s.length || s[start] !== '(') return null;
+  let depth = 1;
+  let i = start + 1;
+  while (i < s.length && depth > 0) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    i++;
+  }
+  if (depth !== 0) return null;
+  return { content: s.substring(start + 1, i - 1), end: i };
+}
+
 // ---------------------------------------------------------------------------
 // Parser
 // ---------------------------------------------------------------------------
@@ -296,6 +311,14 @@ export function parseActivityDiagram(
     const label = activityAccum.lines.join('\n');
     const nodeId = createActionNode(label, activityAccum.color);
     connectCursorsTo(nodeId);
+    // Handle switch fallthrough for multi-line activities
+    const swCtx = controlStack[controlStack.length - 1];
+    if (swCtx && swCtx.type === 'switch' && swCtx.fallthroughSources.length > 0) {
+      for (const src of swCtx.fallthroughSources) {
+        addEdge(src, nodeId);
+      }
+      swCtx.fallthroughSources = [];
+    }
     cursors = [nodeId];
     activityAccum = null;
   }
@@ -348,6 +371,8 @@ export function parseActivityDiagram(
     type: 'switch';
     diamondId: string;
     branchEnds: string[][];
+    breakPoints: BreakPoint[];
+    fallthroughSources: string[];  // cursors from previous case that falls through
   }
 
   type ControlContext = IfContext | WhileContext | RepeatContext | ForkContext | SwitchContext;
@@ -539,10 +564,17 @@ export function parseActivityDiagram(
 
     // ── Break ──
     if (kind === 'control_statement' && rawText === 'break') {
-      // Find nearest while/repeat context and save break cursors
+      // Find nearest while/repeat/switch context and save break cursors
       for (let si = controlStack.length - 1; si >= 0; si--) {
         const ctx = controlStack[si];
         if (ctx.type === 'while' || ctx.type === 'repeat') {
+          const label = pendingArrowLabel || '';
+          for (const c of cursors) {
+            ctx.breakPoints.push({ cursor: c, label });
+          }
+          break;
+        }
+        if (ctx.type === 'switch') {
           const label = pendingArrowLabel || '';
           for (const c of cursors) {
             ctx.breakPoints.push({ cursor: c, label });
@@ -583,6 +615,14 @@ export function parseActivityDiagram(
       const label = String(st.text || '');
       const nodeId = createActionNode(label, st.color, st.stereotype || null);
       connectCursorsTo(nodeId);
+      // Handle switch fallthrough: connect previous case's tail to this action
+      const swCtx = controlStack[controlStack.length - 1];
+      if (swCtx && swCtx.type === 'switch' && swCtx.fallthroughSources.length > 0) {
+        for (const src of swCtx.fallthroughSources) {
+          addEdge(src, nodeId);
+        }
+        swCtx.fallthroughSources = [];
+      }
       cursors = [nodeId];
       continue;
     }
@@ -789,10 +829,19 @@ export function parseActivityDiagram(
       const kw = String(st.keyword || '').toLowerCase();
       if (kw === 'while' || kw === '') {
         const text = String(st.text || '');
-        // Parse condition and is-label from text: "(cond) is (label)"
-        const condMatch = text.match(/^\(([^)]*)\)(?:\s+is\s+\(([^)]*)\))?/i);
-        const cond = condMatch ? condMatch[1] : text;
-        const yesLabel = condMatch && condMatch[2] ? condMatch[2] : 'yes';
+        // Parse condition and is-label from text: "(cond)" or "(cond) is (label)"
+        const paren = extractBalancedParen(text, 0);
+        const cond = paren ? paren.content : text;
+        let yesLabel = 'yes';
+        if (paren) {
+          const after = text.substring(paren.end).trim();
+          const isMatch = /^is\s*\(/i.test(after);
+          if (isMatch) {
+            const isIdx = after.indexOf('(');
+            const yesParen = extractBalancedParen(after, isIdx);
+            if (yesParen) yesLabel = yesParen.content;
+          }
+        }
         const diamondId = createDiamond(cond);
         connectCursorsTo(diamondId);
         cursors = [diamondId];
@@ -807,8 +856,8 @@ export function parseActivityDiagram(
         });
       } else if (kw === 'endwhile') {
         const text = String(st.text || '');
-        const outMatch = text.match(/^\(([^)]*)\)/);
-        const noLabel = outMatch ? outMatch[1] : 'no';
+        const outParen = extractBalancedParen(text, 0);
+        const noLabel = outParen ? outParen.content : 'no';
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'while') {
           // Loop back edge: current → diamond (via backward node if present)
@@ -865,10 +914,28 @@ export function parseActivityDiagram(
       } else if (kw === 'repeat while') {
         const text = String(st.text || '');
         // Parse: "(cond)" or "(cond) is (yes)" or "(cond) is (yes) not (no)"
-        const m = text.match(/^\(([^)]*)\)(?:\s+is\s+\(([^)]*)\))?(?:\s+not\s+\(([^)]*)\))?/i);
-        const cond = m ? m[1] : text;
-        const yesLabel = m && m[2] ? m[2] : 'yes';
-        const noLabel = m && m[3] ? m[3] : 'no';
+        const paren = extractBalancedParen(text, 0);
+        const cond = paren ? paren.content : text;
+        let yesLabel = 'yes';
+        let noLabel = 'no';
+        if (paren) {
+          const after = text.substring(paren.end).trim();
+          const isMatch = /^is\s*\(/i.test(after);
+          if (isMatch) {
+            const isIdx = after.indexOf('(');
+            const yesParen = extractBalancedParen(after, isIdx);
+            if (yesParen) {
+              yesLabel = yesParen.content;
+              const afterYes = after.substring(yesParen.end).trim();
+              const notMatch = /^not\s*\(/i.test(afterYes);
+              if (notMatch) {
+                const notIdx = afterYes.indexOf('(');
+                const noParen = extractBalancedParen(afterYes, notIdx);
+                if (noParen) noLabel = noParen.content;
+              }
+            }
+          }
+        }
         const ctx = controlStack.pop();
         if (ctx && ctx.type === 'repeat') {
           // Create condition diamond at bottom
@@ -1040,6 +1107,8 @@ export function parseActivityDiagram(
         type: 'switch',
         diamondId,
         branchEnds: [],
+        breakPoints: [],
+        fallthroughSources: [],
       });
       continue;
     }
@@ -1049,7 +1118,9 @@ export function parseActivityDiagram(
       const ctx = controlStack[controlStack.length - 1];
       if (ctx && ctx.type === 'switch') {
         if (cursors[0] !== ctx.diamondId) {
-          ctx.branchEnds.push([...cursors]);
+          // Fallthrough: previous case didn't break.
+          // Save cursors so the next action connects from them (without case label).
+          ctx.fallthroughSources = [...cursors];
         }
         cursors = [ctx.diamondId];
         const text = String(st.text || '').replace(/^\(/, '').replace(/\)$/, '').trim();
@@ -1063,13 +1134,16 @@ export function parseActivityDiagram(
       const ctx = controlStack.pop();
       if (ctx && ctx.type === 'switch') {
         ctx.branchEnds.push([...cursors]);
+        // Collect branch ends + break points as candidates for merge
         const allEnds = ([] as string[]).concat(...ctx.branchEnds).filter(c => c);
-        if (allEnds.length > 1) {
+        const breakEnds = ctx.breakPoints.map(bp => bp.cursor).filter(c => c);
+        const allCandidates = [...allEnds, ...breakEnds];
+        if (allCandidates.length > 1) {
           const mergeId = createMergeDiamond();
-          for (const c of allEnds) { addEdge(c, mergeId); }
+          for (const c of allCandidates) { addEdge(c, mergeId); }
           cursors = [mergeId];
-        } else if (allEnds.length === 1) {
-          cursors = allEnds;
+        } else if (allCandidates.length === 1) {
+          cursors = allCandidates;
         }
       }
       continue;
