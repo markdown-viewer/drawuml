@@ -37,7 +37,7 @@ class GanttBarRenderer extends Renderer {
     // Width is determined by layout (date range), not by content.
     const font = { size: this.theme.fontSize, family: this.theme.fontFamily };
     const labelW = this._label ? TextBlock.inline(this._label, font).width + this.theme.padS : 0;
-    return { width: Math.max(labelW, this.theme.sizeL), height: this.theme.titleBarH };
+    return { width: Math.max(labelW, this.theme.sizeL), height: this.theme.rowH };
   }
 
   render(box: ContentBox): string[] {

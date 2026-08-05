@@ -62,8 +62,8 @@ export function ganttLayout(model: GanttModel, options: GanttLayoutOptions = {})
   const baseHeaderH = Math.round(theme.sizeL); // 40 @12
   const baseDayW = Math.round(theme.sizeS);    // 20 @12
   // bar height from theme semantic alias; rowH = barH + 2×padXXS (padXXS = per-side bar gap)
-  const barH = Math.round(theme.titleBarH);        // 20 @12
-  const rowH = barH + theme.padXXS * 2;           // 24 @12, 29.33 @16
+  const barH = Math.round(theme.rowH);           // 20 @12
+  const rowH = barH + theme.padXXS * 2;           // 24 @12
   const nodes: Record<string, GanttLayoutNode> = {};
   const edges: GanttLayoutEdge[] = [];
   const st = model.style || {} as any;
