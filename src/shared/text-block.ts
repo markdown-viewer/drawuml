@@ -372,6 +372,10 @@ function creoleInline(text: string): string {
   s = s.replace(/<font:([^>]+)>([\s\S]*?)<\/font>/gi,
     (_, f, t) => `<font face="${f.trim()}">${t}</font>`);
 
+  // <color:value> (unclosed legacy syntax) → <font color="value"> for rest of text
+  // Handles cases like "<color:OrangeRed><b> Unknown" without </color>.
+  s = s.replace(/<color:([^>]+)>/gi, (_, c) => `<font color="${c.trim()}">`);
+
   // <w[:color]>text</w> → <u>text</u>
   s = s.replace(/<w(?::[^>]*)?>(([\s\S]*?))<\/w>/gi, '<u>$1</u>');
 
@@ -394,6 +398,13 @@ function creoleInline(text: string): string {
   s = s.replace(/__(.+?)__/g, '<u>$1</u>');
   s = s.replace(/--(.+?)--/g, '<s>$1</s>');
   s = s.replace(/""(.+?)""/g, '<code>$1</code>');
+
+  // PlantUML links: [[url]] or [[url label]] → <a href="url">label</a>
+  // Label defaults to the URL when omitted.
+  s = s.replace(/\[\[\s*([^\s\]]+)(?:\s+([^\]]+))?\]\]/g, (_, url, label) => {
+    const text = label ? label.trim() : url;
+    return `<a href="${url}">${text}</a>`;
+  });
 
   // Unescape PlantUML Unicode escape: <U+XXXX> → character
   s = s.replace(/<U\+([0-9A-Fa-f]{4,5})>/g, (_, hex) =>
@@ -432,7 +443,7 @@ function creoleInline(text: string): string {
   }
 
   // --- Escape stray angle brackets that are NOT known HTML tags ---
-  const ALLOWED_TAG = /^<\/?(?:b|i|u|s|strike|del|plain|back|w|font|color|size|sub|sup|code|pre|img|text|math|latex|hr|br|span|div|p|table|tr|td|th)[\s>/]/i;
+  const ALLOWED_TAG = /^<\/?(?:b|i|u|s|strike|del|plain|back|w|font|color|size|sub|sup|code|pre|img|text|math|latex|hr|br|span|div|p|table|tr|td|th|a)[\s>/]/i;
   const VOID_ALLOWED = /^<(?:br|hr|img)\s*\/?>/i;
   s = s.replace(/<[^>]*>/g, (tag) => {
     if (ALLOWED_TAG.test(tag) || VOID_ALLOWED.test(tag)) return tag;
@@ -516,10 +527,53 @@ const RE_SEP_TITLED_DOTTED = /^\.\.(.+)\.\.$/;
 const RE_HEADING = /^(={1,4})\s*(.+)$/;
 const RE_UNORDERED_LIST = /^(\*+)\s+(.*)$/;
 const RE_ORDERED_LIST   = /^(#+)\s+(.*)$/;
-const RE_TABLE_ROW = /^(?:<#([^>]+)>)?\|(.+)\|$/;
+const RE_TABLE_ROW = /^(?:<#([^>]+)>)?\|([\s\S]+)\|;?$/;
+const RE_TABLE_ROW_START = /^(?:<#[^>]+>)?\|/;
 const RE_TREE_ITEM = /^(\s*)\|_\s*(.*)$/;
 const RE_CODE_START = /^<code>$/i;
 const RE_CODE_END   = /^<\/code>$/i;
+
+function normalizeTableColor(v: string): string {
+  const s = String(v || '').trim();
+  // Hex colors must keep the leading '#' for valid CSS (e.g. <#FBFB77>).
+  // Named colors (white, gainsboro, ...) are used as-is.
+  if (/^[0-9a-fA-F]{3,8}$/.test(s)) return '#' + s;
+  return s;
+}
+
+/**
+ * Try to match a table row starting at lines[i].
+ *
+ * A table row may span multiple physical lines when cell content contains
+ * `\n` escapes (e.g. mindmap multi-line node text) — those lines are joined
+ * with '\n' before matching. Trailing ';' (activity block terminator) is
+ * tolerated.
+ *
+ * Returns { rm, next } where rm is the RE_TABLE_ROW match and next is the
+ * index of the first line after the row; or null when lines[i] is not a
+ * table row.
+ */
+function tryMatchTableRow(lines: string[], i: number): { rm: RegExpMatchArray; next: number } | null {
+  const first = lines[i].trim();
+  let rm = first.match(RE_TABLE_ROW);
+  if (rm) return { rm, next: i + 1 };
+  // Multi-line table row: starts with '|' (or <#color>|) but does not end
+  // with '|' yet. Consume subsequent lines until one ends with '|' (with
+  // non-empty content before the pipe).
+  if (!RE_TABLE_ROW_START.test(first) || RE_TREE_ITEM.test(lines[i])) return null;
+  const parts: string[] = [first];
+  let j = i + 1;
+  while (j < lines.length) {
+    const t = lines[j].trim();
+    parts.push(t);
+    j++;
+    if (/\|;?\s*$/.test(t) && !/^\|;?\s*$/.test(t)) break;
+  }
+  const joined = parts.join('\n');
+  rm = joined.match(RE_TABLE_ROW);
+  if (!rm) return null;
+  return { rm, next: j };
+}
 
 function parseCreoleBlocks(lines: string[]): CreoleBlock[] {
   const blocks: CreoleBlock[] = [];
@@ -588,18 +642,18 @@ function parseCreoleBlocks(lines: string[]): CreoleBlock[] {
       continue;
     }
 
-    // Table
-    if (RE_TABLE_ROW.test(trimmed)) {
+    // Table (may span multiple physical lines)
+    const tableMatch = tryMatchTableRow(lines, i);
+    if (tableMatch) {
       const rows: CreoleTableRow[] = [];
-      while (i < lines.length) {
-        const rt = lines[i].trim();
-        const rm = rt.match(RE_TABLE_ROW);
-        if (!rm) break;
+      let next = tableMatch.next;
+      let rm = tableMatch.rm;
+      while (true) {
         const row: CreoleTableRow = { cells: [] };
         if (rm[1]) {
           const parts = rm[1].split(',');
-          row.rowBgColor = parts[0].trim();
-          if (parts[1]) row.rowBorderColor = parts[1].trim();
+          row.rowBgColor = normalizeTableColor(parts[0].trim());
+          if (parts[1]) row.rowBorderColor = normalizeTableColor(parts[1].trim());
         }
         const cellStr = rm[2];
         const cells = splitTableCells(cellStr);
@@ -608,10 +662,17 @@ function parseCreoleBlocks(lines: string[]): CreoleBlock[] {
           row.cells.push(cell);
         }
         rows.push(row);
-        i++;
+        i = next;
+        if (i >= lines.length) break;
+        const m2 = tryMatchTableRow(lines, i);
+        if (!m2) break;
+        rm = m2.rm;
+        next = m2.next;
       }
-      blocks.push({ type: 'table', rows });
-      continue;
+      if (rows.length > 0) {
+        blocks.push({ type: 'table', rows });
+        continue;
+      }
     }
 
     // Tree structure: |_ item
@@ -662,7 +723,7 @@ function parseTableCell(raw: string): CreoleTableCell {
   let bgColor: string | undefined;
   if (s.startsWith('=')) { isHeader = true; s = s.slice(1).trim(); }
   const colorMatch = s.match(/^<#([^>]+)>\s*(.*)/);
-  if (colorMatch) { bgColor = colorMatch[1].trim(); s = colorMatch[2]; }
+  if (colorMatch) { bgColor = normalizeTableColor(colorMatch[1]); s = colorMatch[2]; }
   return { isHeader, bgColor, content: s.trim() };
 }
 

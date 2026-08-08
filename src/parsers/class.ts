@@ -116,6 +116,7 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
   let legendBlock: { lines: string[]; align: string | null } | null = null;  // multi-line legend accumulator
   let legend: { text: string; align?: string } | null = null;
   let title: string | undefined;
+  let titleBlockLines: string[] | null = null;  // multi-line title accumulator
   const skinparams: Record<string, string> = {};
   // Concurrent region counter per state group: tracks how many '--' separators
   // have been seen inside each state, used to generate unique [*] IDs per region.
@@ -550,6 +551,19 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // legend_text_line or any other line inside legend block
       const text = String(st.text || st.raw || '').trim();
       if (text) legendBlock.lines.push(text);
+      continue;
+    }
+
+    // Title block accumulation: "title ... end title"
+    if (titleBlockLines) {
+      if (st.kind === 'block_statement' && st.type === 'title_end') {
+        title = titleBlockLines.join('\n');
+        titleBlockLines = null;
+        continue;
+      }
+      // title_text_line or any other line inside title block
+      const text = String(st.text || st.raw || '');
+      if (text.trim()) titleBlockLines.push(text.trim());
       continue;
     }
 
@@ -1762,6 +1776,12 @@ export function parseClassDiagram(statements: any[], options: ParseClassDiagramO
       // Multi-line legend start: "legend" / "legend left" / "legend right"
       if (st.kind === 'block_statement' && st.type === 'legend_start') {
         legendBlock = { lines: [], align: st.pos || null };
+        continue;
+      }
+
+      // Multi-line title start: "title" ... "end title"
+      if (st.kind === 'block_statement' && st.type === 'title_start') {
+        titleBlockLines = [];
         continue;
       }
 

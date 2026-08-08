@@ -55,6 +55,19 @@ function normalizeBlockHtml(text?: string | null, theme?: Theme): string | undef
   return TextBlock.block(text, fontFromTheme(theme)).html;
 }
 
+/**
+ * Title text → HTML with block-level Creole processing (tables, lists, etc.).
+ * Wrapped in a font-color span like normalizeInlineHtml so multi-line and
+ * table-containing titles render with the theme color.
+ */
+function normalizeTitleHtml(text?: string | null, theme?: Theme): string | undefined {
+  if (!text) return undefined;
+  const html = TextBlock.block(text, fontFromTheme(theme)).html;
+  const color = theme?.fontColor;
+  if (!color) return html;
+  return `<span style="color:${color};">${html}</span>`;
+}
+
 function classifySeparator(line: string): { variant: string; title?: string } | null {
   if (RE_SEP_SOLID.test(line)) return { variant: 'solid' };
   if (RE_SEP_DOUBLE.test(line)) return { variant: 'double' };
@@ -116,6 +129,30 @@ function normalizeRichBlocks(text?: string | null, theme?: Theme): NormalizedRic
   return blocks;
 }
 
+const RE_LABEL_TABLE_ROW = /^\s*(?:<#[^>]+>)?\|/;
+
+/**
+ * Node label → HTML.
+ *
+ * Multi-line labels containing table rows (`| ... |`) must use block-level
+ * Creole processing so tables render as HTML tables instead of source text
+ * (activity diagram text blocks, mindmap node text, etc.).
+ */
+function normalizeNodeLabelHtml(
+  label?: string | null,
+  theme?: Theme,
+  colorOverride?: string,
+): string | undefined {
+  if (!label) return undefined;
+  const hasTableRow = label.split('\n').some((l) => RE_LABEL_TABLE_ROW.test(l));
+  const html = hasTableRow
+    ? TextBlock.block(label, fontFromTheme(theme)).html
+    : TextBlock.inline(label, fontFromTheme(theme)).html;
+  const color = colorOverride || theme?.fontColor;
+  if (!color) return html;
+  return `<span style="color:${color};">${html}</span>`;
+}
+
 function normalizeClassNode(node: SemanticNode, theme?: Theme, defaultVisibilityIcons?: boolean): SemanticNode {
   const entityType = node.stereotype || node.type || '';
   const autoSeparator = entityType !== 'object' && node.type !== 'state';
@@ -123,7 +160,7 @@ function normalizeClassNode(node: SemanticNode, theme?: Theme, defaultVisibility
   const textColor = parseNodeStyle(node.style)?.textColor;
   return {
     ...node,
-    labelHtml: normalizeInlineHtml(node.label, theme, textColor),
+    labelHtml: normalizeNodeLabelHtml(node.label, theme, textColor),
     bodyBlocks: normalizeClassBodyBlocks({
       nodeId: node.id,
       bodyLines: node.bodyLines,
@@ -177,7 +214,7 @@ export function normalizeClassModelText(model: SemanticModel, theme?: Theme): Se
   const visibilityIcons = !(model.skinparams && model.skinparams.classAttributeIconSize === '0');
   return {
     ...model,
-    titleHtml: normalizeInlineHtml(model.title, theme),
+    titleHtml: normalizeTitleHtml(model.title, theme),
     nodes: model.nodes.map((node) => normalizeClassNode(node, theme, visibilityIcons)),
     edges: model.edges.map((edge) => normalizeClassEdge(edge, theme)),
     notes: model.notes?.map((note) => normalizeClassNote(note, theme)),

@@ -460,7 +460,18 @@ export function positionTitle(layout: LayoutResult, renderers: Map<string, Rende
   const nodeValues = Object.values(layout.nodes);
   const groupValues: LayoutNode[] = layout.groups ? Object.values(layout.groups) : [];
   const allBoxes = [...nodeValues, ...groupValues];
-  if (allBoxes.length === 0) return;
+  if (allBoxes.length === 0) {
+    // Title-only diagram (e.g. a `title ... end title` block with no nodes):
+    // place the title at the origin so it is still rendered.
+    layout.nodes['__title__'] = {
+      id: '__title__',
+      x: 0,
+      y: 0,
+      width: sz.width,
+      height: sz.height,
+    };
+    return;
+  }
 
   const minX = Math.min(...allBoxes.map(n => n.x));
   const maxX = Math.max(...allBoxes.map(n => n.x + n.width));
