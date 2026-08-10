@@ -336,7 +336,9 @@ export function createThemeFromSkinparams(
     ...baseConfig,
     mode: baseConfig?.mode,
     themeName,
-    fontFamily: stripOptionalQuotes(getSkinparamValue(skinparams, 'defaultFontName')) || baseConfig?.fontFamily,
+    // `skinparam defaultFontName` is intentionally ignored: user-specified
+    // fonts (e.g. "Microsoft YaHei") often mismatch the rendering environment.
+    fontFamily: baseConfig?.fontFamily,
     fontColor: getSkinparamValue(skinparams, 'defaultFontColor') || baseConfig?.fontColor,
     noteFill: getSkinparamValue(skinparams, 'NoteBackgroundColor') || baseConfig?.noteFill,
     noteBorderColor: getSkinparamValue(skinparams, 'NoteBorderColor') || baseConfig?.noteBorderColor,
