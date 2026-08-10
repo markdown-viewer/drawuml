@@ -59,7 +59,7 @@ export function mindmapToDrawioXml(
       + `strokeColor=${theme.colorDark};strokeWidth=${theme.strokeWidth};`;
 
     cells.push(
-      `<mxCell id="${escapeXml(cellId(edgeId))}" value="" style="${style}" edge="1" parent="${escapeXml(cellId('1'))}" source="${escapeXml(cellId(edge.fromId))}" target="${escapeXml(cellId(edge.toId))}">`
+      `<mxCell id="${escapeXml(cellId(edgeId))}" value="" style="${escapeXml(style)}" edge="1" parent="${escapeXml(cellId('1'))}" source="${escapeXml(cellId(edge.fromId))}" target="${escapeXml(cellId(edge.toId))}">`
       + `<mxGeometry relative="1" as="geometry"/>`
       + `</mxCell>`
     );

@@ -39,7 +39,7 @@ export function cellId(id: string): string {
 
 /**
  * Build a vertex mxCell XML string with mxGeometry.
- * `id`, `value` and `parent` are auto-escaped.
+ * `id`, `value`, `style` and `parent` are auto-escaped.
  * Cell ids are automatically prefixed via `cellId()` to avoid
  * collisions with JavaScript built-in property names in draw.io.
  */
@@ -58,7 +58,7 @@ export function mxVertex(opts: {
   const parent = escapeXml(cellId(opts.parent));
   const xAttr = opts.x != null ? ` x="${n4(opts.x)}"` : '';
   const yAttr = ` y="${n4(opts.y)}"`;
-  return `<mxCell${idAttr} value="${value}" style="${opts.style}" vertex="1" parent="${parent}">`
+  return `<mxCell${idAttr} value="${value}" style="${escapeXml(opts.style)}" vertex="1" parent="${parent}">`
     + `<mxGeometry${xAttr}${yAttr} width="${n4(opts.width)}" height="${n4(opts.height)}" as="geometry"/>`
     + `</mxCell>`;
 }

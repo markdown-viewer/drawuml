@@ -29,7 +29,7 @@ export function renderDurationConstraint(dc: {
   const sw = theme.strokeWidth;
   const lineStyle = `endArrow=block;endFill=1;startArrow=block;startFill=1;strokeColor=${colorDark};strokeWidth=${sw};`;
   cells.push(
-    `<mxCell id="${escapeXml(cellId(dc.id + '_line'))}" value="" style="${lineStyle}" edge="1" parent="1">`
+    `<mxCell id="${escapeXml(cellId(dc.id + '_line'))}" value="" style="${escapeXml(lineStyle)}" edge="1" parent="1">`
     + `<mxGeometry relative="1" as="geometry">`
     + `<mxPoint x="${n4(dc.x)}" y="${n4(dc.y1)}" as="sourcePoint"/>`
     + `<mxPoint x="${n4(dc.x)}" y="${n4(dc.y2)}" as="targetPoint"/>`

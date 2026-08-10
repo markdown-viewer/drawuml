@@ -173,13 +173,34 @@ function getSkinparamValue(skinparams: Record<string, string> | undefined, key: 
   return foundKey ? skinparams[foundKey] : undefined;
 }
 
+/**
+ * Strip optional surrounding quotes from a string value.
+ *
+ * Font stacks are handled per comma-separated entry so CSS-style chains like
+ * `FangSong, "Times New Roman", serif` become XML-attribute safe: DrawIO style
+ * attributes must not contain raw double quotes (SVG output re-quotes
+ * multi-word fonts via drawio2svg's quoteFontFamily).
+ */
 function stripOptionalQuotes(value?: string): string | undefined {
   if (!value) return value;
   const trimmed = String(value).trim();
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
+  if (!trimmed) return trimmed;
+  const strip = (part: string): string => {
+    const p = part.trim();
+    if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) {
+      return p.slice(1, -1).trim();
+    }
+    return p;
+  };
+  const wholeWrapped =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+  const inner = wholeWrapped ? trimmed.slice(1, -1) : trimmed;
+  // Whole-value wrapping quotes (`"FangSong, SimSun"`) are only treated as
+  // one quoted value when no inner quotes exist; otherwise the quotes belong
+  // to individual entries (`'FangSong', 'SimSun'`) and are stripped per part.
+  const useInner = wholeWrapped && !inner.includes('"') && !inner.includes("'");
+  return (useInner ? inner : trimmed).split(',').map(strip).join(', ');
 }
 
 /** Create a fully computed Theme from minimal config. */

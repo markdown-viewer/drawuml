@@ -660,7 +660,7 @@ export async function elkSwimlaneLayout2(
       + `strokeWidth=${theme.strokeWidth};fillColor=${fill};swimlaneFillColor=${fill};strokeColor=${theme.colorDark};`
       + `fontStyle=0;fontSize=${theme.fontSize};fontColor=${theme.fontColor};${fontFamilyStyle(theme)}`;
     prefixCells.push(
-      `<mxCell id="${escapeXml(cellId(rid))}" value="${escapeXml(label)}" style="${style}" `
+      `<mxCell id="${escapeXml(cellId(rid))}" value="${escapeXml(label)}" style="${escapeXml(style)}" `
       + `vertex="1" parent="${escapeXml(cellId(swimContainer.id))}">`
       + `<mxGeometry x="${n4(laneXStart[li])}" y="0" width="${n4(laneWidths[li])}" height="${n4(totalH)}" as="geometry"/>`
       + `</mxCell>`,

@@ -305,7 +305,7 @@ export class ConcurrentRegionRenderer extends Renderer {
       + `fontStyle=0;fontSize=${this.theme.fontSize};fontColor=${this.theme.fontColor};${fontFamilyStyle(this.theme)}`;
     const label = this.regionLabel ? escapeXml(this.regionLabel) : '';
     const cells: string[] = [
-      `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
+      `<mxCell id="${escapeXml(cellId(this.id))}" value="${label}" style="${escapeXml(style)}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
       + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
       + `</mxCell>`,
     ];
@@ -434,7 +434,7 @@ class StateNodeRenderer extends SwimlaneRenderer {
       const parentCellId = this.parentId || '1';
       const titleBarH = Math.ceil(labelMeas.measure().height) + this.theme.titlePadY;
       const style = stateGroupStyle(titleBarH, this.theme, this.nodeStyle);
-      const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${style}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
+      const cells = [`<mxCell id="${escapeXml(cellId(this.id))}" value="${escapeXml(labelHtml)}" style="${escapeXml(style)}" vertex="1" parent="${escapeXml(cellId(parentCellId))}">`
         + `<mxGeometry x="${n4(box.x)}" y="${n4(box.y)}" width="${n4(box.width)}" height="${n4(box.height)}" as="geometry"/>`
         + `</mxCell>`];
 

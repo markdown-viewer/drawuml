@@ -160,7 +160,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.literal(entry.key, plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.literal(entry.key, plainFont).html)}" style="${escapeXml(rowStyle)}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${n4(y)}" width="${n4(box.width)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -184,7 +184,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.literal(entry.value || '', plainFont).html)}" style="${rowStyle}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
+          `<mxCell id="${escapeXml(cellId(rowId))}" value="${escapeXml(TextBlock.literal(entry.value || '', plainFont).html)}" style="${escapeXml(rowStyle)}" vertex="1" parent="${escapeXml(cellId(this.node.id))}">`
           + `<mxGeometry y="${n4(y)}" width="${n4(box.width)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );
@@ -209,7 +209,7 @@ class MapNodeRenderer extends Renderer {
         ].join(';') + ';' + fontStyle;
 
         cells.push(
-          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(TextBlock.literal(entry.key, plainFont).html)}" style="${keyStyle}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
+          `<mxCell id="${escapeXml(cellId(keyId))}" value="${escapeXml(TextBlock.literal(entry.key, plainFont).html)}" style="${escapeXml(keyStyle)}" vertex="1" connectable="0" parent="${escapeXml(cellId(rowId))}">`
           + `<mxGeometry width="${n4(keyColW)}" height="${n4(rowH)}" as="geometry"/>`
           + `</mxCell>`
         );

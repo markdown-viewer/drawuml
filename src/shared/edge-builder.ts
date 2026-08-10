@@ -110,7 +110,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
 
   if (geoContent) {
     cells.push(
-      `<mxCell id="${escapeXml(edgeId)}" value="${value}" style="${style}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
+      `<mxCell id="${escapeXml(edgeId)}" value="${value}" style="${escapeXml(style)}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
       + `<mxGeometry relative="1" as="geometry"${geoAttrs}>`
       + geoContent
       + `</mxGeometry>`
@@ -118,7 +118,7 @@ export function buildEdgeCells(spec: EdgeCellSpec): string[] {
     );
   } else {
     cells.push(
-      `<mxCell id="${escapeXml(edgeId)}" value="${value}" style="${style}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
+      `<mxCell id="${escapeXml(edgeId)}" value="${value}" style="${escapeXml(style)}" edge="1" parent="${parent}"${srcAttr}${tgtAttr}>`
       + `<mxGeometry relative="1" as="geometry"${geoAttrs}/>`
       + `</mxCell>`
     );
