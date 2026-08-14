@@ -18,7 +18,7 @@ class CardRenderer extends RichRenderer {
     return this.isCluster;
   }
   protected override get titleAreaHeight(): number {
-    return this.computeLabelHeight();
+    return this.hasTitlebar ? this.computeLabelHeight() : 0;
   }
 
   protected buildStyle(): string {
